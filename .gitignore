@@ -1,0 +1,32 @@
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.cache/
+*.log
+.env
+.env.local
+.env.*.local
+
+# AWS SAM
+.aws-sam/
+samconfig.toml.local
+packaged.yaml
+
+# TypeScript
+*.tsbuildinfo
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Misc
+*.zip

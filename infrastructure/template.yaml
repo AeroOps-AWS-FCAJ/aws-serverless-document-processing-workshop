@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DocuFlow AI - Serverless intelligent invoice and receipt processing platform.
+  Single SAM stack provisioning Cognito, API Gateway, Lambda, S3, DynamoDB,
+  EventBridge, SQS, Step Functions, SNS, and CloudFront in ap-southeast-1.
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, prod]
+    Default: dev
+    Description: Deployment environment.
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Bedrock model invoked by the validateExtraction Lambda.
+  BedrockRegion:
+    Type: String
+    Default: ap-southeast-1
+    Description: Region used for Bedrock InvokeModel; falls back to us-east-1 if the chosen model is not GA in ap-southeast-1.
+  ConfidenceThreshold:
+    Type: Number
+    Default: 0.7
+    MinValue: 0
+    MaxValue: 1
+    Description: Documents below this confidence are flagged REVIEW_REQUIRED.
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 256
+    Timeout: 30
+    Architectures: [arm64]
+    Tracing: Active
+    Environment:
+      Variables:
+        ENV: !Ref Env
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref BedrockRegion
+        CONFIDENCE_THRESHOLD: !Ref ConfidenceThreshold
+
+Resources:
+  # Resources are added per workshop module:
+  #   5.3  Cognito User Pool, SPA S3 bucket, CloudFront, presignUpload Lambda
+  #   5.4  docuflow-raw + docuflow-processed buckets, EventBridge rule, SQS + DLQ, startProcessing Lambda
+  #   5.5  Step Functions state machine (8 states), Bedrock IAM, validateExtraction Lambda
+  #   5.6  DynamoDB Documents table, API Gateway, updateStatus + reviewUpdate Lambdas
+  #   5.7  CloudWatch alarms, SNS docuflow-alerts topic, AWS Budgets, KMS hardening
+  Bootstrap:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /docuflow-ai/${Env}/bootstrap
+      Type: String
+      Value: !Sub ${AWS::StackName}-bootstrapped
+      Description: Marker that the DocuFlow AI stack has been deployed.
+
+Outputs:
+  StackName:
+    Description: Name of this CloudFormation stack.
+    Value: !Ref AWS::StackName
+  Region:
+    Description: AWS region where the stack is deployed.
+    Value: !Ref AWS::Region
+  Env:
+    Description: Environment label.
+    Value: !Ref Env

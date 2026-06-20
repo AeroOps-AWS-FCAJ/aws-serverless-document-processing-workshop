@@ -1,0 +1,19 @@
+{
+  "name": "docuflow-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DocuFlow AI - Serverless intelligent invoice and receipt processing platform on AWS",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "lint": "pnpm -r --parallel run lint",
+    "typecheck": "pnpm -r --parallel run typecheck",
+    "test": "pnpm -r --parallel run test",
+    "build": "pnpm -r --parallel run build",
+    "sam:validate": "sam validate --lint --template infrastructure/template.yaml"
+  },
+  "devDependencies": {}
+}

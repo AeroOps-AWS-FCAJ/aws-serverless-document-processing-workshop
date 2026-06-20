@@ -1,0 +1,26 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "docuflow-ai-dev"
+
+[default.deploy.parameters]
+region = "ap-southeast-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+fail_on_empty_changeset = false
+resolve_s3 = true
+parameter_overrides = "Env=dev"
+
+[default.validate.parameters]
+lint = true
+
+[prod.global.parameters]
+stack_name = "docuflow-ai-prod"
+
+[prod.deploy.parameters]
+region = "ap-southeast-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+fail_on_empty_changeset = false
+resolve_s3 = true
+parameter_overrides = "Env=prod"
