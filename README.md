@@ -6,9 +6,9 @@ This repository contains the application code for DocuFlow AI. Workshop document
 
 ## Stack
 
-- **Frontend**: React 18 + TypeScript + Vite, served via Amazon S3 + CloudFront
+- **Frontend**: React 19 + TypeScript + Vite, served via Amazon S3 + CloudFront
 - **Backend**: AWS Lambda (Node.js 20.x, TypeScript) orchestrated by AWS Step Functions
-- **AI**: Amazon Textract `AnalyzeExpense` + Amazon Bedrock (Nova Lite)
+- **AI**: Amazon Textract `AnalyzeExpense` + Amazon Bedrock (Claude 3 Haiku by default; Nova Lite optional if enabled)
 - **Data**: Amazon DynamoDB on-demand, Amazon S3
 - **Eventing**: Amazon EventBridge + Amazon SQS
 - **Auth**: Amazon Cognito
