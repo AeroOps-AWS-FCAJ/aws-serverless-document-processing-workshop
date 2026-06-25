@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   DocuFlow AI - Serverless intelligent invoice and receipt processing platform.
   Single SAM stack provisioning Cognito, API Gateway, Lambda, S3, DynamoDB,
-  EventBridge, SQS, Step Functions, SNS, and CloudFront in ap-southeast-1.
+  EventBridge, SQS, Step Functions, SNS, and Amplify Hosting integration in ap-southeast-1.
 
 Parameters:
   Env:
@@ -42,7 +42,7 @@ Globals:
 
 Resources:
   # Resources are added per workshop module:
-  #   5.3  Cognito User Pool, SPA S3 bucket, CloudFront, presignUpload Lambda
+  #   5.3  Amplify Hosting, Cognito User Pool, presignUpload Lambda
   #   5.4  docuflow-raw + docuflow-processed buckets, EventBridge rule, SQS + DLQ, startProcessing Lambda
   #   5.5  Step Functions state machine (8 states), Bedrock IAM, validateExtraction Lambda
   #   5.6  DynamoDB Documents table, API Gateway, updateStatus + reviewUpdate Lambdas

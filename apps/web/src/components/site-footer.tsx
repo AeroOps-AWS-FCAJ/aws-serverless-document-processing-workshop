@@ -16,7 +16,7 @@ export function SiteFooter() {
             </Link>
           </div>
           <p className="text-xs text-muted-foreground">
-            Serverless invoice and receipt processing on AWS with Cognito, S3, Step Functions, Textract, Bedrock, DynamoDB, CloudWatch, and SNS.
+            Serverless invoice and receipt processing on AWS with Amplify Hosting, Cognito, S3, Step Functions, Textract, Bedrock, DynamoDB, CloudWatch, and SNS.
           </p>
         </div>
       </div>

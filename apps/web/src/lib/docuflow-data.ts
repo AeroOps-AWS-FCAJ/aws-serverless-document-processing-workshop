@@ -88,7 +88,7 @@ export const statusMeta: Record<DocumentStatus, StatusMeta> = {
 export const documents: DocumentRecord[] = [
   {
     documentId: "doc-001",
-    fileName: "invoice-aws-cloudfront-june.pdf",
+    fileName: "invoice-aws-amplify-june.pdf",
     documentType: "INVOICE",
     status: "EXTRACTED",
     vendorName: "AWS Vietnam Partner",
@@ -100,12 +100,12 @@ export const documents: DocumentRecord[] = [
     createdAt: "2026-06-24T08:12:00Z",
     updatedAt: "2026-06-24T08:13:18Z",
     owner: "finance.user",
-    s3RawPath: "raw/user-123/2026/06/24/doc-001/invoice-aws-cloudfront-june.pdf",
+    s3RawPath: "raw/user-123/2026/06/24/doc-001/invoice-aws-amplify-june.pdf",
     s3ProcessedPath: "processed/user-123/2026/06/24/doc-001/result.json",
     missingFields: [],
     lineItems: [
       {
-        description: "CloudFront and S3 static hosting",
+        description: "AWS Amplify frontend hosting",
         quantity: 1,
         unitPrice: 2250000,
         amount: 2250000,
@@ -370,7 +370,7 @@ export const roleCapabilities = [
 
 export const demoScript = [
   "Introduce manual invoice and receipt pain point.",
-  "Open architecture and explain the five AWS layers.",
+  "Open architecture and explain Amplify hosting plus the AWS processing layers.",
   "Sign in with Cognito and upload a clear invoice.",
   "Watch status move from UPLOADED to PROCESSING to EXTRACTED.",
   "Open document detail and review extracted fields.",

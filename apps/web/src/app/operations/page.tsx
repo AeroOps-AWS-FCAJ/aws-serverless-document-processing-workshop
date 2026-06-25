@@ -36,7 +36,7 @@ export default function OperationsPage() {
   return (
     <BaseLayout
       title="Operations"
-      description="Runbook view for workflow, API contract, alerts, IAM ownership, and demo evidence."
+      description="Runbook view for Amplify hosting, workflow, API contract, alerts, IAM ownership, and demo evidence."
     >
       <div className="grid gap-4 px-4 lg:grid-cols-2 lg:px-6">
         <Card>
@@ -102,7 +102,7 @@ export default function OperationsPage() {
               API contract
             </CardTitle>
             <CardDescription>
-              Frontend integration surface for API Gateway and Lambda handlers.
+              Amplify-hosted frontend integration surface for API Gateway and Lambda handlers.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">

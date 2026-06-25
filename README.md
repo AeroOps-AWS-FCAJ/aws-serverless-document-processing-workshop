@@ -6,7 +6,7 @@ This repository contains the application code for DocuFlow AI. Workshop document
 
 ## Stack
 
-- **Frontend**: React 19 + TypeScript + Vite, served via Amazon S3 + CloudFront
+- **Frontend**: React 19 + TypeScript + Vite, deployed with AWS Amplify Hosting
 - **Backend**: AWS Lambda (Node.js 20.x, TypeScript) orchestrated by AWS Step Functions
 - **AI**: Amazon Textract `AnalyzeExpense` + Amazon Bedrock (Claude 3 Haiku by default; Nova Lite optional if enabled)
 - **Data**: Amazon DynamoDB on-demand, Amazon S3
@@ -57,7 +57,7 @@ Resources are added to the SAM template per workshop module:
 | Module | Adds |
 |---|---|
 | 5.2 Prerequisites | Bootstrap stack, IAM baseline |
-| 5.3 Frontend / Auth / Upload | Cognito User Pool, SPA S3 bucket, CloudFront, `presignUpload` Lambda |
+| 5.3 Frontend / Auth / Upload | AWS Amplify Hosting, Cognito User Pool, `presignUpload` Lambda |
 | 5.4 Storage / Ingestion / Workflow | `docuflow-raw`, `docuflow-processed`, EventBridge rule, SQS + DLQ, `startProcessing` Lambda |
 | 5.5 AI Extraction | Step Functions state machine, Bedrock IAM, `validateExtraction` Lambda |
 | 5.6 Data / Result / Review | DynamoDB `Documents`, API Gateway, `updateStatus` and `reviewUpdate` Lambdas |
