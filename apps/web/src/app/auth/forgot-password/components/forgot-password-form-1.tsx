@@ -35,7 +35,7 @@ export function ForgotPasswordForm1({
                   <Input
                     id="email"
                     type="email"
-                    placeholder="reviewer@docuflow.ai"
+                    placeholder="finance@docuflow.ai"
                     required
                   />
                 </div>

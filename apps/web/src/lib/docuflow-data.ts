@@ -7,44 +7,16 @@ import {
   Loader2,
   type LucideIcon,
 } from "lucide-react"
+import type {
+  DocumentResult,
+  DocumentStatus,
+  DocumentType,
+  LineItem,
+} from "@docuflow/shared-types"
 
-export type DocumentStatus =
-  | "UPLOADED"
-  | "PROCESSING"
-  | "EXTRACTED"
-  | "REVIEW_REQUIRED"
-  | "FAILED"
-  | "REVIEWED"
+export type { DocumentStatus, DocumentType, LineItem }
 
-export type DocumentType = "INVOICE" | "RECEIPT"
-
-export interface LineItem {
-  description: string
-  quantity: number
-  unitPrice: number
-  amount: number
-}
-
-export interface DocumentRecord {
-  documentId: string
-  fileName: string
-  documentType: DocumentType
-  status: DocumentStatus
-  vendorName: string
-  invoiceDate: string
-  currency: "VND" | "USD"
-  totalAmount: number
-  taxAmount: number | null
-  confidenceScore: number
-  createdAt: string
-  updatedAt: string
-  owner: string
-  s3RawPath: string
-  s3ProcessedPath: string
-  missingFields: string[]
-  lineItems: LineItem[]
-  errorMessage: string | null
-}
+export type DocumentRecord = DocumentResult
 
 export interface StatusMeta {
   label: string
@@ -56,6 +28,11 @@ export const statusMeta: Record<DocumentStatus, StatusMeta> = {
   UPLOADED: {
     label: "Uploaded",
     tone: "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-300",
+    icon: Clock3,
+  },
+  QUEUED: {
+    label: "Queued",
+    tone: "border-cyan-200 text-cyan-700 dark:border-cyan-900 dark:text-cyan-300",
     icon: Clock3,
   },
   PROCESSING: {
@@ -78,10 +55,15 @@ export const statusMeta: Record<DocumentStatus, StatusMeta> = {
     tone: "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300",
     icon: AlertTriangle,
   },
-  REVIEWED: {
-    label: "Reviewed",
+  CORRECTED: {
+    label: "Corrected",
     tone: "border-violet-200 text-violet-700 dark:border-violet-900 dark:text-violet-300",
     icon: FileCheck2,
+  },
+  APPROVED: {
+    label: "Approved",
+    tone: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+    icon: CheckCircle2,
   },
 }
 
@@ -97,12 +79,14 @@ export const documents: DocumentRecord[] = [
     totalAmount: 2500000,
     taxAmount: 250000,
     confidenceScore: 0.93,
+    aiProvider: "external-ai-api",
+    normalizationMethod: "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API",
     createdAt: "2026-06-24T08:12:00Z",
     updatedAt: "2026-06-24T08:13:18Z",
-    owner: "finance.user",
-    s3RawPath: "raw/user-123/2026/06/24/doc-001/invoice-aws-amplify-june.pdf",
-    s3ProcessedPath: "processed/user-123/2026/06/24/doc-001/result.json",
-    missingFields: [],
+    userId: "user-123",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-123/doc-001/original.pdf",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-123/doc-001/result.json",
+    reviewReasons: [],
     lineItems: [
       {
         description: "AWS Amplify frontend hosting",
@@ -112,6 +96,10 @@ export const documents: DocumentRecord[] = [
       },
     ],
     errorMessage: null,
+    correctedFields: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewerNote: null,
   },
   {
     documentId: "doc-002",
@@ -124,12 +112,14 @@ export const documents: DocumentRecord[] = [
     totalAmount: 842000,
     taxAmount: null,
     confidenceScore: 0.74,
+    aiProvider: "external-ai-api",
+    normalizationMethod: "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API",
     createdAt: "2026-06-24T08:30:00Z",
     updatedAt: "2026-06-24T08:31:10Z",
-    owner: "finance.user",
-    s3RawPath: "raw/user-123/2026/06/24/doc-002/receipt-office-supplies.jpg",
-    s3ProcessedPath: "processed/user-123/2026/06/24/doc-002/result.json",
-    missingFields: ["taxAmount", "currency confidence"],
+    userId: "user-123",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-123/doc-002/original.jpg",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-123/doc-002/result.json",
+    reviewReasons: ["taxAmount missing", "currency confidence is low"],
     lineItems: [
       {
         description: "Office paper and folders",
@@ -144,7 +134,11 @@ export const documents: DocumentRecord[] = [
         amount: 282000,
       },
     ],
-    errorMessage: "Confidence below threshold 0.80",
+    errorMessage: "Some required fields could not be confirmed automatically.",
+    correctedFields: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewerNote: null,
   },
   {
     documentId: "doc-003",
@@ -157,12 +151,14 @@ export const documents: DocumentRecord[] = [
     totalAmount: 680,
     taxAmount: 0,
     confidenceScore: 0.88,
+    aiProvider: "external-ai-api",
+    normalizationMethod: "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API",
     createdAt: "2026-06-24T08:42:00Z",
     updatedAt: "2026-06-24T08:42:42Z",
-    owner: "finance.user",
-    s3RawPath: "raw/user-123/2026/06/24/doc-003/invoice-saas-license.pdf",
-    s3ProcessedPath: "processed/user-123/2026/06/24/doc-003/result.json",
-    missingFields: [],
+    userId: "user-123",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-123/doc-003/original.pdf",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-123/doc-003/result.json",
+    reviewReasons: [],
     lineItems: [
       {
         description: "Annual SaaS license",
@@ -172,6 +168,10 @@ export const documents: DocumentRecord[] = [
       },
     ],
     errorMessage: null,
+    correctedFields: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewerNote: null,
   },
   {
     documentId: "doc-004",
@@ -184,32 +184,40 @@ export const documents: DocumentRecord[] = [
     totalAmount: 0,
     taxAmount: null,
     confidenceScore: 0.18,
+    aiProvider: "not-called",
+    normalizationMethod: "FAILED_BEFORE_NORMALIZE",
     createdAt: "2026-06-24T08:45:00Z",
     updatedAt: "2026-06-24T08:45:36Z",
-    owner: "reviewer.user",
-    s3RawPath: "raw/user-456/2026/06/24/doc-004/blurry-travel-receipt.png",
-    s3ProcessedPath: "failed/user-456/2026/06/24/doc-004/error.json",
-    missingFields: ["vendorName", "totalAmount", "currency"],
+    userId: "user-456",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-456/doc-004/original.png",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-456/doc-004/error.json",
+    reviewReasons: ["vendorName missing", "totalAmount missing", "currency missing"],
     lineItems: [],
-    errorMessage: "Image is too blurry for Textract AnalyzeExpense",
+    errorMessage: "The image is too blurry to read. Upload a clearer scan or photo.",
+    correctedFields: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewerNote: null,
   },
   {
     documentId: "doc-005",
     fileName: "invoice-cleaning-service.pdf",
     documentType: "INVOICE",
-    status: "REVIEWED",
+    status: "APPROVED",
     vendorName: "Green Clean Services",
     invoiceDate: "2026-06-17",
     currency: "VND",
     totalAmount: 1350000,
     taxAmount: 135000,
     confidenceScore: 0.79,
+    aiProvider: "external-ai-api",
+    normalizationMethod: "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API",
     createdAt: "2026-06-23T15:15:00Z",
     updatedAt: "2026-06-24T07:10:00Z",
-    owner: "reviewer.user",
-    s3RawPath: "raw/user-456/2026/06/23/doc-005/invoice-cleaning-service.pdf",
-    s3ProcessedPath: "processed/user-456/2026/06/23/doc-005/result.json",
-    missingFields: [],
+    userId: "user-456",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-456/doc-005/original.pdf",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-456/doc-005/result.json",
+    reviewReasons: [],
     lineItems: [
       {
         description: "Monthly office cleaning",
@@ -219,18 +227,78 @@ export const documents: DocumentRecord[] = [
       },
     ],
     errorMessage: null,
+    correctedFields: null,
+    reviewedAt: "2026-06-24T07:10:00Z",
+    reviewedBy: "finance.user",
+    reviewerNote: "Verified against the source invoice.",
+  },
+  {
+    documentId: "doc-006",
+    fileName: "invoice-catering-june.pdf",
+    documentType: "INVOICE",
+    status: "QUEUED",
+    vendorName: "Pending extraction",
+    invoiceDate: "2026-06-24",
+    currency: "VND",
+    totalAmount: 0,
+    taxAmount: null,
+    confidenceScore: 0,
+    aiProvider: "not-called",
+    normalizationMethod: "TEXTRACT_ONLY",
+    createdAt: "2026-06-24T09:05:00Z",
+    updatedAt: "2026-06-24T09:05:16Z",
+    userId: "user-123",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-123/doc-006/original.pdf",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-123/doc-006/result.json",
+    reviewReasons: [],
+    lineItems: [],
+    errorMessage: "Waiting for background processing to start.",
+    correctedFields: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewerNote: null,
+  },
+  {
+    documentId: "doc-007",
+    fileName: "receipt-parking-corrected.jpg",
+    documentType: "RECEIPT",
+    status: "CORRECTED",
+    vendorName: "District Parking",
+    invoiceDate: "2026-06-18",
+    currency: "VND",
+    totalAmount: 120000,
+    taxAmount: null,
+    confidenceScore: 0.71,
+    aiProvider: "external-ai-api",
+    normalizationMethod: "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API",
+    createdAt: "2026-06-23T09:10:00Z",
+    updatedAt: "2026-06-24T10:20:00Z",
+    userId: "user-456",
+    s3RawPath: "s3://docuflow-dev-raw/raw/user-456/doc-007/original.jpg",
+    s3ProcessedPath: "s3://docuflow-dev-processed/processed/user-456/doc-007/result.json",
+    reviewReasons: ["taxAmount missing"],
+    lineItems: [],
+    errorMessage: "A finance user corrected the missing vendor and amount fields",
+    correctedFields: {
+      vendorName: "District Parking",
+      totalAmount: 120000,
+    },
+    reviewedAt: "2026-06-24T10:20:00Z",
+    reviewedBy: "finance.user",
+    reviewerNote: "Corrected vendor and total amount from the receipt.",
   },
 ]
 
 export const workflowSteps = [
+  "QueueJobWithEventBridgeAndSQS",
+  "StartStepFunctionsExecution",
   "ValidateInput",
-  "UpdateStatusProcessing",
-  "RunTextractAnalyzeExpense",
-  "NormalizeWithBedrock",
-  "ValidateNormalizedJson",
-  "CalculateConfidence",
-  "SaveResult",
-  "NotifyIfNeeded",
+  "ExtractWithTextract",
+  "NormalizeWithAIProxy",
+  "ScoreAndUpdateStatus",
+  "SaveMetadataToDynamoDB",
+  "SaveProcessedJsonToS3",
+  "TriggerSnsSesNotification",
 ]
 
 export const monthlyVolume = [
@@ -245,7 +313,7 @@ export const monthlyVolume = [
 export const apiContracts = [
   {
     method: "POST",
-    path: "/uploads",
+    path: "/documents/upload-url",
     purpose: "Generate a 5-minute S3 presigned URL for PDF/JPG/PNG upload.",
   },
   {
@@ -255,22 +323,22 @@ export const apiContracts = [
   },
   {
     method: "GET",
-    path: "/documents/{id}",
-    purpose: "Return status, extracted summary fields, confidence, and storage keys.",
+    path: "/documents/{documentId}",
+    purpose: "Return document metadata, status, extracted fields, and review information.",
   },
   {
-    method: "GET",
-    path: "/documents/{id}/result",
-    purpose: "Return the processed S3 JSON result for audit and export workflows.",
-  },
-  {
-    method: "PUT",
-    path: "/documents/{id}/review",
-    purpose: "Persist corrected fields and move REVIEW_REQUIRED documents to REVIEWED.",
+    method: "POST",
+    path: "/documents/{documentId}/review",
+    purpose: "Persist corrected fields or approve a reviewed document result.",
   },
 ]
 
 export const operationalChecks = [
+  {
+    name: "Edge delivery",
+    value: "CloudFront + Amplify",
+    state: "Configured",
+  },
   {
     name: "SQS DLQ depth",
     value: "0",
@@ -283,13 +351,23 @@ export const operationalChecks = [
   },
   {
     name: "CloudWatch log retention",
-    value: "7 days",
+    value: "3 days",
     state: "Configured",
   },
   {
     name: "AWS Budget threshold",
-    value: "$5 / $10",
+    value: "$5 / $10 / $20",
     state: "Configured",
+  },
+  {
+    name: "External AI key",
+    value: "Secrets Manager",
+    state: "No frontend secret",
+  },
+  {
+    name: "X-Ray traces",
+    value: "API + Lambda",
+    state: "Enabled",
   },
 ]
 
@@ -297,7 +375,7 @@ export const testCases = [
   {
     id: "TC-01",
     name: "Upload clear invoice",
-    owner: "M1 + M3",
+    owner: "Tinh + Tra + Tai",
     expected: "EXTRACTED with vendor, date, total, tax, and currency.",
     evidence: "Document detail + S3 processed result.json",
     state: "Ready",
@@ -305,7 +383,7 @@ export const testCases = [
   {
     id: "TC-02",
     name: "Upload clear receipt",
-    owner: "M1 + M3",
+    owner: "Tinh + Tra + Tai",
     expected: "Receipt fields are extracted and saved.",
     evidence: "Document list + DynamoDB item",
     state: "Ready",
@@ -313,7 +391,7 @@ export const testCases = [
   {
     id: "TC-03",
     name: "Upload blurry or incomplete file",
-    owner: "M3 + M5",
+    owner: "Tai + Tinh + Duong",
     expected: "REVIEW_REQUIRED or FAILED with SNS alert.",
     evidence: "Review queue + alert screenshot",
     state: "Ready",
@@ -321,15 +399,15 @@ export const testCases = [
   {
     id: "TC-04",
     name: "Upload unsupported file type",
-    owner: "M1 + M2",
+    owner: "Tinh + Tra",
     expected: "Rejected before Textract or marked FAILED.",
     evidence: "Upload validation + workflow error",
     state: "Todo",
   },
   {
     id: "TC-05",
-    name: "Simulate Textract or Bedrock error",
-    owner: "M2 + M3",
+    name: "External AI API timeout or invalid JSON",
+    owner: "Tai + Tra + Duong",
     expected: "Retry/Catch path updates status to FAILED.",
     evidence: "Step Functions failed execution",
     state: "Todo",
@@ -337,8 +415,8 @@ export const testCases = [
   {
     id: "TC-06",
     name: "Clean up resources",
-    owner: "M5",
-    expected: "CloudFormation stack and storage resources are removed.",
+    owner: "Duong + Tra",
+    expected: "SAM/CloudFormation stack and Amplify hosting resources are removed.",
     evidence: "Cleanup command output",
     state: "Todo",
   },
@@ -346,18 +424,11 @@ export const testCases = [
 
 export const roleCapabilities = [
   {
-    role: "end-user",
-    canUpload: true,
-    canReview: false,
-    canOperate: false,
-    description: "Uploads invoices or receipts and views own documents.",
-  },
-  {
-    role: "reviewer",
+    role: "finance",
     canUpload: true,
     canReview: true,
     canOperate: false,
-    description: "Reviews low-confidence extracted fields and marks records as reviewed.",
+    description: "Uploads and views own documents, verifies uncertain fields, and approves results.",
   },
   {
     role: "admin",
@@ -372,11 +443,42 @@ export const demoScript = [
   "Introduce manual invoice and receipt pain point.",
   "Open architecture and explain Amplify hosting plus the AWS processing layers.",
   "Sign in with Cognito and upload a clear invoice.",
-  "Watch status move from UPLOADED to PROCESSING to EXTRACTED.",
+  "Watch status move from UPLOADED to QUEUED to PROCESSING to EXTRACTED.",
   "Open document detail and review extracted fields.",
-  "Open a low-confidence file and save reviewer correction.",
-  "Show Step Functions, CloudWatch, SNS, S3, and DynamoDB evidence.",
+  "Open a low-confidence file and show REVIEW_REQUIRED alert handling.",
+  "Show Step Functions, CloudWatch, X-Ray, SNS/SES, S3, DynamoDB, and Secrets Manager evidence.",
   "Close with budget guardrails and cleanup plan.",
+]
+
+export const architectureServices = [
+  { layer: "Edge / Frontend", service: "CloudFront + Amplify Hosting", rule: "Managed HTTPS entry point for the React/Vite SPA" },
+  { layer: "Auth", service: "Amazon Cognito", rule: "Email/password, no SMS OTP" },
+  { layer: "API", service: "API Gateway REST API", rule: "Upload URL, list, detail, and review endpoints" },
+  { layer: "Storage", service: "Amazon S3", rule: "Raw and processed buckets, Block Public Access" },
+  { layer: "Ingestion", service: "EventBridge + SQS/DLQ", rule: "S3 ObjectCreated events are queued before workflow start" },
+  { layer: "Workflow", service: "Step Functions Standard", rule: "Auditable per-document execution history" },
+  { layer: "Extraction", service: "Textract AnalyzeExpense", rule: "Limit test pages below 20 total" },
+  { layer: "Normalize", service: "AI Proxy Lambda + External AI API", rule: "Backend only, key from Secrets Manager" },
+  { layer: "Data", service: "DynamoDB + S3 processed", rule: "One table and small demo dataset" },
+  { layer: "Ops", service: "CloudWatch + X-Ray + SNS/SES", rule: "Logs, traces, alarms, and email notifications" },
+  { layer: "Governance", service: "IAM + KMS + CloudTrail + Budgets + SAM", rule: "Least privilege, encryption, audit, spend guardrails, cleanup" },
+]
+
+export const costGuardrails = [
+  { item: "Demo documents", value: "Max 10 files", owner: "Team" },
+  { item: "Demo pages", value: "Under 20 pages total", owner: "AI module" },
+  { item: "CloudWatch logs", value: "3-day retention", owner: "Duong" },
+  { item: "AWS Budgets", value: "$5, $10, $20 alerts", owner: "Duong" },
+  { item: "External AI API", value: "Free quota or existing credits", owner: "Tai" },
+  { item: "Cleanup", value: "Delete stack and check leftovers", owner: "Duong + Tra" },
+]
+
+export const teamModules = [
+  { member: "Hoang Trong Tra", module: "Integration, Ingestion, Workflow", focus: "S3 raw, EventBridge, SQS/DLQ, Job Starter Lambda, Step Functions" },
+  { member: "Vu Duy Tai", module: "AI Extraction and Normalization", focus: "Textract, AI Proxy Lambda, External AI API, confidence/status" },
+  { member: "Nguyen Huu Tinh", module: "Frontend, Auth, User Flow", focus: "CloudFront, Amplify, Cognito, API integration, upload/result/review UI" },
+  { member: "Lam Quang Loc", module: "Data Persistence", focus: "DynamoDB, S3 processed JSON, document metadata, reports" },
+  { member: "Pham Tung Duong", module: "Ops, Security, IaC", focus: "IAM, KMS, Secrets Manager, CloudTrail, Budgets, SAM, observability" },
 ]
 
 export const statusDistribution = Object.entries(statusMeta).map(([status, meta]) => ({

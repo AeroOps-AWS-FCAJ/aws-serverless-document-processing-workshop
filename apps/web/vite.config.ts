@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@docuflow/shared-types": path.resolve(__dirname, "../../packages/shared-types/src/index.ts"),
+      "@docuflow/shared-config": path.resolve(__dirname, "../../packages/shared-config/src/index.ts"),
     },
   },
   define: {

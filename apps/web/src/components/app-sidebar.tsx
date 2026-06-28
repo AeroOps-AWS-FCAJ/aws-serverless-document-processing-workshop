@@ -1,16 +1,6 @@
 "use client"
 
 import * as React from "react"
-import {
-  Activity,
-  AlertTriangle,
-  Bell,
-  FileSearch,
-  LayoutDashboard,
-  Shield,
-  UploadCloud,
-  Users,
-} from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
 
@@ -25,104 +15,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-
-const data = {
-  user: {
-    name: "DocuFlow Review Team",
-    email: "reviewer@docuflow.ai",
-    avatar: "",
-  },
-  navGroups: [
-    {
-      label: "Workspace",
-      items: [
-        {
-          title: "Overview",
-          url: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          title: "Upload",
-          url: "/upload",
-          icon: UploadCloud,
-        },
-        {
-          title: "Documents",
-          url: "/documents",
-          icon: FileSearch,
-        },
-        {
-          title: "Review Queue",
-          url: "/review",
-          icon: Users,
-        },
-      ],
-    },
-    {
-      label: "Control",
-      items: [
-        {
-          title: "Operations",
-          url: "/operations",
-          icon: Activity,
-        },
-        {
-          title: "Auth",
-          url: "#",
-          icon: Shield,
-          items: [
-            {
-              title: "Sign In",
-              url: "/auth/sign-in",
-            },
-            {
-              title: "Sign Up",
-              url: "/auth/sign-up",
-            },
-            {
-              title: "Forgot Password",
-              url: "/auth/forgot-password",
-            }
-          ],
-        },
-        {
-          title: "Errors",
-          url: "#",
-          icon: AlertTriangle,
-          items: [
-            {
-              title: "Unauthorized",
-              url: "/errors/unauthorized",
-            },
-            {
-              title: "Forbidden",
-              url: "/errors/forbidden",
-            },
-            {
-              title: "Not Found",
-              url: "/errors/not-found",
-            },
-            {
-              title: "Internal Server Error",
-              url: "/errors/internal-server-error",
-            },
-            {
-              title: "Under Maintenance",
-              url: "/errors/under-maintenance",
-            },
-          ],
-        },
-        {
-          title: "Notifications",
-          url: "/settings/notifications",
-          icon: Bell,
-        },
-      ],
-    },
-  ],
-}
+import { getNavigationGroups } from "@/config/navigation"
+import { getDocuFlowSession, roleLabels } from "@/lib/auth"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const session = getDocuFlowSession()
+  const role = session?.role ?? "finance"
+  const navGroups = getNavigationGroups(role)
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -135,7 +35,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">DocuFlow AI</span>
-                  <span className="truncate text-xs">Invoice Processing</span>
+                  <span className="truncate text-xs">{roleLabels[role]}</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -143,12 +43,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {data.navGroups.map((group) => (
+        {navGroups.map((group) => (
           <NavMain key={group.label} label={group.label} items={group.items} />
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={{
+            name: session?.name ?? "Finance User",
+            email: session?.email ?? "finance@docuflow.ai",
+            avatar: "",
+          }}
+          role={role}
+        />
       </SidebarFooter>
     </Sidebar>
   )

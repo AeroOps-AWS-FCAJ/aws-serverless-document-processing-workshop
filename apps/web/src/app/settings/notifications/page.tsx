@@ -95,7 +95,7 @@ export default function NotificationSettings() {
         <div>
           <h1 className="text-3xl font-bold">Notifications</h1>
           <p className="text-muted-foreground">
-            Configure DocuFlow AI workflow, review, and operations alerts.
+            Configure DocuFlow AI workflow, low-confidence, and cost-control alerts.
           </p>
         </div>
 
@@ -177,9 +177,9 @@ export default function NotificationSettings() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Push Notifications</CardTitle>
+                  <CardTitle>Review queue flags</CardTitle>
                   <CardDescription>
-                    Configure browser and mobile push notifications.
+                    Configure frontend indicators for low-confidence and failed documents.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -196,7 +196,7 @@ export default function NotificationSettings() {
                             />
                           </FormControl>
                           <div className="space-y-1">
-                            <FormLabel>Review queue alerts</FormLabel>
+                            <FormLabel>Low-confidence alerts</FormLabel>
                             <p className="text-sm text-muted-foreground">
                               Get notified when a document moves to REVIEW_REQUIRED.
                             </p>
@@ -216,9 +216,9 @@ export default function NotificationSettings() {
                             />
                           </FormControl>
                           <div className="space-y-1">
-                            <FormLabel>Assignment alerts</FormLabel>
+                            <FormLabel>External AI alerts</FormLabel>
                             <p className="text-sm text-muted-foreground">
-                              Get notified when a review item is assigned to your role.
+                              Get notified when External AI timeout, rate limit, or invalid JSON occurs.
                             </p>
                           </div>
                         </FormItem>
@@ -238,7 +238,7 @@ export default function NotificationSettings() {
                           <div className="space-y-1">
                             <FormLabel>Workflow failure alerts</FormLabel>
                             <p className="text-sm text-muted-foreground">
-                              Get notified when Step Functions, SQS, Textract, or Bedrock fails.
+                              Get notified when Step Functions, Textract, S3 save, DynamoDB write, or External AI fails.
                             </p>
                           </div>
                         </FormItem>
@@ -329,7 +329,7 @@ export default function NotificationSettings() {
               <CardHeader>
                 <CardTitle>Notification Preferences</CardTitle>
                 <CardDescription>
-                  We need permission from your browser to show notifications.{" "}
+                  Browser prompts are optional for the frontend demo; SES email remains the approved notification path.{" "}
                   <Button variant="link" className="p-0 h-auto text-primary">
                     Request Permission
                   </Button>
@@ -343,7 +343,7 @@ export default function NotificationSettings() {
                         <TableHead className="w-[200px]">TYPE</TableHead>
                         <TableHead className="text-center">EMAIL</TableHead>
                         <TableHead className="text-center">BROWSER</TableHead>
-                        <TableHead className="text-center">APP</TableHead>
+                        <TableHead className="text-center">IN-APP</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -399,7 +399,7 @@ export default function NotificationSettings() {
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-medium">Review reminders</TableCell>
+                        <TableCell className="font-medium">Low-confidence alerts</TableCell>
                         <TableCell className="text-center">
                           <FormField
                             control={form.control}
@@ -560,7 +560,7 @@ export default function NotificationSettings() {
                       name="notificationTiming"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>When should we send you notifications?</FormLabel>
+                            <FormLabel>When should frontend indicators appear?</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger className="w-full max-w-sm">
@@ -568,7 +568,7 @@ export default function NotificationSettings() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="online">Only When I'm online</SelectItem>
+                              <SelectItem value="online">Only when I'm online</SelectItem>
                               <SelectItem value="always">Always</SelectItem>
                               <SelectItem value="never">Never</SelectItem>
                             </SelectContent>
@@ -624,7 +624,7 @@ export default function NotificationSettings() {
                           <Bell className="h-5 w-5 text-muted-foreground" />
                           <div>
                             <FormLabel className="font-medium mb-1">Push Notifications</FormLabel>
-                            <div className="text-sm text-muted-foreground">Receive browser push notifications</div>
+                            <div className="text-sm text-muted-foreground">Show browser-level review prompts when allowed</div>
                           </div>
                         </div>
                         <FormControl>
@@ -645,8 +645,8 @@ export default function NotificationSettings() {
                         <div className="flex items-center space-x-3">
                           <MessageSquare className="h-5 w-5 text-muted-foreground" />
                           <div>
-                            <FormLabel className="font-medium mb-1">SMS</FormLabel>
-                            <div className="text-sm text-muted-foreground">Receive notifications via SMS</div>
+                            <FormLabel className="font-medium mb-1">SNS topic event</FormLabel>
+                            <div className="text-sm text-muted-foreground">Backend publishes alert events before SES email delivery</div>
                           </div>
                         </div>
                         <FormControl>

@@ -7,9 +7,21 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
+import { getDocuFlowSession } from "@/lib/auth"
 
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = React.useState(false)
+  const role = getDocuFlowSession()?.role ?? "finance"
+  const shortcuts =
+    role === "admin"
+      ? [
+          { label: "Operations", url: "/operations" },
+          { label: "Evidence", url: "/evidence" },
+        ]
+      : [
+          { label: "Upload", url: "/upload" },
+          { label: "Review queue", url: "/review" },
+        ]
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -36,15 +48,11 @@ export function SiteHeader() {
             <SearchTrigger onClick={() => setSearchOpen(true)} />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" asChild size="sm" className="hidden sm:flex">
-              <Link to="/upload" className="dark:text-foreground">Upload</Link>
-            </Button>
-            <Button variant="ghost" asChild size="sm" className="hidden sm:flex">
-              <Link to="/documents" className="dark:text-foreground">Documents</Link>
-            </Button>
-            <Button variant="ghost" asChild size="sm" className="hidden sm:flex">
-              <Link to="/operations" className="dark:text-foreground">Runbook</Link>
-            </Button>
+            {shortcuts.map((shortcut) => (
+              <Button key={shortcut.url} variant="ghost" asChild size="sm" className="hidden sm:flex">
+                <Link to={shortcut.url} className="dark:text-foreground">{shortcut.label}</Link>
+              </Button>
+            ))}
             <ModeToggle />
           </div>
         </div>

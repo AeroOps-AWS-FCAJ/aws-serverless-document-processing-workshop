@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Save, TriangleAlert } from "lucide-react"
+import { BadgeCheck, Bell, CircleAlert, ExternalLink, ListChecks } from "lucide-react"
+import { Link } from "react-router-dom"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,190 +12,172 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { documents, formatMoney, type DocumentRecord } from "@/lib/docuflow-data"
-
-function getReviewForm(document: DocumentRecord) {
-  return {
-    vendorName: document.vendorName,
-    invoiceDate: document.invoiceDate,
-    currency: document.currency,
-    totalAmount: String(document.totalAmount),
-    reviewerNotes:
-      document.taxAmount === null
-        ? "Tax amount was not visible in the receipt. Marked as null and verified total amount manually."
-        : "Reviewed extracted fields and confirmed the normalized result.",
-  }
-}
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { formatDate, statusMeta } from "@/lib/docuflow-data"
+import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { getDocuFlowSession } from "@/lib/auth"
 
 export default function ReviewPage() {
-  const [records, setRecords] = useState(documents)
-  const reviewItems = records.filter((document) =>
-    ["REVIEW_REQUIRED", "FAILED"].includes(document.status)
-  )
-  const [activeId, setActiveId] = useState(reviewItems[0]?.documentId ?? documents[0].documentId)
-  const activeDocument =
-    records.find((document) => document.documentId === activeId) ?? reviewItems[0] ?? records[0]
-  const [form, setForm] = useState(() => getReviewForm(activeDocument))
-  const [saveMessage, setSaveMessage] = useState("Ready to save reviewer correction.")
-
-  const selectDocument = (document: DocumentRecord) => {
-    setActiveId(document.documentId)
-    setForm(getReviewForm(document))
-    setSaveMessage(`Editing ${document.documentId}.`)
-  }
-
-  const saveReview = () => {
-    setRecords((currentRecords) =>
-      currentRecords.map((document) =>
-        document.documentId === activeDocument.documentId
-          ? {
-              ...document,
-              vendorName: form.vendorName,
-              invoiceDate: form.invoiceDate,
-              currency: form.currency,
-              totalAmount: Number(form.totalAmount.replace(/[^0-9.]/g, "")) || document.totalAmount,
-              status: "REVIEWED",
-              missingFields: [],
-              errorMessage: null,
-              updatedAt: new Date().toISOString(),
-            }
-          : document
-      )
-    )
-    setSaveMessage(`${activeDocument.documentId} saved as REVIEWED in the frontend demo state.`)
-  }
+  const { documents: allDocuments } = useDocuFlowDocuments()
+  const session = getDocuFlowSession()
+  const role = session?.role ?? "finance"
+  const documents =
+    role === "finance"
+      ? allDocuments.filter((document) => document.userId === session?.userId)
+      : allDocuments
+  const alertItems = documents
+    .filter((document) => ["REVIEW_REQUIRED", "FAILED", "CORRECTED"].includes(document.status))
+    .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+  const reviewRequiredCount = documents.filter((document) => document.status === "REVIEW_REQUIRED").length
+  const failedCount = documents.filter((document) => document.status === "FAILED").length
+  const correctedCount = documents.filter((document) => document.status === "CORRECTED").length
 
   return (
     <BaseLayout
-      title="Review Queue"
-      description="Human review path for low-confidence extraction, missing fields, and failed files."
+      title="Review queue"
+      description={role === "admin"
+        ? "Monitor unresolved documents across the system."
+        : "Verify uncertain fields, resolve failed files, and approve your corrected results."}
     >
-      <div className="grid gap-4 px-4 lg:grid-cols-[0.85fr_1.15fr] lg:px-6">
+      <div className="grid gap-4 px-4 lg:grid-cols-[1fr_0.8fr] lg:px-6">
         <Card>
           <CardHeader>
-            <CardTitle>Needs attention</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="size-5" />
+              Attention queue
+            </CardTitle>
             <CardDescription>
-              Documents that should trigger SNS alerts for reviewer/admin users.
+              Open a document to correct extracted fields or approve the final result.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            {reviewItems.map((document) => (
-              <button
-                key={document.documentId}
-                type="button"
-                onClick={() => selectDocument(document)}
-                className={
-                  document.documentId === activeDocument.documentId
-                    ? "grid gap-2 rounded-lg border border-primary p-3 text-left"
-                    : "grid gap-2 rounded-lg border p-3 text-left hover:bg-muted/50"
-                }
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{document.fileName}</div>
-                    <div className="text-muted-foreground text-sm">
-                      {document.vendorName} · {Math.round(document.confidenceScore * 100)}%
-                    </div>
-                  </div>
-                  <Badge variant={document.status === "FAILED" ? "destructive" : "outline"}>
-                    {document.status}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {document.missingFields.map((field) => (
-                    <Badge key={field} variant="secondary">
-                      {field}
-                    </Badge>
-                  ))}
-                </div>
-              </button>
-            ))}
-            {!reviewItems.length && (
-              <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-                No documents currently require review.
-              </div>
-            )}
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[720px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="w-24" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {alertItems.map((document) => {
+                    const meta = statusMeta[document.status]
+                    const Icon = meta.icon
+
+                    return (
+                      <TableRow key={document.documentId}>
+                        <TableCell>
+                          <div className="font-medium">{document.fileName}</div>
+                          <div className="text-muted-foreground text-xs">
+                            {document.documentId}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={meta.tone}>
+                            <Icon className="size-3.5" />
+                            {meta.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {document.status === "CORRECTED"
+                            ? "Corrected fields are ready for approval."
+                            : document.reviewReasons.length
+                              ? document.reviewReasons.join("; ")
+                              : document.errorMessage ?? "One or more required fields could not be confirmed."}
+                        </TableCell>
+                        <TableCell>{formatDate(document.updatedAt)}</TableCell>
+                        <TableCell>
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/documents/${document.documentId}`}>
+                              {document.status === "CORRECTED"
+                                ? "Approve"
+                                : document.status === "FAILED"
+                                  ? "Inspect"
+                                  : "Review"}
+                              <ExternalLink className="size-3.5" />
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {!alertItems.length && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        No documents need attention.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Correction form</CardTitle>
-            <CardDescription>
-              PUT /documents/{activeDocument.documentId}/review moves the record to REVIEWED.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5">
-            <div className="flex items-start gap-3 rounded-lg border border-amber-200 p-3 text-amber-700 dark:border-amber-900 dark:text-amber-300">
-              <TriangleAlert className="mt-0.5 size-4" />
-              <div className="text-sm">
-                {activeDocument.errorMessage ?? saveMessage}
+        <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CircleAlert className="size-5" />
+                Queue summary
+              </CardTitle>
+              <CardDescription>
+                Current workload by required action.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <span>Review required</span>
+                <Badge variant="outline">{reviewRequiredCount}</Badge>
               </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="vendor">vendorName</Label>
-                <Input
-                  id="vendor"
-                  value={form.vendorName}
-                  onChange={(event) => setForm((current) => ({ ...current, vendorName: event.target.value }))}
-                />
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <span>Failed</span>
+                <Badge variant="outline">{failedCount}</Badge>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="invoice-date">invoiceDate</Label>
-                <Input
-                  id="invoice-date"
-                  value={form.invoiceDate}
-                  onChange={(event) => setForm((current) => ({ ...current, invoiceDate: event.target.value }))}
-                />
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <span>Corrected, waiting approval</span>
+                <Badge variant="outline">{correctedCount}</Badge>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="currency">currency</Label>
-                <Input
-                  id="currency"
-                  value={form.currency}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      currency: event.target.value.toUpperCase() === "USD" ? "USD" : "VND",
-                    }))
-                  }
-                />
+              <div className="border-t pt-3">
+                <div className="mb-1 flex items-center gap-2 font-medium">
+                  <BadgeCheck className="size-4" />
+                  Review path
+                </div>
+                Check the source, correct uncertain fields, save the correction, then approve the verified result.
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="amount">totalAmount</Label>
-                <Input
-                  id="amount"
-                  value={form.totalAmount}
-                  onChange={(event) => setForm((current) => ({ ...current, totalAmount: event.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Reviewer notes</Label>
-              <Textarea
-                id="notes"
-                value={form.reviewerNotes}
-                onChange={(event) => setForm((current) => ({ ...current, reviewerNotes: event.target.value }))}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button className="cursor-pointer" onClick={saveReview}>
-                <Save className="size-4" />
-                Save as reviewed
-              </Button>
-              <Button variant="outline" className="cursor-pointer">
-                Keep in review
-              </Button>
-            </div>
-            <div className="text-muted-foreground text-sm">
-              Current display amount: {formatMoney(activeDocument.totalAmount, activeDocument.currency)}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ListChecks className="size-5" />
+                Review checklist
+              </CardTitle>
+              <CardDescription>
+                Confirm the business fields before approval.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              {["Vendor matches the source document", "Invoice date and currency are correct", "Total and tax amounts reconcile", "Review note explains any correction"].map((item) => (
+                <div key={item} className="flex items-start gap-3">
+                  <BadgeCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </BaseLayout>
   )

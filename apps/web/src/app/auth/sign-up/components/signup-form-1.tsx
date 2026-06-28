@@ -64,7 +64,7 @@ export function SignupForm1({
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Create DocuFlow account</CardTitle>
           <CardDescription>
-            Register a Cognito user for finance, reviewer, or admin access.
+            Register a Cognito user for the finance workspace.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,11 +162,7 @@ export function SignupForm1({
                     )}
                   />
                   <Button type="submit" className="w-full cursor-pointer">
-                    Create Cognito user
-                  </Button>
-
-                  <Button variant="outline" className="w-full cursor-pointer" type="button">
-                    Invite reviewer user
+                    Create account
                   </Button>
                 </div>
                 <div className="text-center text-sm">
@@ -181,7 +177,7 @@ export function SignupForm1({
         </CardContent>
       </Card>
       <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        Groups map to end-user, reviewer, and admin permissions in the AWS proposal.
+        Finance access is the default. Administrator access is assigned separately.
       </div>
     </div>
   )

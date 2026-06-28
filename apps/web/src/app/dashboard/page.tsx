@@ -1,25 +1,25 @@
 "use client"
 
 import {
+  Activity,
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
-  CircleDollarSign,
+  Clock3,
   FileText,
-  TimerReset,
   UploadCloud,
 } from "lucide-react"
+import { Link } from "react-router-dom"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import {
   Table,
   TableBody,
@@ -28,33 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getDocuFlowSession, roleLabels } from "@/lib/auth"
 import {
-  documents,
   formatDate,
   formatMoney,
-  monthlyVolume,
   statusMeta,
-  vendorSpend,
-  workflowSteps,
+  type DocumentRecord,
 } from "@/lib/docuflow-data"
+import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 
-const totalDocuments = documents.length
-const extractedCount = documents.filter((document) =>
-  ["EXTRACTED", "REVIEWED"].includes(document.status)
-).length
-const reviewCount = documents.filter(
-  (document) => document.status === "REVIEW_REQUIRED"
-).length
-const failedCount = documents.filter((document) => document.status === "FAILED").length
-const totalSpendVnd = vendorSpend.reduce((sum, vendor) => sum + vendor.amount, 0)
-const maxVendorSpend = Math.max(...vendorSpend.map((vendor) => vendor.amount))
-const averageConfidence = Math.round(
-  (documents.reduce((sum, document) => sum + document.confidenceScore, 0) /
-    documents.length) *
-    100
-)
-
-function StatusBadge({ status }: { status: keyof typeof statusMeta }) {
+function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
   const meta = statusMeta[status]
   const Icon = meta.icon
 
@@ -66,273 +49,245 @@ function StatusBadge({ status }: { status: keyof typeof statusMeta }) {
   )
 }
 
-function MonthlyVolumeChart() {
-  const maxVolume = Math.max(
-    ...monthlyVolume.flatMap((item) => [item.extracted, item.review, item.failed])
-  )
-
+function SummaryItem({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string
+  value: number
+  detail: string
+  icon: typeof FileText
+  tone: string
+}) {
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-sm bg-teal-600" />
-          Extracted
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-sm bg-amber-500" />
-          Review
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-sm bg-red-500" />
-          Failed
+    <div className="grid min-h-32 gap-4 border-b p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="text-muted-foreground text-sm">{label}</div>
+        <div className={`flex size-8 items-center justify-center rounded-md ${tone}`}>
+          <Icon className="size-4" />
         </div>
       </div>
-      <div className="grid h-72 grid-cols-6 items-end gap-4 border-b border-l px-4 pb-6 pt-4">
-        {monthlyVolume.map((item) => (
-          <div key={item.month} className="flex h-full flex-col justify-end gap-2">
-            <div className="flex flex-1 items-end justify-center gap-1.5">
-              <div
-                className="w-5 rounded-t-sm bg-teal-600"
-                style={{ height: `${(item.extracted / maxVolume) * 100}%` }}
-                title={`${item.month}: ${item.extracted} extracted`}
-              />
-              <div
-                className="w-5 rounded-t-sm bg-amber-500"
-                style={{ height: `${(item.review / maxVolume) * 100}%` }}
-                title={`${item.month}: ${item.review} review required`}
-              />
-              <div
-                className="w-5 rounded-t-sm bg-red-500"
-                style={{ height: `${(item.failed / maxVolume) * 100}%` }}
-                title={`${item.month}: ${item.failed} failed`}
-              />
-            </div>
-            <div className="text-center text-xs text-muted-foreground">{item.month}</div>
-          </div>
-        ))}
+      <div>
+        <div className="text-3xl font-semibold tabular-nums">{value}</div>
+        <div className="text-muted-foreground mt-1 text-xs leading-5">{detail}</div>
       </div>
     </div>
   )
 }
 
 export default function DashboardPage() {
+  const { documents: allDocuments } = useDocuFlowDocuments()
+  const session = getDocuFlowSession()
+  const role = session?.role ?? "finance"
+  const documents =
+    role === "finance"
+      ? allDocuments.filter((document) => document.userId === session?.userId)
+      : allDocuments
+
+  const processingCount = documents.filter((document) =>
+    ["UPLOADED", "QUEUED", "PROCESSING"].includes(document.status)
+  ).length
+  const reviewCount = documents.filter(
+    (document) => document.status === "REVIEW_REQUIRED"
+  ).length
+  const failedCount = documents.filter((document) => document.status === "FAILED").length
+  const readyCount = documents.filter((document) =>
+    ["EXTRACTED", "APPROVED"].includes(document.status)
+  ).length
+
+  const attentionStatuses = ["REVIEW_REQUIRED", "FAILED", "CORRECTED"]
+  const attentionQueue = [...documents]
+    .filter((document) => attentionStatuses.includes(document.status))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5)
+  const recentDocuments = [...documents]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 6)
+
+  const primaryAction =
+    role === "admin"
+      ? { label: "Open operations", url: "/operations", icon: Activity }
+      : attentionQueue.length
+        ? { label: "Continue review", url: "/review", icon: CheckCircle2 }
+        : { label: "Upload a document", url: "/upload", icon: UploadCloud }
+  const PrimaryIcon = primaryAction.icon
+
+  function getAttentionAction(document: DocumentRecord) {
+    if (document.status === "CORRECTED") return "Verify and approve"
+    if (document.status === "FAILED") return role === "admin" ? "Inspect failure" : "Resolve upload issue"
+    return "Review fields"
+  }
+
   return (
     <BaseLayout
-      title="DocuFlow AI Overview"
-      description="Frontend prototype for the serverless invoice and receipt processing MVP on AWS."
+      title="Document overview"
+      description="Monitor finance documents and continue with the next required action."
     >
-      <div className="grid gap-4 px-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 lg:px-6">
-        <Card className="@container/card">
-          <CardHeader>
-            <CardDescription>Centralized documents</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {totalDocuments}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <FileText className="size-3.5" />
-                MVP
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="font-medium">Invoices and receipts only</div>
-            <div className="text-muted-foreground">Moves finance files out of email and local folders.</div>
-          </CardFooter>
-        </Card>
-        <Card className="@container/card">
-          <CardHeader>
-            <CardDescription>Manual entries avoided</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {extractedCount}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <CheckCircle2 className="size-3.5 text-emerald-600" />
-                Stable
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-2 text-sm">
-            <Progress value={(extractedCount / totalDocuments) * 100} />
-            <div className="text-muted-foreground">Vendor, date, tax, currency, and total are structured.</div>
-          </CardFooter>
-        </Card>
-        <Card className="@container/card">
-          <CardHeader>
-            <CardDescription>Needs review</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {reviewCount}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <AlertTriangle className="size-3.5 text-amber-600" />
-                Threshold
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="font-medium">Confidence threshold: 0.80</div>
-            <div className="text-muted-foreground">Low confidence is visible, not a silent failure.</div>
-          </CardFooter>
-        </Card>
-        <Card className="@container/card">
-          <CardHeader>
-            <CardDescription>Failed jobs</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {failedCount}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <TimerReset className="size-3.5" />
-                DLQ
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="font-medium">SQS retry and DLQ path</div>
-            <div className="text-muted-foreground">SNS alerts reviewer/admin on failure.</div>
-          </CardFooter>
-        </Card>
-        <Card className="@container/card">
-          <CardHeader>
-            <CardDescription>Tracked spend</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {formatMoney(totalSpendVnd, "VND")}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <CircleDollarSign className="size-3.5 text-teal-600" />
-                Vendors
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="font-medium">Spend visibility by vendor</div>
-            <div className="text-muted-foreground">Supports monthly review and budget checks.</div>
-          </CardFooter>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 px-4 lg:grid-cols-[1.25fr_0.75fr] lg:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly processing volume</CardTitle>
-            <CardDescription>
-              Demo projection for extracted, review-required, and failed documents.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MonthlyVolumeChart />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pipeline readiness</CardTitle>
-            <CardDescription>
-              Shared flow from browser upload to processed JSON.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {workflowSteps.map((step, index) => (
-              <div key={step} className="flex items-center gap-3 rounded-lg border p-3">
-                <Badge variant="secondary">{index + 1}</Badge>
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{step}</div>
-                  <div className="text-muted-foreground text-xs">
-                    Step Functions Standard workflow
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 px-4 lg:grid-cols-[0.75fr_1.25fr] lg:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Vendor spend visibility</CardTitle>
-            <CardDescription>
-              Converts extracted invoice and receipt totals into searchable finance insight.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {vendorSpend.slice(0, 5).map((vendor) => (
-              <div key={vendor.vendor} className="grid gap-2">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate font-medium">{vendor.vendor}</span>
-                  <span className="tabular-nums text-muted-foreground">
-                    {formatMoney(vendor.amount, "VND")}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-teal-600"
-                    style={{ width: `${(vendor.amount / maxVendorSpend) * 100}%` }}
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Confidence {Math.round(vendor.confidence * 100)}%
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <CardTitle>Recent documents</CardTitle>
-                <CardDescription>
-                  Latest records across the upload, extraction, review, and failure paths.
-                </CardDescription>
-              </div>
-              <Badge variant="outline">
-                <UploadCloud className="size-3.5" />
-                Presigned URL flow
-              </Badge>
+      <div className="grid min-w-0 gap-6 px-4 lg:px-6">
+        <section className="grid overflow-hidden rounded-md border border-l-4 border-l-emerald-600 bg-card md:grid-cols-[1fr_auto]">
+          <div className="grid gap-2 p-5 lg:p-6">
+            <div className="text-muted-foreground text-xs font-medium uppercase">
+              {roleLabels[role]} workspace
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-lg border">
-              <Table className="min-w-[680px]">
-                <TableHeader className="bg-muted">
-                  <TableRow>
-                    <TableHead>Document</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.slice(0, 5).map((document) => (
-                    <TableRow key={document.documentId}>
-                      <TableCell>
-                        <div className="font-medium">{document.fileName}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {document.vendorName}
+            <h2 className="text-xl font-semibold">
+              {role === "admin"
+                ? "Keep the processing service healthy and auditable."
+                : reviewCount
+                  ? `${reviewCount} document${reviewCount === 1 ? " needs" : "s need"} your verification.`
+                  : "Upload, verify, and retrieve your finance documents in one place."}
+            </h2>
+            <p className="text-muted-foreground max-w-2xl text-sm leading-6">
+              {role === "admin"
+                ? "Operational health and project evidence are separated from the finance workflow."
+                : "Processing happens in the background. Uncertain fields are added to your review queue so you can correct and approve them."}
+            </p>
+          </div>
+          <div className="flex items-center border-t p-5 md:border-l md:border-t-0 lg:p-6">
+            <Button asChild className="w-full cursor-pointer md:w-auto">
+              <Link to={primaryAction.url}>
+                <PrimaryIcon className="size-4" />
+                {primaryAction.label}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        </section>
+
+        <section aria-label="Document status summary" className="grid overflow-hidden rounded-md border bg-card sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryItem
+            label="In progress"
+            value={processingCount}
+            detail="Uploaded, queued, or currently processing"
+            icon={Clock3}
+            tone="bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+          />
+          <SummaryItem
+            label="Needs review"
+            value={reviewCount}
+            detail="Uncertain fields need your verification"
+            icon={FileText}
+            tone="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+          />
+          <SummaryItem
+            label="Failed"
+            value={failedCount}
+            detail="File or extraction issue requires attention"
+            icon={AlertTriangle}
+            tone="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+          />
+          <SummaryItem
+            label="Ready"
+            value={readyCount}
+            detail="Structured data is available to use"
+            icon={CheckCircle2}
+            tone="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          />
+        </section>
+
+        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[0.78fr_1.22fr]">
+          <Card className="min-w-0">
+            <CardHeader className="border-b">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>{role === "finance" ? "Your next actions" : "Priority queue"}</CardTitle>
+                  <CardDescription className="mt-1">
+                    {role === "finance"
+                      ? "Resolve failed uploads, verify uncertain fields, and approve corrected results."
+                      : "Work from the oldest unresolved exception first."}
+                  </CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/review">View queue</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {attentionQueue.length ? (
+                <div className="divide-y">
+                  {attentionQueue.map((document) => (
+                    <div key={document.documentId} className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{document.fileName}</div>
+                        <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <StatusBadge status={document.status} />
+                          <span>{document.vendorName}</span>
+                          <span>Updated {formatDate(document.updatedAt)}</span>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={document.status} />
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatMoney(document.totalAmount, document.currency)}
-                      </TableCell>
-                      <TableCell>{formatDate(document.updatedAt)}</TableCell>
-                    </TableRow>
+                        {document.errorMessage && (
+                          <div className="text-muted-foreground mt-2 line-clamp-2 text-xs leading-5">
+                            {document.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                      <Button asChild variant="ghost" size="sm" className="justify-start sm:justify-center">
+                        <Link to={`/documents/${document.documentId}`}>
+                          {getAttentionAction(document)}
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </Button>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-          <CardFooter className="text-muted-foreground text-sm">
-            Average confidence across demo records: {averageConfidence}%
-          </CardFooter>
-        </Card>
+                </div>
+              ) : (
+                <div className="p-8 text-center">
+                  <CheckCircle2 className="mx-auto size-6 text-emerald-600" />
+                  <div className="mt-3 text-sm font-medium">No documents need attention</div>
+                  <div className="text-muted-foreground mt-1 text-xs">New exceptions will appear here.</div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="border-b">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Recent documents</CardTitle>
+                  <CardDescription className="mt-1">
+                    Latest uploads and their current processing state.
+                  </CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/documents">View all</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-w-full overflow-x-auto">
+                <Table className="min-w-[620px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentDocuments.map((document) => (
+                      <TableRow key={document.documentId}>
+                        <TableCell>
+                          <Link to={`/documents/${document.documentId}`} className="font-medium hover:underline">
+                            {document.fileName}
+                          </Link>
+                          <div className="text-muted-foreground mt-1 text-xs">{document.vendorName}</div>
+                        </TableCell>
+                        <TableCell><StatusBadge status={document.status} /></TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatMoney(document.totalAmount, document.currency)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{formatDate(document.updatedAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </BaseLayout>
   )

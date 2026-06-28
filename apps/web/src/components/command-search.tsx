@@ -5,17 +5,12 @@ import { useNavigate } from "react-router-dom"
 import { Command as CommandPrimitive } from "cmdk"
 import {
   Search,
-  LayoutDashboard,
-  Shield,
-  Activity,
-  FileSearch,
-  UploadCloud,
-  Users,
-  Bell,
   type LucideIcon,
 } from "lucide-react"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { getNavigationItems } from "@/config/navigation"
+import { getDocuFlowSession } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 const Command = React.forwardRef<
@@ -117,18 +112,8 @@ interface CommandSearchProps {
 export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   const navigate = useNavigate()
   const commandRef = React.useRef<HTMLDivElement>(null)
-
-  const searchItems: SearchItem[] = [
-    { title: "Overview", url: "/dashboard", group: "Workspace", icon: LayoutDashboard },
-    { title: "Upload", url: "/upload", group: "Workspace", icon: UploadCloud },
-    { title: "Documents", url: "/documents", group: "Workspace", icon: FileSearch },
-    { title: "Review Queue", url: "/review", group: "Workspace", icon: Users },
-    { title: "Operations Runbook", url: "/operations", group: "Control", icon: Activity },
-    { title: "Sign In", url: "/auth/sign-in", group: "Auth", icon: Shield },
-    { title: "Sign Up", url: "/auth/sign-up", group: "Auth", icon: Shield },
-    { title: "Forgot Password", url: "/auth/forgot-password", group: "Auth", icon: Shield },
-    { title: "Notifications", url: "/settings/notifications", group: "Settings", icon: Bell },
-  ]
+  const role = getDocuFlowSession()?.role ?? "finance"
+  const searchItems: SearchItem[] = getNavigationItems(role)
 
   const groupedItems = searchItems.reduce((acc, item) => {
     if (!acc[item.group]) {

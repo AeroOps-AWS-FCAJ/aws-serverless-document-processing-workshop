@@ -1,5 +1,10 @@
 import { lazy } from 'react'
-import { Navigate } from 'react-router-dom'
+import {
+  GuestOnly,
+  RequireAuth,
+  RequireRole,
+  RoleHomeRedirect,
+} from '@/components/auth/require-auth'
 
 const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Upload = lazy(() => import('@/app/upload/page'))
@@ -7,6 +12,7 @@ const Documents = lazy(() => import('@/app/documents/page'))
 const DocumentDetail = lazy(() => import('@/app/documents/[documentId]/page'))
 const Review = lazy(() => import('@/app/review/page'))
 const Operations = lazy(() => import('@/app/operations/page'))
+const Evidence = lazy(() => import('@/app/evidence/page'))
 
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'))
 const SignUp = lazy(() => import('@/app/auth/sign-up/page'))
@@ -29,43 +35,47 @@ export interface RouteConfig {
 export const routes: RouteConfig[] = [
   {
     path: "/",
-    element: <Navigate to="dashboard" replace />
+    element: <RoleHomeRedirect />
   },
   {
     path: "/dashboard",
-    element: <Dashboard />
+    element: <RequireAuth><Dashboard /></RequireAuth>
   },
   {
     path: "/upload",
-    element: <Upload />
+    element: <RequireAuth><Upload /></RequireAuth>
   },
   {
     path: "/documents",
-    element: <Documents />
+    element: <RequireAuth><Documents /></RequireAuth>
   },
   {
     path: "/documents/:documentId",
-    element: <DocumentDetail />
+    element: <RequireAuth><DocumentDetail /></RequireAuth>
   },
   {
     path: "/review",
-    element: <Review />
+    element: <RequireRole allowed={["finance", "admin"]}><Review /></RequireRole>
   },
   {
     path: "/operations",
-    element: <Operations />
+    element: <RequireRole allowed={["admin"]}><Operations /></RequireRole>
+  },
+  {
+    path: "/evidence",
+    element: <RequireRole allowed={["admin"]}><Evidence /></RequireRole>
   },
   {
     path: "/auth/sign-in",
-    element: <SignIn />
+    element: <GuestOnly><SignIn /></GuestOnly>
   },
   {
     path: "/auth/sign-up",
-    element: <SignUp />
+    element: <GuestOnly><SignUp /></GuestOnly>
   },
   {
     path: "/auth/forgot-password",
-    element: <ForgotPassword />
+    element: <GuestOnly><ForgotPassword /></GuestOnly>
   },
   {
     path: "/errors/unauthorized",
@@ -89,7 +99,7 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/settings/notifications",
-    element: <NotificationSettings />
+    element: <RequireRole allowed={["admin"]}><NotificationSettings /></RequireRole>
   },
   {
     path: "*",

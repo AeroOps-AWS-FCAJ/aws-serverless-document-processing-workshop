@@ -3,13 +3,18 @@
 import {
   Activity,
   EllipsisVertical,
-  FileSearch,
   LogOut,
   BellDot,
+  FileSearch,
 } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { Logo } from "@/components/logo"
+import {
+  clearDocuFlowSession,
+  roleLabels,
+  type DocuFlowRole,
+} from "@/lib/auth"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,14 +33,22 @@ import {
 
 export function NavUser({
   user,
+  role,
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
+  role: DocuFlowRole
 }) {
   const { isMobile } = useSidebar()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    clearDocuFlowSession()
+    navigate("/auth/sign-in", { replace: true })
+  }
 
   return (
     <SidebarMenu>
@@ -52,7 +65,7 @@ export function NavUser({
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
+                  {roleLabels[role]}
                 </span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
@@ -74,36 +87,47 @@ export function NavUser({
                   <span className="text-muted-foreground truncate text-xs">
                     {user.email}
                   </span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {roleLabels[role]}
+                  </span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/review">
+                <Link to="/documents">
                   <FileSearch />
-                  Review Queue
+                  Documents
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/operations">
-                  <Activity />
-                  Operations Runbook
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/settings/notifications">
+                <Link to="/review">
                   <BellDot />
-                  Notifications
+                  Review queue
                 </Link>
               </DropdownMenuItem>
+              {role === "admin" && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/operations">
+                    <Activity />
+                    Operations
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {role === "admin" && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/settings/notifications">
+                    <BellDot />
+                    Alert settings
+                  </Link>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link to="/auth/sign-in">
-                <LogOut />
-                Log out
-              </Link>
+            <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
+              <LogOut />
+              Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

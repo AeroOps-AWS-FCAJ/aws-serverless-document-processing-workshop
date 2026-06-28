@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, Bell, Braces, GitBranch, Shield } from "lucide-react"
+import { Activity, Bell, Braces, GitBranch, Shield, WalletCards } from "lucide-react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -20,23 +20,26 @@ import {
 } from "@/components/ui/table"
 import {
   apiContracts,
+  architectureServices,
+  costGuardrails,
   operationalChecks,
+  teamModules,
   workflowSteps,
 } from "@/lib/docuflow-data"
 
 const iamRoles = [
-  "UploadUrlLambdaRole",
-  "JobStarterLambdaRole",
-  "StateMachineRole",
-  "ExtractionLambdaRole",
-  "MetadataLambdaRole",
+  "docuflow-dev-upload-lambda-role",
+  "docuflow-dev-start-job-lambda-role",
+  "docuflow-dev-processing-role",
+  "docuflow-dev-status-lambda-role",
+  "docuflow-dev-alert-role",
 ]
 
 export default function OperationsPage() {
   return (
     <BaseLayout
       title="Operations"
-      description="Runbook view for Amplify hosting, workflow, API contract, alerts, IAM ownership, and demo evidence."
+      description="Runbook view for the Free Tier and $200-credit-friendly DocuFlow AI architecture."
     >
       <div className="grid gap-4 px-4 lg:grid-cols-2 lg:px-6">
         <Card>
@@ -46,7 +49,7 @@ export default function OperationsPage() {
               Step Functions workflow
             </CardTitle>
             <CardDescription>
-              Standard workflow states expected by the MVP.
+              Lean workflow for upload, Textract, AI Proxy normalization, save, alert, and cleanup evidence.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
@@ -66,12 +69,12 @@ export default function OperationsPage() {
               Operational checks
             </CardTitle>
             <CardDescription>
-              CloudWatch, SNS, DLQ, and budget signals for the workshop demo.
+              Cost-aware signals that should appear in the workshop evidence.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border">
-              <Table>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[560px]">
                 <TableHeader className="bg-muted">
                   <TableRow>
                     <TableHead>Check</TableHead>
@@ -102,7 +105,7 @@ export default function OperationsPage() {
               API contract
             </CardTitle>
             <CardDescription>
-              Amplify-hosted frontend integration surface for API Gateway and Lambda handlers.
+              Amplify-hosted frontend calls API Gateway REST API; no server-side rendering.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -125,7 +128,7 @@ export default function OperationsPage() {
               Security ownership
             </CardTitle>
             <CardDescription>
-              Runtime roles should stay separate and least-privilege.
+              Runtime roles stay separate; External AI key is read from AWS Secrets Manager.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -138,8 +141,99 @@ export default function OperationsPage() {
             <div className="flex items-center gap-3 rounded-lg border p-3">
               <Bell className="size-4 text-amber-600" />
               <span className="text-sm">
-                SNS topic docuflow-alerts notifies reviewer/admin on FAILED or REVIEW_REQUIRED.
+                SNS triggers SES email notifications on FAILED and REVIEW_REQUIRED outcomes.
               </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 px-4 lg:grid-cols-[1.2fr_0.8fr] lg:px-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Architecture map</CardTitle>
+            <CardDescription>
+              Services retained in the simplified MVP and the cost-control rule attached to each.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[760px]">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead>Layer</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead>Rule</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {architectureServices.map((item) => (
+                    <TableRow key={`${item.layer}-${item.service}`}>
+                      <TableCell className="font-medium">{item.layer}</TableCell>
+                      <TableCell>{item.service}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.rule}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <WalletCards className="size-5" />
+              Cost guardrails
+            </CardTitle>
+            <CardDescription>
+              Free Tier and $200 credit friendly constraints.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {costGuardrails.map((item) => (
+              <div key={item.item} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{item.item}</div>
+                    <div className="text-muted-foreground text-sm">{item.value}</div>
+                  </div>
+                  <Badge variant="outline">{item.owner}</Badge>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="px-4 lg:px-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Team ownership</CardTitle>
+            <CardDescription>
+              Current five-person split from the updated architecture document.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[720px]">
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Module</TableHead>
+                    <TableHead>Focus</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {teamModules.map((item) => (
+                    <TableRow key={item.member}>
+                      <TableCell className="font-medium">{item.member}</TableCell>
+                      <TableCell>{item.module}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.focus}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
