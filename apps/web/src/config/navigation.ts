@@ -1,11 +1,19 @@
 import {
   Activity,
+  BadgeDollarSign,
+  BarChart3,
   Bell,
   ClipboardList,
   FileSearch,
+  GitBranch,
+  History,
   LayoutDashboard,
+  MailCheck,
+  Route,
   Settings2,
+  ShieldCheck,
   UploadCloud,
+  UserRound,
   type LucideIcon,
 } from "lucide-react"
 import type { DocuFlowRole } from "@/lib/auth"
@@ -50,6 +58,30 @@ const navigationGroups: AppNavigationGroup[] = [
         icon: Bell,
         roles: ["finance", "admin"],
       },
+      {
+        title: "Reports",
+        url: "/reports",
+        icon: BadgeDollarSign,
+        roles: ["finance", "admin"],
+      },
+      {
+        title: "Notifications",
+        url: "/notifications",
+        icon: MailCheck,
+        roles: ["finance", "admin"],
+      },
+      {
+        title: "My activity",
+        url: "/activity",
+        icon: History,
+        roles: ["finance", "admin"],
+      },
+      {
+        title: "Profile",
+        url: "/profile",
+        icon: UserRound,
+        roles: ["finance", "admin"],
+      },
     ],
   },
   {
@@ -59,6 +91,30 @@ const navigationGroups: AppNavigationGroup[] = [
         title: "Operations",
         url: "/operations",
         icon: Activity,
+        roles: ["admin"],
+      },
+      {
+        title: "Ingestion",
+        url: "/admin/ingestion",
+        icon: Route,
+        roles: ["admin"],
+      },
+      {
+        title: "Workflow",
+        url: "/admin/workflow",
+        icon: GitBranch,
+        roles: ["admin"],
+      },
+      {
+        title: "Observability",
+        url: "/admin/observability",
+        icon: BarChart3,
+        roles: ["admin"],
+      },
+      {
+        title: "Governance",
+        url: "/admin/governance",
+        icon: ShieldCheck,
         roles: ["admin"],
       },
       {

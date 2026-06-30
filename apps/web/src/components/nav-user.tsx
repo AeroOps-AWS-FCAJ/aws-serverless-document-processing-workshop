@@ -2,10 +2,17 @@
 
 import {
   Activity,
+  BadgeDollarSign,
+  BarChart3,
   EllipsisVertical,
+  GitBranch,
   LogOut,
   BellDot,
   FileSearch,
+  History,
+  Route,
+  ShieldCheck,
+  UserRound,
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
@@ -107,13 +114,63 @@ export function NavUser({
                   Review queue
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/reports">
+                  <BadgeDollarSign />
+                  Reports
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/notifications">
+                  <BellDot />
+                  Notifications
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/activity">
+                  <History />
+                  My activity
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/profile">
+                  <UserRound />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
               {role === "admin" && (
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link to="/operations">
-                    <Activity />
-                    Operations
-                  </Link>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/operations">
+                      <Activity />
+                      Operations
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/admin/ingestion">
+                      <Route />
+                      Ingestion
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/admin/workflow">
+                      <GitBranch />
+                      Workflow
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/admin/observability">
+                      <BarChart3 />
+                      Observability
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/admin/governance">
+                      <ShieldCheck />
+                      Governance
+                    </Link>
+                  </DropdownMenuItem>
+                </>
               )}
               {role === "admin" && (
                 <DropdownMenuItem asChild className="cursor-pointer">

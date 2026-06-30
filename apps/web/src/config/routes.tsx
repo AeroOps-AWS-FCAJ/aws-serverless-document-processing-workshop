@@ -11,8 +11,16 @@ const Upload = lazy(() => import('@/app/upload/page'))
 const Documents = lazy(() => import('@/app/documents/page'))
 const DocumentDetail = lazy(() => import('@/app/documents/[documentId]/page'))
 const Review = lazy(() => import('@/app/review/page'))
+const Reports = lazy(() => import('@/app/reports/page'))
+const Notifications = lazy(() => import('@/app/notifications/page'))
+const Activity = lazy(() => import('@/app/activity/page'))
+const Profile = lazy(() => import('@/app/profile/page'))
 const Operations = lazy(() => import('@/app/operations/page'))
 const Evidence = lazy(() => import('@/app/evidence/page'))
+const AdminIngestion = lazy(() => import('@/app/admin/ingestion/page'))
+const AdminWorkflow = lazy(() => import('@/app/admin/workflow/page'))
+const AdminObservability = lazy(() => import('@/app/admin/observability/page'))
+const AdminGovernance = lazy(() => import('@/app/admin/governance/page'))
 
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'))
 const SignUp = lazy(() => import('@/app/auth/sign-up/page'))
@@ -58,8 +66,40 @@ export const routes: RouteConfig[] = [
     element: <RequireRole allowed={["finance", "admin"]}><Review /></RequireRole>
   },
   {
+    path: "/reports",
+    element: <RequireAuth><Reports /></RequireAuth>
+  },
+  {
+    path: "/notifications",
+    element: <RequireAuth><Notifications /></RequireAuth>
+  },
+  {
+    path: "/activity",
+    element: <RequireAuth><Activity /></RequireAuth>
+  },
+  {
+    path: "/profile",
+    element: <RequireAuth><Profile /></RequireAuth>
+  },
+  {
     path: "/operations",
     element: <RequireRole allowed={["admin"]}><Operations /></RequireRole>
+  },
+  {
+    path: "/admin/ingestion",
+    element: <RequireRole allowed={["admin"]}><AdminIngestion /></RequireRole>
+  },
+  {
+    path: "/admin/workflow",
+    element: <RequireRole allowed={["admin"]}><AdminWorkflow /></RequireRole>
+  },
+  {
+    path: "/admin/observability",
+    element: <RequireRole allowed={["admin"]}><AdminObservability /></RequireRole>
+  },
+  {
+    path: "/admin/governance",
+    element: <RequireRole allowed={["admin"]}><AdminGovernance /></RequireRole>
   },
   {
     path: "/evidence",
