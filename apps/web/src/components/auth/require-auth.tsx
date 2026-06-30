@@ -1,12 +1,8 @@
 "use client"
 
 import { Navigate, useLocation } from "react-router-dom"
-import {
-  getDocuFlowSession,
-  isDocuFlowAuthenticated,
-  roleHomePaths,
-  type DocuFlowRole,
-} from "@/lib/auth"
+import { roleHomePaths, type DocuFlowRole } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 
 interface RequireAuthProps {
   children: React.ReactNode
@@ -14,12 +10,15 @@ interface RequireAuthProps {
 
 export function RequireAuth({ children }: RequireAuthProps) {
   const location = useLocation()
+  const { session, isLoading } = useAuth()
 
-  if (!isDocuFlowAuthenticated()) {
+  if (isLoading) return null // Handled by AuthProvider loading state, or could render specific loader
+
+  if (!session?.authenticated) {
     return <Navigate to="/auth/sign-in" replace state={{ from: location.pathname }} />
   }
 
-  return children
+  return <>{children}</>
 }
 
 interface RequireRoleProps extends RequireAuthProps {
@@ -28,9 +27,11 @@ interface RequireRoleProps extends RequireAuthProps {
 
 export function RequireRole({ children, allowed }: RequireRoleProps) {
   const location = useLocation()
-  const session = getDocuFlowSession()
+  const { session, isLoading } = useAuth()
 
-  if (!session) {
+  if (isLoading) return null
+
+  if (!session?.authenticated) {
     return <Navigate to="/auth/sign-in" replace state={{ from: location.pathname }} />
   }
 
@@ -38,23 +39,27 @@ export function RequireRole({ children, allowed }: RequireRoleProps) {
     return <Navigate to="/errors/forbidden" replace />
   }
 
-  return children
+  return <>{children}</>
 }
 
 export function GuestOnly({ children }: RequireAuthProps) {
-  const session = getDocuFlowSession()
+  const { session, isLoading } = useAuth()
 
-  if (session && isDocuFlowAuthenticated()) {
+  if (isLoading) return null
+
+  if (session?.authenticated) {
     return <Navigate to={roleHomePaths[session.role]} replace />
   }
 
-  return children
+  return <>{children}</>
 }
 
 export function RoleHomeRedirect() {
-  const session = getDocuFlowSession()
+  const { session, isLoading } = useAuth()
 
-  if (!session) return <Navigate to="/auth/sign-in" replace />
+  if (isLoading) return null
+
+  if (!session?.authenticated) return <Navigate to="/auth/sign-in" replace />
 
   return <Navigate to={roleHomePaths[session.role]} replace />
 }

@@ -29,7 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import {
   formatDate,
   statusMeta,
@@ -148,7 +148,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
 export default function ActivityPage() {
   const { documents } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<ActivityFilter>("ALL")
 

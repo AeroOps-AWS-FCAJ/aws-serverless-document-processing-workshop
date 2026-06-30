@@ -2,11 +2,12 @@
 
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
-import { getDocuFlowSession, roleHomePaths } from "@/lib/auth"
+import { roleHomePaths } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 
 export function ForbiddenError() {
   const navigate = useNavigate()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const homePath = session ? roleHomePaths[session.role] : "/auth/sign-in"
 
   return (

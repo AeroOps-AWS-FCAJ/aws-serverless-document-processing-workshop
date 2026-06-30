@@ -52,8 +52,8 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    clearDocuFlowSession()
+  const handleLogout = async () => {
+    await clearDocuFlowSession()
     navigate("/auth/sign-in", { replace: true })
   }
 

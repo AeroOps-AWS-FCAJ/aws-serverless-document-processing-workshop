@@ -29,7 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import {
   formatDate,
   statusMeta,
@@ -135,7 +135,7 @@ function kindClass(kind: NotificationKind) {
 
 export default function NotificationsPage() {
   const { documents } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<NotificationFilter>("ALL")
 

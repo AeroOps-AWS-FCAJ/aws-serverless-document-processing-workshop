@@ -5,7 +5,7 @@ import {
   type DocumentStatus,
 } from "@/lib/docuflow-data"
 import type { UploadUrlRequest, UploadUrlResponse } from "@/lib/docuflow-api"
-import { getDocuFlowSession } from "@/lib/auth"
+
 
 const STORAGE_KEY = "docuflow.documents"
 const DOCUMENTS_UPDATED_EVENT = "docuflow-documents-updated"
@@ -120,12 +120,12 @@ export function useDocuFlowDocuments() {
 
 export function createQueuedDocument(
   request: UploadUrlRequest,
-  response: UploadUrlResponse
+  response: UploadUrlResponse,
+  userId: string = "user-123"
 ): DocumentRecord {
   const now = new Date().toISOString()
   const extension = request.fileName.split(".").pop()?.toLowerCase()
   const documentType = request.fileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE"
-  const userId = getDocuFlowSession()?.userId ?? "user-123"
 
   return {
     documentId: response.documentId,
