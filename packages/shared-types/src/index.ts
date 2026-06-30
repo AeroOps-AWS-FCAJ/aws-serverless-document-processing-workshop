@@ -67,9 +67,9 @@ export interface ListDocumentsRequest {
 }
 
 export interface UploadUrlRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
+  originalFileName: string
+  mimeType: string
+  fileSizeBytes: number
   pageCount: number
 }
 

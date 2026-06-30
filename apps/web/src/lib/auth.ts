@@ -9,6 +9,7 @@ export interface DocuFlowSession {
   name: string
   email: string
   accessToken?: string
+  idToken?: string
 }
 
 export const roleLabels: Record<DocuFlowRole, string> = {
@@ -54,7 +55,8 @@ export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | nul
       userId: user.username,
       name,
       email,
-      accessToken: tokens.accessToken?.toString()
+      accessToken: tokens.accessToken?.toString(),
+      idToken: tokens.idToken?.toString()
     };
   } catch (error) {
     console.error("No active user session:", error);
