@@ -7,9 +7,9 @@ export function SiteFooter() {
   const role = session?.role ?? "finance"
 
   return (
-    <footer className="border-t bg-background">
-      <div className="px-4 py-6 lg:px-6">
-        <div className="flex flex-col items-center justify-center space-y-2 text-center">
+    <footer className="border-t bg-background/70">
+      <div className="mx-auto max-w-[1500px] px-4 py-5 lg:px-6">
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <Link
@@ -19,8 +19,8 @@ export function SiteFooter() {
               DocuFlow AI · {roleLabels[role]}
             </Link>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Secure invoice and receipt intake with role-based access and traceable processing status.
+          <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+            Amplify · Cognito · Step Functions · Textract · DynamoDB
           </p>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Radio } from "lucide-react"
 import { getDocuFlowSession } from "@/lib/auth"
 
 export function SiteHeader() {
@@ -37,7 +38,7 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+      <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/88 backdrop-blur-xl transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
         <div className="flex w-full items-center gap-1 px-4 py-3 lg:gap-2 lg:px-6">
           <SidebarTrigger className="-ml-1" />
           <Separator
@@ -48,6 +49,10 @@ export function SiteHeader() {
             <SearchTrigger onClick={() => setSearchOpen(true)} />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <div className="mr-1 hidden items-center gap-2 border-r pr-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground lg:flex">
+              <Radio className="size-3 text-emerald-700" />
+              ap-southeast-1 / healthy
+            </div>
             {shortcuts.map((shortcut) => (
               <Button key={shortcut.url} variant="ghost" asChild size="sm" className="hidden sm:flex">
                 <Link to={shortcut.url} className="dark:text-foreground">{shortcut.label}</Link>

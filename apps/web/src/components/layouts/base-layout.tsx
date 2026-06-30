@@ -37,23 +37,26 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
             collapsible={config.collapsible} 
             side={config.side} 
           />
-          <SidebarInset>
+          <SidebarInset className="min-w-0 bg-background/88">
             <SiteHeader />
-            <div className="flex flex-1 flex-col">
+            <div className="paper-noise flex flex-1 flex-col overflow-hidden">
               <div className="@container/main flex flex-1 flex-col gap-2">
-                <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+                <main className="reveal-in mx-auto flex w-full max-w-[1500px] flex-col gap-5 py-5 md:gap-7 md:py-7">
                   {title && (
                     <div className="px-4 lg:px-6">
-                      <div className="flex flex-col gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+                      <div className="flex max-w-3xl flex-col gap-2 border-l-2 border-primary pl-4">
+                        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                          DocuFlow workspace / 2026
+                        </div>
+                        <h1 className="text-3xl font-semibold leading-none tracking-[-0.045em] md:text-4xl">{title}</h1>
                         {description && (
-                          <p className="text-muted-foreground">{description}</p>
+                          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
                         )}
                       </div>
                     </div>
                   )}
                   {children}
-                </div>
+                </main>
               </div>
             </div>
             <SiteFooter />
@@ -61,23 +64,26 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
         </>
       ) : (
         <>
-          <SidebarInset>
+          <SidebarInset className="min-w-0 bg-background/88">
             <SiteHeader />
-            <div className="flex flex-1 flex-col">
+            <div className="paper-noise flex flex-1 flex-col overflow-hidden">
               <div className="@container/main flex flex-1 flex-col gap-2">
-                <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+                <main className="reveal-in mx-auto flex w-full max-w-[1500px] flex-col gap-5 py-5 md:gap-7 md:py-7">
                   {title && (
                     <div className="px-4 lg:px-6">
-                      <div className="flex flex-col gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+                      <div className="flex max-w-3xl flex-col gap-2 border-l-2 border-primary pl-4">
+                        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                          DocuFlow workspace / 2026
+                        </div>
+                        <h1 className="text-3xl font-semibold leading-none tracking-[-0.045em] md:text-4xl">{title}</h1>
                         {description && (
-                          <p className="text-muted-foreground">{description}</p>
+                          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
                         )}
                       </div>
                     </div>
                   )}
                   {children}
-                </div>
+                </main>
               </div>
             </div>
             <SiteFooter />

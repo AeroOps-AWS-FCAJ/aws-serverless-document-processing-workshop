@@ -102,19 +102,58 @@ export async function requestUploadUrl(
   }
 }
 
-export async function uploadDocumentFile(uploadUrl: string, file: File) {
+export interface UploadDocumentOptions {
+  contentType?: string
+  onProgress?: (progress: number) => void
+  signal?: AbortSignal
+}
+
+export async function uploadDocumentFile(
+  uploadUrl: string,
+  file: File,
+  options: UploadDocumentOptions = {}
+) {
   if (!apiBaseUrl) {
-    await wait(350)
+    for (const progress of [12, 32, 58, 81, 100]) {
+      if (options.signal?.aborted) {
+        throw new DOMException("Upload canceled", "AbortError")
+      }
+      await wait(90)
+      options.onProgress?.(progress)
+    }
     return
   }
 
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  })
+  await new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open("PUT", uploadUrl)
+    request.setRequestHeader("Content-Type", options.contentType ?? file.type)
 
-  if (!response.ok) throw new Error("S3 upload failed")
+    request.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return
+      options.onProgress?.(Math.round((event.loaded / event.total) * 100))
+    })
+    request.addEventListener("load", () => {
+      if (request.status >= 200 && request.status < 300) {
+        options.onProgress?.(100)
+        resolve()
+        return
+      }
+      reject(new Error(`S3 upload failed with status ${request.status}`))
+    })
+    request.addEventListener("error", () => reject(new Error("Network error while uploading to S3")))
+    request.addEventListener("abort", () => reject(new DOMException("Upload canceled", "AbortError")))
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        request.abort()
+        return
+      }
+      options.signal.addEventListener("abort", () => request.abort(), { once: true })
+    }
+
+    request.send(file)
+  })
 }
 
 export async function reviewDocument(
