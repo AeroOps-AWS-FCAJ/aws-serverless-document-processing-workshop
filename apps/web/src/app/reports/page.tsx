@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import {
   formatDate,
   formatMoney,
@@ -88,7 +88,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
 export default function ReportsPage() {
   const { documents } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const visibleDocuments = useMemo(
     () => documents.filter((document) => session?.role === "admin" || document.userId === session?.userId),
     [documents, session?.role, session?.userId]

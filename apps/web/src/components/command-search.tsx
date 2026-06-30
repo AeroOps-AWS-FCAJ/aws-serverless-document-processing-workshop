@@ -10,7 +10,7 @@ import {
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { getNavigationItems } from "@/config/navigation"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 
 const Command = React.forwardRef<
@@ -112,7 +112,8 @@ interface CommandSearchProps {
 export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   const navigate = useNavigate()
   const commandRef = React.useRef<HTMLDivElement>(null)
-  const role = getDocuFlowSession()?.role ?? "finance"
+  const { session } = useAuth()
+  const role = session?.role ?? "finance"
   const searchItems: SearchItem[] = getNavigationItems(role)
 
   const groupedItems = searchItems.reduce((acc, item) => {

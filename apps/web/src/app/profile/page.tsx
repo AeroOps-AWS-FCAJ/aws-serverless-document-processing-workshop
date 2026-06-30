@@ -25,13 +25,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  clearDocuFlowSession,
-  getDocuFlowSession,
-  roleLabels,
-} from "@/lib/auth"
+import { clearDocuFlowSession, roleLabels } from "@/lib/auth"
 import { roleCapabilities } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useAuth } from "@/contexts/auth-context"
 
 const workspaceLinks = [
   { label: "Upload", to: "/upload", icon: UploadCloud },
@@ -51,7 +48,7 @@ const securityClaims = [
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const { documents } = useDocuFlowDocuments()
   const role = session?.role ?? "finance"
   const capability = roleCapabilities.find((item) => item.role === role)
@@ -60,8 +57,8 @@ export default function ProfilePage() {
     ["REVIEW_REQUIRED", "FAILED", "CORRECTED"].includes(document.status)
   ).length
 
-  const handleLogout = () => {
-    clearDocuFlowSession()
+  const handleLogout = async () => {
+    await clearDocuFlowSession()
     navigate("/auth/sign-in", { replace: true })
   }
 

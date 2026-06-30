@@ -55,7 +55,7 @@ import {
   type DocumentStatus,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import { isApiConfigured } from "@/lib/docuflow-api"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
 
@@ -257,7 +257,7 @@ function ReviewPreviewDrawer({ document }: { document: DocumentRecord }) {
 
 export default function ReviewPage() {
   const { documents: allDocuments } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const role = session?.role ?? "finance"
   const apiMode = isApiConfigured()
   const documents =

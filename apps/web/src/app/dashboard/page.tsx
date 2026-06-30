@@ -31,7 +31,8 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { getDocuFlowSession, roleLabels } from "@/lib/auth"
+import { roleLabels } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import { isApiConfigured, listDocuments } from "@/lib/docuflow-api"
 import {
   formatDate,
@@ -113,7 +114,7 @@ function csvCell(value: string | number | null) {
 
 export default function DashboardPage() {
   const { documents: allDocuments, mergeDocuments } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const role = session?.role ?? "finance"
   const apiConnected = isApiConfigured()
   const [trendWindow, setTrendWindow] = useState<TrendWindow>("6m")

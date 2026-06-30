@@ -1,10 +1,11 @@
 import { ShieldCheck } from "lucide-react"
 import { Link } from "react-router-dom"
-import { getDocuFlowSession, roleHomePaths, roleLabels } from "@/lib/auth"
+import { roleLabels, roleHomePaths, type DocuFlowRole } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 
 export function SiteFooter() {
-  const session = getDocuFlowSession()
-  const role = session?.role ?? "finance"
+  const { session } = useAuth()
+  const role = (session?.role ?? "finance") as DocuFlowRole
 
   return (
     <footer className="border-t bg-background/70">

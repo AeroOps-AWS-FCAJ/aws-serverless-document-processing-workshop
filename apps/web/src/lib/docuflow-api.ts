@@ -8,7 +8,7 @@ import type {
   UploadUrlResponse,
 } from "@docuflow/shared-types"
 import { documents, testCases } from "@/lib/docuflow-data"
-import { getDocuFlowSession } from "@/lib/auth"
+import { getCurrentDocuFlowSession } from "@/lib/auth"
 
 export type { ListDocumentsRequest, UploadUrlRequest, UploadUrlResponse }
 
@@ -26,7 +26,8 @@ export function isApiConfigured() {
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiBaseUrl) throw new Error("VITE_API_BASE_URL is not configured")
 
-  const token = getDocuFlowSession()?.accessToken
+  const session = await getCurrentDocuFlowSession()
+  const token = session?.accessToken
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
@@ -56,7 +57,7 @@ export async function listDocuments(
   }
 
   await wait()
-  const session = getDocuFlowSession()
+  const session = await getCurrentDocuFlowSession()
   const visible = documents.filter((document) => {
     const allowedByOwner = session?.role !== "finance" || document.userId === session.userId
     const allowedByStatus = !request.status || document.status === request.status
@@ -72,7 +73,7 @@ export async function getDocument(documentId: string): Promise<DocumentResult | 
   }
 
   await wait()
-  const session = getDocuFlowSession()
+  const session = await getCurrentDocuFlowSession()
   const document = documents.find((item) => item.documentId === documentId) ?? null
   if (session?.role === "finance" && document?.userId !== session.userId) return null
   return document
@@ -90,7 +91,8 @@ export async function requestUploadUrl(
 
   await wait()
   const documentId = `doc-${Math.floor(100 + Math.random() * 900)}`
-  const userId = getDocuFlowSession()?.userId ?? "user-123"
+  const session = await getCurrentDocuFlowSession()
+  const userId = session?.userId ?? "user-123"
   const extension = request.fileName.split(".").pop() || "pdf"
   const s3RawPath = `s3://docuflow-dev-raw/raw/${userId}/${documentId}/original.${extension}`
 
@@ -168,7 +170,7 @@ export async function reviewDocument(
   }
 
   await wait()
-  const session = getDocuFlowSession()
+  const session = await getCurrentDocuFlowSession()
   if (!session) {
     throw new Error("An authenticated finance or administrator session is required")
   }

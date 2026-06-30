@@ -34,6 +34,7 @@ import {
   nextUploadStatus,
   useDocuFlowDocuments,
 } from "@/lib/docuflow-store"
+import { useAuth } from "@/contexts/auth-context"
 
 const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png"])
 const maxFileSize = 10 * 1024 * 1024
@@ -112,6 +113,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function UploadPage() {
+  const { session } = useAuth()
   const { documents, upsertDocument } = useDocuFlowDocuments()
   const abortRef = useRef<AbortController | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -237,7 +239,8 @@ export default function UploadPage() {
       setProgress(92)
       setMessage("Upload complete. Creating the processing queue record...")
 
-      const baseQueuedDocument = createQueuedDocument(request, response)
+      const sessionUserId = session?.userId ?? "user-123"
+      const baseQueuedDocument = createQueuedDocument(request, response, sessionUserId)
       const queuedDocument = {
         ...baseQueuedDocument,
         documentType:

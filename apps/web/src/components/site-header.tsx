@@ -8,11 +8,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Radio } from "lucide-react"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = React.useState(false)
-  const role = getDocuFlowSession()?.role ?? "finance"
+  const { session } = useAuth()
+  const role = session?.role ?? "finance"
   const shortcuts =
     role === "admin"
       ? [

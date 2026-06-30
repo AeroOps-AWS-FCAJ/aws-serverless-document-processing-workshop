@@ -1,4 +1,4 @@
-const AUTH_STORAGE_KEY = "docuflow.authenticated"
+import { fetchAuthSession, getCurrentUser, signOut as amplifySignOut } from 'aws-amplify/auth';
 
 export type DocuFlowRole = "finance" | "admin"
 
@@ -11,18 +11,6 @@ export interface DocuFlowSession {
   accessToken?: string
 }
 
-type StoredSession = Omit<Partial<DocuFlowSession>, "role"> & {
-  role?: DocuFlowRole | "reviewer"
-}
-
-const defaultFinanceSession: DocuFlowSession = {
-  authenticated: true,
-  role: "finance",
-  userId: "user-123",
-  name: "Finance User",
-  email: "finance@docuflow.ai",
-}
-
 export const roleLabels: Record<DocuFlowRole, string> = {
   finance: "Finance",
   admin: "System administrator",
@@ -33,55 +21,54 @@ export const roleHomePaths: Record<DocuFlowRole, string> = {
   admin: "/operations",
 }
 
-export function getDocuFlowSession(): DocuFlowSession | null {
-  if (typeof window === "undefined") return null
-
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
-  if (!raw) return null
-
-  // Keep older demo sessions usable after introducing role-aware navigation.
-  if (raw === "true") return defaultFinanceSession
-
-  try {
-    const parsed = JSON.parse(raw) as StoredSession
-    // Migrate the retired reviewer demo role into the unified finance workspace.
-    if (parsed.authenticated === true && parsed.role === "reviewer") {
-      setDocuFlowSession({
-        role: "finance",
-        userId: "user-123",
-        name: "Finance User",
-        email: "finance@docuflow.ai",
-      })
-      return defaultFinanceSession
-    }
-
-    if (
-      parsed.authenticated === true &&
-      parsed.userId &&
-      parsed.name &&
-      parsed.email &&
-      ["finance", "admin"].includes(parsed.role ?? "")
-    ) {
-      return parsed as DocuFlowSession
-    }
-  } catch {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+// Hàm hỗ trợ suy luận Role từ các group Cognito (nếu cấu hình)
+// Trong phạm vi workshop, ta có thể dùng inferRole từ email hoặc nhóm.
+function inferRoleFromCognito(groups?: string[], email?: string): DocuFlowRole {
+  if (groups && groups.includes('docuflow-dev-admins')) {
+    return 'admin';
   }
-
-  return null
+  if (email && email.toLowerCase().startsWith('admin')) {
+    return 'admin';
+  }
+  return 'finance';
 }
 
-export function isDocuFlowAuthenticated() {
-  return getDocuFlowSession() !== null
+export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | null> {
+  try {
+    const { tokens } = await fetchAuthSession();
+    if (!tokens) return null;
+
+    const user = await getCurrentUser();
+    const idToken = tokens.idToken;
+    const payload = idToken?.payload;
+    const email = payload?.email?.toString() || user.signInDetails?.loginId || '';
+    const name = payload?.name?.toString() || email.split('@')[0] || user.username;
+    
+    // AWS Cognito Groups
+    const groups = (payload?.['cognito:groups'] as string[]) || [];
+    const role = inferRoleFromCognito(groups, email);
+
+    return {
+      authenticated: true,
+      role,
+      userId: user.username,
+      name,
+      email,
+      accessToken: tokens.accessToken?.toString()
+    };
+  } catch (error) {
+    console.error("No active user session:", error);
+    return null;
+  }
 }
 
-export function setDocuFlowSession(session: Omit<DocuFlowSession, "authenticated">) {
-  window.localStorage.setItem(
-    AUTH_STORAGE_KEY,
-    JSON.stringify({ ...session, authenticated: true } satisfies DocuFlowSession)
-  )
+export async function clearDocuFlowSession() {
+  try {
+    await amplifySignOut();
+  } catch (error) {
+    console.error("Sign out error", error);
+  }
 }
 
-export function clearDocuFlowSession() {
-  window.localStorage.removeItem(AUTH_STORAGE_KEY)
-}
+// Fallback functions that return boolean based on token presence or async context.
+// In modern React, AuthContext is preferred over direct synchronous checks.

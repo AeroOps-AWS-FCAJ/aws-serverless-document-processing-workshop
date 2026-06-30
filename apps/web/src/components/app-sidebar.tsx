@@ -16,10 +16,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { getNavigationGroups } from "@/config/navigation"
-import { getDocuFlowSession, roleLabels } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
+import { roleLabels } from "@/lib/auth"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const role = session?.role ?? "finance"
   const navGroups = getNavigationGroups(role)
 

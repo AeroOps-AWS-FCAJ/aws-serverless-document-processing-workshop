@@ -63,7 +63,7 @@ import {
   type DocumentType,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import { isApiConfigured, listDocuments } from "@/lib/docuflow-api"
 
 type QuickFilter = "ALL" | "ACTION" | "PROCESSING" | "APPROVED" | "FAILED" | "MY_UPLOADS"
@@ -314,7 +314,7 @@ export default function DocumentsPage() {
     resetDocuments,
     updateDocument,
   } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const role = session?.role ?? "finance"
   const apiMode = isApiConfigured()
   const documents =

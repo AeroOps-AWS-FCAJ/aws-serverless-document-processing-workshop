@@ -53,7 +53,7 @@ import {
   type DocumentStatus,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
-import { getDocuFlowSession } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
 import { getDocument, isApiConfigured, reviewDocument } from "@/lib/docuflow-api"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
 
@@ -165,7 +165,7 @@ function DocumentPreview({ document }: { document: DocumentRecord }) {
 export default function DocumentDetailPage() {
   const { documentId } = useParams()
   const { documents, updateDocument } = useDocuFlowDocuments()
-  const session = getDocuFlowSession()
+  const { session } = useAuth()
   const role = session?.role ?? "finance"
   const matchedDocument = documents.find((item) => item.documentId === documentId)
   const document =
