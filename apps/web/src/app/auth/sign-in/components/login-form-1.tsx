@@ -73,11 +73,11 @@ export function LoginForm1({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Sign in to DocuFlow AI</CardTitle>
-          <CardDescription>
-            Sign in to your document or administration workspace.
+      <Card className="border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]">
+        <CardHeader className="border-b border-[#e2e3db] text-left">
+          <CardTitle className="text-lg text-[#11251d]">Account details</CardTitle>
+          <CardDescription className="text-[#647069]">
+            Demo access mirrors Cognito role-based workspaces.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -90,11 +90,12 @@ export function LoginForm1({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel className="text-[#405047]">Email</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
                             placeholder="finance@docuflow.ai"
+                            className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
                             {...field}
                           />
                         </FormControl>
@@ -108,30 +109,34 @@ export function LoginForm1({
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center">
-                          <FormLabel>Password</FormLabel>
+                          <FormLabel className="text-[#405047]">Password</FormLabel>
                           <a
                             href="/auth/forgot-password"
-                            className="ml-auto text-sm underline-offset-4 hover:underline"
+                            className="ml-auto text-sm text-[#647069] underline-offset-4 hover:text-[#153f30] hover:underline"
                           >
                             Forgot your password?
                           </a>
                         </div>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input
+                            type="password"
+                            className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full cursor-pointer">
+                  <Button type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
                     Sign in
                   </Button>
 
                 </div>
-                <div className="grid gap-3 border-t pt-5">
+                <div className="grid gap-3 border-t border-[#e2e3db] pt-5">
                   <div>
-                    <div className="text-sm font-medium">Demo workspaces</div>
-                    <div className="text-muted-foreground text-xs">
+                    <div className="text-sm font-medium text-[#11251d]">Demo workspaces</div>
+                    <div className="text-xs text-[#647069]">
                       Finance handles document processing; Admin handles system operations.
                     </div>
                   </div>
@@ -140,7 +145,7 @@ export function LoginForm1({
                       <Button
                         key={role}
                         variant="outline"
-                        className="h-auto cursor-pointer flex-col gap-1 py-3 capitalize"
+                        className="h-auto cursor-pointer flex-col gap-1 !border-[#40584b] !bg-[#e7ece4] py-3 capitalize !text-[#11251d] hover:!bg-[#dce7d8]"
                         type="button"
                         onClick={() => startSession(role, demoAccounts[role].email, demoAccounts[role].name, demoAccounts[role].userId)}
                       >
@@ -149,9 +154,9 @@ export function LoginForm1({
                     ))}
                   </div>
                 </div>
-                <div className="text-center text-sm">
+                <div className="text-center text-sm text-[#647069]">
                   Don&apos;t have an account?{" "}
-                  <a href="/auth/sign-up" className="underline underline-offset-4">
+                  <a href="/auth/sign-up" className="font-medium text-[#153f30] underline underline-offset-4">
                     Sign up
                   </a>
                 </div>
@@ -160,7 +165,7 @@ export function LoginForm1({
           </Form>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+      <div className="text-center font-mono text-[9px] uppercase tracking-[0.1em] text-[#647069]">
         Production access will come from Amazon Cognito groups and API authorization claims.
       </div>
     </div>
