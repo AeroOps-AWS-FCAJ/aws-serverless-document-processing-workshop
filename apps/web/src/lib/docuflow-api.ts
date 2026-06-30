@@ -27,7 +27,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (!apiBaseUrl) throw new Error("VITE_API_BASE_URL is not configured")
 
   const session = await getCurrentDocuFlowSession()
-  const token = session?.accessToken
+  const token = session?.idToken || session?.accessToken
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
@@ -42,7 +42,16 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message || `API request failed with status ${response.status}`)
   }
 
-  return response.json() as Promise<T>
+  const json = await response.json()
+  
+  if (json && typeof json === 'object' && 'success' in json) {
+    if (!json.success) {
+      throw new Error(json.error?.errorMessage || "API returned success: false")
+    }
+    return json.data as T
+  }
+
+  return json as T
 }
 
 export async function listDocuments(
@@ -93,7 +102,7 @@ export async function requestUploadUrl(
   const documentId = `doc-${Math.floor(100 + Math.random() * 900)}`
   const session = await getCurrentDocuFlowSession()
   const userId = session?.userId ?? "user-123"
-  const extension = request.fileName.split(".").pop() || "pdf"
+  const extension = request.originalFileName.split(".").pop() || "pdf"
   const s3RawPath = `s3://docuflow-dev-raw/raw/${userId}/${documentId}/original.${extension}`
 
   return {

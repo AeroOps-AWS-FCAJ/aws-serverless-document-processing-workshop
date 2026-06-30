@@ -124,12 +124,12 @@ export function createQueuedDocument(
   userId: string = "user-123"
 ): DocumentRecord {
   const now = new Date().toISOString()
-  const extension = request.fileName.split(".").pop()?.toLowerCase()
-  const documentType = request.fileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE"
+  const extension = request.originalFileName.split(".").pop()?.toLowerCase()
+  const documentType = request.originalFileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE"
 
   return {
     documentId: response.documentId,
-    fileName: request.fileName,
+    fileName: request.originalFileName,
     documentType,
     status: "UPLOADED",
     vendorName: "Pending extraction",

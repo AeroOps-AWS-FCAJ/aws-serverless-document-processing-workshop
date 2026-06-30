@@ -215,10 +215,10 @@ export default function UploadPage() {
       setMessage(apiMode ? "Requesting a signed S3 upload URL..." : "Preparing local demo upload...")
 
       const request = {
-        fileName: file.name,
-        contentType: file.type,
-        fileSize: file.size,
-        pageCount: detectedPageCount ?? 1,
+        originalFileName: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size,
+        pageCount: detectedPageCount || 1,
       }
       const response = await requestUploadUrl(request)
 
