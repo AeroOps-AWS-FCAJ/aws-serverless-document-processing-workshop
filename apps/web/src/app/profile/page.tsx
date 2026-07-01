@@ -5,10 +5,7 @@ import {
   ArrowRight,
   BadgeCheck,
   BellDot,
-  CheckCircle2,
   FileSearch,
-  KeyRound,
-  LockKeyhole,
   LogOut,
   ShieldCheck,
   UploadCloud,
@@ -31,19 +28,12 @@ import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
 
 const workspaceLinks = [
-  { label: "Upload", to: "/upload", icon: UploadCloud },
-  { label: "Documents", to: "/documents", icon: FileSearch },
-  { label: "Review queue", to: "/review", icon: BellDot },
-  { label: "Reports", to: "/reports", icon: BadgeCheck },
-  { label: "Notifications", to: "/notifications", icon: BellDot },
-  { label: "Activity", to: "/activity", icon: Workflow },
-]
-
-const securityClaims = [
-  "Role-based workspace access is enforced by protected routes.",
-  "Raw invoice and receipt files stay in private S3 storage.",
-  "External AI API keys never enter the browser session.",
-  "Review actions record reviewer identity and timestamps.",
+  { label: "Tải tài liệu lên", to: "/upload", icon: UploadCloud },
+  { label: "Danh sách tài liệu", to: "/documents", icon: FileSearch },
+  { label: "Hàng đợi kiểm duyệt", to: "/review", icon: BellDot },
+  { label: "Báo cáo", to: "/reports", icon: BadgeCheck },
+  { label: "Thông báo", to: "/notifications", icon: BellDot },
+  { label: "Lịch sử hoạt động", to: "/activity", icon: Workflow },
 ]
 
 export default function ProfilePage() {
@@ -63,58 +53,55 @@ export default function ProfilePage() {
   }
 
   return (
-    <BaseLayout
-      title="Profile"
-      description="Workspace identity, role permissions, and demo Cognito claims."
-    >
+    <BaseLayout title="Hồ sơ của tôi">
+      {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
       <section className="px-4 lg:px-6">
-        <div className="overflow-hidden border bg-[#10261d] text-white">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="p-5 sm:p-7">
+        <div className="overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  Workspace identity
+                  Tài khoản
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  Cognito demo claims
+                  {roleLabels[role]}
                 </Badge>
               </div>
-              <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
-                {session?.name ?? "Signed-in user"}
+              <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
+                {session?.name ?? "Người dùng"}
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-                This profile mirrors the Cognito identity story for the demo: role, workspace scope,
-                user-owned documents, review access, and security boundaries.
+              <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
+                Thông tin tài khoản, vai trò trong hệ thống và quyền truy cập tính năng.
               </p>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]">
                   <Link to="/documents">
-                    Open my documents
+                    Tài liệu của tôi
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button type="button" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={handleLogout}>
                   <LogOut className="size-4" />
-                  Log out
+                  Đăng xuất
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 border-t border-white/12 xl:border-l xl:border-t-0">
+            {/* Right: KPI tiles */}
+            <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: "Role", value: roleLabels[role], icon: UserRound },
-                { label: "Documents", value: visibleDocuments.length, icon: FileSearch },
-                { label: "Needs review", value: reviewCount, icon: BellDot },
-                { label: "Session", value: "Active", icon: CheckCircle2 },
+                { label: "Vai trò", value: roleLabels[role], icon: UserRound },
+                { label: "Tài liệu", value: visibleDocuments.length, icon: FileSearch },
+                { label: "Cần xử lý", value: reviewCount, icon: BellDot },
+                { label: "Trạng thái", value: "Đang hoạt động", icon: ShieldCheck },
               ].map((item) => {
                 const Icon = item.icon
                 return (
-                  <div key={item.label} className="border-b border-r border-white/12 p-4 last:border-r-0 sm:p-5">
-                    <div className="mb-8 flex items-center justify-between gap-3">
-                      <Icon className="size-4 text-[#d8ff72]" />
-                      <span className="font-mono text-[10px] text-white/35">ID</span>
+                  <div key={item.label} className="border-b border-r border-white/12 p-3 last:border-r-0 sm:p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <Icon className="size-3.5 text-[#d8ff72]" />
                     </div>
-                    <div className="text-xl font-semibold text-white sm:text-2xl">{item.value}</div>
-                    <div className="mt-1 text-xs text-white/50">{item.label}</div>
+                    <div className="truncate text-lg font-semibold text-white">{item.value}</div>
+                    <div className="mt-0.5 text-xs text-white/50">{item.label}</div>
                   </div>
                 )
               })}
@@ -123,99 +110,79 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      <section className="grid gap-5 px-4 xl:grid-cols-[minmax(360px,0.8fr)_minmax(0,1.2fr)] lg:px-6">
-        <div className="grid gap-5">
-          <Card>
-            <CardHeader className="border-b bg-muted/25">
-              <CardTitle className="flex items-center gap-2">
-                <UserRound className="size-5" />
-                Account details
-              </CardTitle>
-              <CardDescription>Local demo session that stands in for Cognito claims.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 pt-5">
-              {[
-                ["Name", session?.name ?? "Unknown"],
-                ["Email", session?.email ?? "Unknown"],
-                ["User ID", session?.userId ?? "Unknown"],
-                ["Role", roleLabels[role]],
-              ].map(([label, value]) => (
-                <div key={label} className="grid gap-1 border p-3">
-                  <div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div>
-                  <div className="break-all text-sm font-medium">{value}</div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="border-b bg-muted/25">
-              <CardTitle className="flex items-center gap-2">
-                <KeyRound className="size-5" />
-                Demo token claims
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 pt-5">
-              {[
-                ["cognito:groups", role],
-                ["scope", role === "admin" ? "documents:* operations:*" : "documents:own review:own"],
-                ["aud", "docuflow-ai-web"],
-                ["iss", "local-demo-cognito"],
-              ].map(([claim, value]) => (
-                <div key={claim} className="grid gap-1 border bg-muted/20 p-3">
-                  <div className="font-mono text-[10px] text-muted-foreground">{claim}</div>
-                  <div className="font-mono text-xs">{value}</div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+      {/* ── Profile details ──────────────────────────────────────────────────── */}
+      <section className="grid gap-5 px-4 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(340px,0.75fr)_minmax(0,1.25fr)] lg:px-6">
+        {/* Account info */}
+        <Card>
+          <CardHeader className="border-b bg-muted/25">
+            <CardTitle className="flex items-center gap-2">
+              <UserRound className="size-5" />
+              Thông tin tài khoản
+            </CardTitle>
+            <CardDescription>Thông tin cơ bản của phiên làm việc hiện tại.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 pt-5">
+            {[
+              ["Họ và tên", session?.name ?? "Không xác định"],
+              ["Email", session?.email ?? "Không xác định"],
+              ["Vai trò", roleLabels[role]],
+              ["Mã người dùng", session?.userId ?? "Không xác định"],
+            ].map(([label, value]) => (
+              <div key={label} className="grid gap-1 rounded-xl border p-3">
+                <div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div>
+                <div className="break-all text-sm font-medium">{value}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-5">
+          {/* Role capabilities */}
           <Card>
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="size-5" />
-                Role capabilities
+                Quyền truy cập
               </CardTitle>
               <CardDescription>{capability?.description}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 md:grid-cols-3">
               {[
-                ["Upload", capability?.canUpload],
-                ["Review", capability?.canReview],
-                ["Operate", capability?.canOperate],
-              ].map(([label, enabled]) => (
-                <div key={label as string} className="border p-4">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <span className="font-medium">{label as string}</span>
+                { label: "Tải tài liệu", enabled: capability?.canUpload },
+                { label: "Kiểm duyệt", enabled: capability?.canReview },
+                { label: "Quản trị hệ thống", enabled: capability?.canOperate },
+              ].map(({ label, enabled }) => (
+                <div key={label} className="rounded-xl border p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="font-medium text-sm">{label}</span>
                     <Badge variant="outline" className={enabled ? "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300" : "border-muted-foreground/30 text-muted-foreground"}>
-                      {enabled ? "Allowed" : "Restricted"}
+                      {enabled ? "Được phép" : "Hạn chế"}
                     </Badge>
                   </div>
-                  <div className="text-sm leading-6 text-muted-foreground">
-                    {enabled ? "Available in this workspace." : "Reserved for admin operations."}
+                  <div className="text-xs leading-5 text-muted-foreground">
+                    {enabled ? "Tính năng này có thể sử dụng." : "Chỉ dành cho quản trị viên."}
                   </div>
                 </div>
               ))}
             </CardContent>
           </Card>
 
+          {/* Quick navigation */}
           <Card>
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <Workflow className="size-5" />
-                Workspace shortcuts
+                Truy cập nhanh
               </CardTitle>
-              <CardDescription>Common user workflows from this account.</CardDescription>
+              <CardDescription>Các tính năng thường dùng trong hệ thống.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 pt-5 sm:grid-cols-2 xl:grid-cols-3">
+            <CardContent className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3">
               {workspaceLinks.map((link) => {
                 const Icon = link.icon
                 return (
                   <Button key={link.to} asChild variant="outline" className="h-auto justify-between p-4">
                     <Link to={link.to}>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 text-sm">
                         <Icon className="size-4" />
                         {link.label}
                       </span>
@@ -224,24 +191,6 @@ export default function ProfilePage() {
                   </Button>
                 )
               })}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="border-b bg-muted/25">
-              <CardTitle className="flex items-center gap-2">
-                <LockKeyhole className="size-5" />
-                Security boundary
-              </CardTitle>
-              <CardDescription>What this user session should demonstrate.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 pt-5 md:grid-cols-2">
-              {securityClaims.map((claim) => (
-                <div key={claim} className="flex items-start gap-3 border p-3">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span className="text-sm leading-6">{claim}</span>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>

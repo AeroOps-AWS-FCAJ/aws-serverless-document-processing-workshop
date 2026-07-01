@@ -16,7 +16,7 @@ interface BaseLayoutProps {
   description?: string
 }
 
-export function BaseLayout({ children, title, description }: BaseLayoutProps) {
+export function BaseLayout({ children, title }: BaseLayoutProps) {
   const { config } = useSidebarConfig()
 
   return (
@@ -40,18 +40,12 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
           <SidebarInset className="min-w-0 bg-background/88">
             <SiteHeader />
             <div className="paper-noise flex flex-1 flex-col overflow-hidden">
-              <div className="@container/main flex flex-1 flex-col gap-2">
-                <main className="reveal-in mx-auto flex w-full max-w-[1500px] flex-col gap-5 py-5 md:gap-7 md:py-7">
+              <div className="@container/main flex flex-1 flex-col gap-2 min-w-0">
+                <main className="reveal-in mx-auto flex w-full max-w-[1500px] min-w-0 flex-col gap-5 py-5 md:gap-7 md:py-7">
                   {title && (
                     <div className="px-4 lg:px-6">
-                      <div className="flex max-w-3xl flex-col gap-2 border-l-2 border-primary pl-4">
-                        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                          DocuFlow workspace / 2026
-                        </div>
-                        <h1 className="text-3xl font-semibold leading-none tracking-[-0.045em] md:text-4xl">{title}</h1>
-                        {description && (
-                          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-                        )}
+                      <div className="flex max-w-3xl flex-col gap-1.5 border-l-[3px] border-primary pl-4">
+                        <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.04em] md:text-3xl">{title}</h1>
                       </div>
                     </div>
                   )}
@@ -67,18 +61,12 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
           <SidebarInset className="min-w-0 bg-background/88">
             <SiteHeader />
             <div className="paper-noise flex flex-1 flex-col overflow-hidden">
-              <div className="@container/main flex flex-1 flex-col gap-2">
-                <main className="reveal-in mx-auto flex w-full max-w-[1500px] flex-col gap-5 py-5 md:gap-7 md:py-7">
+              <div className="@container/main flex flex-1 flex-col gap-2 min-w-0">
+                <main className="reveal-in mx-auto flex w-full max-w-[1500px] min-w-0 flex-col gap-5 py-5 md:gap-7 md:py-7">
                   {title && (
                     <div className="px-4 lg:px-6">
-                      <div className="flex max-w-3xl flex-col gap-2 border-l-2 border-primary pl-4">
-                        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                          DocuFlow workspace / 2026
-                        </div>
-                        <h1 className="text-3xl font-semibold leading-none tracking-[-0.045em] md:text-4xl">{title}</h1>
-                        {description && (
-                          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-                        )}
+                      <div className="flex max-w-3xl flex-col gap-1.5 border-l-[3px] border-primary pl-4">
+                        <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.04em] md:text-3xl">{title}</h1>
                       </div>
                     </div>
                   )}

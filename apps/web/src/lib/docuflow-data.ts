@@ -5,6 +5,7 @@ import {
   FileCheck2,
   FileWarning,
   Loader2,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react"
 import type {
@@ -26,44 +27,44 @@ export interface StatusMeta {
 
 export const statusMeta: Record<DocumentStatus, StatusMeta> = {
   UPLOADED: {
-    label: "Uploaded",
-    tone: "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-300",
+    label: "Đã tải lên",
+    tone: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
     icon: Clock3,
   },
   QUEUED: {
-    label: "Queued",
-    tone: "border-cyan-200 text-cyan-700 dark:border-cyan-900 dark:text-cyan-300",
+    label: "Đang xếp hàng",
+    tone: "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-900/30 dark:text-cyan-300",
     icon: Clock3,
   },
   PROCESSING: {
-    label: "Processing",
-    tone: "border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300",
+    label: "Đang xử lý",
+    tone: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300",
     icon: Loader2,
   },
   EXTRACTED: {
-    label: "Extracted",
-    tone: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+    label: "Đã trích xuất",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300",
     icon: CheckCircle2,
   },
   REVIEW_REQUIRED: {
-    label: "Review required",
-    tone: "border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300",
+    label: "Cần kiểm duyệt",
+    tone: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-300",
     icon: FileWarning,
   },
   FAILED: {
-    label: "Failed",
-    tone: "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300",
+    label: "Thất bại",
+    tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300",
     icon: AlertTriangle,
   },
   CORRECTED: {
-    label: "Corrected",
-    tone: "border-violet-200 text-violet-700 dark:border-violet-900 dark:text-violet-300",
+    label: "Đã chỉnh sửa",
+    tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-900/30 dark:text-violet-300",
     icon: FileCheck2,
   },
   APPROVED: {
-    label: "Approved",
-    tone: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
-    icon: CheckCircle2,
+    label: "Đã duyệt",
+    tone: "border-emerald-300 bg-emerald-50 text-emerald-800 font-medium dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+    icon: ShieldCheck,
   },
 }
 
