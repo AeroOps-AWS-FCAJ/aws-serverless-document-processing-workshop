@@ -304,7 +304,7 @@ export default function AdminIngestionPage() {
                     const meta = statusMeta[document.status]
                     const Icon = meta.icon
                     return (
-                      <TableRow key={document.documentId}>
+                      <TableRow key={`${document.documentId}-${index}`}>
                         <TableCell className="font-mono">msg-{String(index + 1).padStart(3, "0")}</TableCell>
                         <TableCell>
                           <div className="font-medium">{document.fileName}</div>

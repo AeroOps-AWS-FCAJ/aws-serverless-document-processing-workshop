@@ -116,13 +116,16 @@ function stepIcon(state: StepState) {
   return XCircle
 }
 
-function executionName(document: DocumentRecord) {
-  return `docuflow-${document.documentId}-${document.createdAt.slice(0, 10)}`
+function executionName(document?: DocumentRecord) {
+  if (!document) return ""
+  const dateStr = document.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10)
+  return `docuflow-${document.documentId}-${dateStr}`
 }
 
-function confidenceBreakdown(document: DocumentRecord) {
-  const textract = Math.max(0, Math.round(document.confidenceScore * 100))
-  const completeness = document.reviewReasons.length ? Math.max(36, 92 - document.reviewReasons.length * 18) : 96
+function confidenceBreakdown(document?: DocumentRecord) {
+  if (!document) return []
+  const textract = Math.max(0, Math.round((document.confidenceScore || 0) * 100))
+  const completeness = document.reviewReasons?.length ? Math.max(36, 92 - document.reviewReasons.length * 18) : 96
   const schema = document.status === "FAILED" ? 0 : document.taxAmount === null ? 78 : 94
   return [
     { label: "Textract confidence", value: textract },
@@ -156,6 +159,26 @@ export default function AdminWorkflowPage() {
   }))
   const finishedSteps = selectedSteps.filter((step) => step.state === "Succeeded").length
   const progress = Math.round((finishedSteps / selectedSteps.length) * 100)
+
+  if (documents.length === 0) {
+    return (
+      <div className="grid gap-5 px-4 py-6 lg:px-6">
+        <section>
+          <div className="relative overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg p-8">
+            <h2 className="font-display text-2xl font-semibold leading-tight">Chưa có quy trình xử lý nào</h2>
+            <p className="mt-2 text-sm text-white/70">
+              Vui lòng tải tài liệu lên tại Không gian tài liệu trước để kích hoạt quy trình xử lý AWS Step Functions.
+            </p>
+            <div className="mt-4">
+              <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f] font-semibold">
+                <Link to="/upload">Tải tài liệu lên</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -246,8 +269,8 @@ export default function AdminWorkflowPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {executions.map((execution) => (
-                    <TableRow key={execution.document.documentId} className={selected.documentId === execution.document.documentId ? "bg-muted/35" : undefined}>
+                  {executions.map((execution, index) => (
+                    <TableRow key={`${execution.document.documentId}-${index}`} className={selected?.documentId === execution.document.documentId ? "bg-muted/35" : undefined}>
                       <TableCell>
                         <div className="font-mono text-xs">{execution.name}</div>
                         <div className="mt-1 text-xs text-muted-foreground">Standard workflow</div>
