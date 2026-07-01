@@ -33,7 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { documents, formatDate, statusMeta, type DocumentRecord } from "@/lib/docuflow-data"
+import { formatDate, statusMeta, type DocumentRecord } from "@/lib/docuflow-data"
+import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 
 type QueueState = "Healthy" | "Watch" | "Missing"
 
@@ -112,6 +113,7 @@ function messageStateClass(state: string) {
 }
 
 export default function AdminIngestionPage() {
+  const { documents } = useDocuFlowDocuments()
   const queued = documents.filter((document) => document.status === "QUEUED").length
   const processing = documents.filter((document) => document.status === "PROCESSING").length
   const failed = documents.filter((document) => document.status === "FAILED").length

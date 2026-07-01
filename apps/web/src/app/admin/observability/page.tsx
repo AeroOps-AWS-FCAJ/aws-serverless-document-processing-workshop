@@ -33,7 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { documents, formatDate } from "@/lib/docuflow-data"
+import { formatDate } from "@/lib/docuflow-data"
+import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 
 type AlarmState = "OK" | "ALARM" | "INSUFFICIENT_DATA"
 type LogLevel = "INFO" | "WARN" | "ERROR"
@@ -141,6 +142,7 @@ function signalClass(tone: string) {
 }
 
 export default function AdminObservabilityPage() {
+  const { documents } = useDocuFlowDocuments()
   const alarmCount = alarms.filter((alarm) => alarm.state === "ALARM").length
   const okCount = alarms.filter((alarm) => alarm.state === "OK").length
   const failedDocuments = documents.filter((document) => document.status === "FAILED").length

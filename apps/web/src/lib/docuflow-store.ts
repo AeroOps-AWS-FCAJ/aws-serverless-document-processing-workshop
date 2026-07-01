@@ -7,27 +7,40 @@ import {
 import type { UploadUrlRequest, UploadUrlResponse } from "@/lib/docuflow-api"
 
 
+import { isApiConfigured } from "@/lib/docuflow-api"
+
 const STORAGE_KEY = "docuflow.documents"
 const DOCUMENTS_UPDATED_EVENT = "docuflow-documents-updated"
 
+const seedIds = new Set(["doc-001", "doc-002", "doc-003", "doc-004", "doc-005", "doc-006", "doc-007"])
+
 function cloneSeedDocuments() {
+  if (isApiConfigured()) {
+    return []
+  }
   return seedDocuments.map((document) => ({ ...document }))
 }
 
 export function readDocuFlowDocuments(): DocumentRecord[] {
-  if (typeof window === "undefined") return cloneSeedDocuments()
+  const isApi = isApiConfigured()
+  if (typeof window === "undefined") return isApi ? [] : cloneSeedDocuments()
 
   const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) return cloneSeedDocuments()
+  if (!raw) return isApi ? [] : cloneSeedDocuments()
 
   try {
     const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return parsed as DocumentRecord[]
+    if (Array.isArray(parsed)) {
+      if (isApi) {
+        return parsed.filter((doc) => !seedIds.has(doc.documentId)) as DocumentRecord[]
+      }
+      return parsed as DocumentRecord[]
+    }
   } catch {
     window.localStorage.removeItem(STORAGE_KEY)
   }
 
-  return cloneSeedDocuments()
+  return isApi ? [] : cloneSeedDocuments()
 }
 
 function writeDocuFlowDocuments(nextDocuments: DocumentRecord[]) {

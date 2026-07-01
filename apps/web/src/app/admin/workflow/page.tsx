@@ -37,7 +37,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { documents, formatDate, workflowSteps, type DocumentRecord } from "@/lib/docuflow-data"
+import { formatDate, workflowSteps, type DocumentRecord } from "@/lib/docuflow-data"
+import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 
 type ExecutionState = "Succeeded" | "Running" | "Failed" | "NeedsReview"
 type StepState = "Succeeded" | "Running" | "Skipped" | "Failed" | "Waiting"
@@ -66,7 +67,8 @@ const stateDurations: Record<string, string> = {
   TriggerSnsSesNotification: "780 ms",
 }
 
-function executionState(document: DocumentRecord): ExecutionState {
+function executionState(document?: DocumentRecord): ExecutionState {
+  if (!document) return "Succeeded"
   if (document.status === "FAILED") return "Failed"
   if (document.status === "PROCESSING" || document.status === "QUEUED" || document.status === "UPLOADED") return "Running"
   if (document.status === "REVIEW_REQUIRED" || document.status === "CORRECTED") return "NeedsReview"
@@ -86,7 +88,8 @@ function stateClass(state: ExecutionState | StepState) {
   return "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-500/10 dark:text-red-200"
 }
 
-function stepState(document: DocumentRecord, step: string): StepState {
+function stepState(document: DocumentRecord | undefined, step: string): StepState {
+  if (!document) return "Succeeded"
   const state = executionState(document)
   if (state === "Failed") {
     if (step === "ExtractWithTextract") return "Failed"
@@ -129,8 +132,10 @@ function confidenceBreakdown(document: DocumentRecord) {
 }
 
 export default function AdminWorkflowPage() {
-  const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "")
-  const selected = documents.find((document) => document.documentId === selectedId) ?? documents[0]
+  const { documents } = useDocuFlowDocuments()
+  const [selectedId, setSelectedId] = useState("")
+  const activeId = selectedId || documents[0]?.documentId || ""
+  const selected = documents.find((document) => document.documentId === activeId) ?? documents[0]
   const executions = useMemo(
     () =>
       documents.map((document) => ({
@@ -138,13 +143,13 @@ export default function AdminWorkflowPage() {
         state: executionState(document),
         name: executionName(document),
       })),
-    []
+    [documents]
   )
   const succeeded = executions.filter((execution) => execution.state === "Succeeded").length
   const running = executions.filter((execution) => execution.state === "Running").length
   const failed = executions.filter((execution) => execution.state === "Failed").length
   const review = executions.filter((execution) => execution.state === "NeedsReview").length
-  const selectedState = executionState(selected)
+  const selectedState = selected ? executionState(selected) : "Succeeded"
   const selectedSteps = workflowSteps.map((step) => ({
     step,
     state: stepState(selected, step),
