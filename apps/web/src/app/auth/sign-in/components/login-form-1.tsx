@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
 import { signIn } from "aws-amplify/auth"
@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/form"
 import { toast } from "sonner"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { useAuth } from "@/contexts/auth-context"
+import { roleHomePaths } from "@/lib/auth"
 
 const loginFormSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -39,10 +41,10 @@ export function LoginForm1({
   ...props
 }: React.ComponentProps<"div">) {
   const navigate = useNavigate()
-  const location = useLocation()
+  const { refreshSession } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
-  const from = (location.state as { from?: string } | null)?.from || "/dashboard"
-  
+
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
@@ -61,7 +63,15 @@ export function LoginForm1({
 
       if (isSignedIn) {
         toast.success("Signed in successfully!");
-        navigate(from, { replace: true });
+        // Refresh session to get role info, then redirect to role-specific home
+        await refreshSession();
+        // After refresh, AuthContext has the updated session.
+        // We use getCurrentDocuFlowSession directly to read role for redirect.
+        const { getCurrentDocuFlowSession } = await import("@/lib/auth");
+        const session = await getCurrentDocuFlowSession();
+        const rolePath = session ? roleHomePaths[session.role] : "/dashboard";
+        // Always redirect to the role's home page to ensure proper layout initialization.
+        navigate(rolePath, { replace: true });
       } else {
         // Handle next steps like NEW_PASSWORD_REQUIRED, CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED
         console.log("Next step required:", nextStep);

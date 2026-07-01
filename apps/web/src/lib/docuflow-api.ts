@@ -62,7 +62,18 @@ export async function listDocuments(
     if (request.status) query.set("status", request.status)
     if (request.nextToken) query.set("nextToken", request.nextToken)
     const suffix = query.size ? `?${query.toString()}` : ""
-    return apiRequest<ListDocumentsResponse>(`/documents${suffix}`)
+    const response = await apiRequest<ListDocumentsResponse>(`/documents${suffix}`)
+    
+    // Ensure reviewReasons is always an array to prevent frontend crashes
+    // if the backend omits it or returns null.
+    if (response.items && Array.isArray(response.items)) {
+      response.items.forEach(doc => {
+        doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
+        doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
+        doc.correctedFields = Array.isArray(doc.correctedFields) ? doc.correctedFields : []
+      })
+    }
+    return response
   }
 
   await wait()
@@ -78,7 +89,13 @@ export async function listDocuments(
 
 export async function getDocument(documentId: string): Promise<DocumentResult | null> {
   if (apiBaseUrl) {
-    return apiRequest<DocumentResult>(`/documents/${encodeURIComponent(documentId)}`)
+    const doc = await apiRequest<DocumentResult>(`/documents/${encodeURIComponent(documentId)}`)
+    if (doc) {
+      doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
+      doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
+      doc.correctedFields = Array.isArray(doc.correctedFields) ? doc.correctedFields : []
+    }
+    return doc
   }
 
   await wait()
@@ -180,7 +197,7 @@ export async function reviewDocument(
   if (apiBaseUrl) {
     return apiRequest<ReviewDocumentResponse>(
       `/documents/${encodeURIComponent(documentId)}/review`,
-      { method: "POST", body: JSON.stringify(request) }
+      { method: "PATCH", body: JSON.stringify(request) }
     )
   }
 
@@ -191,7 +208,7 @@ export async function reviewDocument(
   }
   return {
     documentId,
-    status: request.action === "APPROVE" ? "APPROVED" : "CORRECTED",
+    status: request.reviewStatus === "APPROVED" ? "APPROVED" : "CORRECTED",
     correctedFields: request.correctedFields ?? null,
     reviewedAt: new Date().toISOString(),
     reviewedBy: session.userId,

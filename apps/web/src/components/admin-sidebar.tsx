@@ -14,16 +14,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { getFinanceNavigationGroups } from "@/config/navigation"
+import { getAdminNavigationGroups } from "@/config/navigation"
 import { useAuth } from "@/contexts/auth-context"
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { session } = useAuth()
-  const navGroups = getFinanceNavigationGroups()
+  const navGroups = getAdminNavigationGroups()
 
   return (
     <Sidebar {...props} className="border-sidebar-border">
-
       {/* ── Logo / brand header ─────────────────────────────────────────── */}
       <SidebarHeader className="border-b border-sidebar-border px-3 py-3">
         <SidebarMenu>
@@ -33,7 +32,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="h-12 rounded-lg transition-colors duration-200 hover:bg-sidebar-accent/40"
             >
-              <Link to="/dashboard">
+              <Link to="/operations">
                 {/* Icon block */}
                 <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
                   <Logo size={20} className="text-current" />
@@ -44,7 +43,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     DocuFlow AI
                   </span>
                   <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-sidebar-foreground/45">
-                    Finance workspace
+                    Admin Console
                   </span>
                 </div>
               </Link>
@@ -64,14 +63,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <NavUser
           user={{
-            name: session?.name ?? "Người dùng",
-            email: session?.email ?? "user@docuflow.ai",
+            name: session?.name ?? "Quản trị viên",
+            email: session?.email ?? "admin@docuflow.ai",
             avatar: "",
           }}
-          role="finance"
+          role="admin"
         />
       </SidebarFooter>
-
     </Sidebar>
   )
 }

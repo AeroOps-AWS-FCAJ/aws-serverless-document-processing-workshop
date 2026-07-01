@@ -81,7 +81,7 @@ export interface UploadUrlResponse {
 }
 
 export interface ReviewDocumentRequest {
-  action: "CORRECT" | "APPROVE"
+  reviewStatus: "CORRECTED" | "APPROVED"
   correctedFields?: CorrectedFields
   reviewerNote?: string
 }

@@ -161,7 +161,7 @@ export default function DocumentDetailPage() {
     const fields = { vendorName:form.vendorName.trim()||"Unknown", invoiceDate:form.invoiceDate, currency:form.currency, totalAmount:Number(form.totalAmount)||0, taxAmount:form.taxAmount.trim()?Number(form.taxAmount):null }
     setIsReviewing(true)
     try {
-      const res = await reviewDocument(doc.documentId, { action:"CORRECT", correctedFields:fields, ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
+      const res = await reviewDocument(doc.documentId, { reviewStatus:"CORRECTED", correctedFields:fields, ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
       updateDocument(doc.documentId, { ...fields, status:res.status, reviewReasons:[], correctedFields:res.correctedFields, reviewedAt:res.reviewedAt, reviewedBy:res.reviewedBy, reviewerNote:reviewNote.trim()||null, errorMessage:null })
       toast.success("Đã lưu chỉnh sửa. Tài liệu sẵn sàng để phê duyệt.")
     } catch { toast.error("Không thể lưu chỉnh sửa. Vui lòng thử lại.") }
@@ -171,7 +171,7 @@ export default function DocumentDetailPage() {
   const handleApprove = async () => {
     setIsReviewing(true)
     try {
-      const res = await reviewDocument(doc.documentId, { action:"APPROVE", ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
+      const res = await reviewDocument(doc.documentId, { reviewStatus:"APPROVED", ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
       updateDocument(doc.documentId, { status:res.status, reviewReasons:[], reviewedAt:res.reviewedAt, reviewedBy:res.reviewedBy, reviewerNote:reviewNote.trim()||null, errorMessage:null })
       toast.success("Tài liệu đã được phê duyệt.")
     } catch { toast.error("Không thể phê duyệt. Vui lòng thử lại.") }

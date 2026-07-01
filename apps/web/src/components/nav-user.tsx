@@ -102,42 +102,46 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/documents">
-                  <FileSearch />
-                  Tài liệu
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/review">
-                  <BellDot />
-                  Hàng đợi duyệt
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/reports">
-                  <BadgeDollarSign />
-                  Báo cáo
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/notifications">
-                  <BellDot />
-                  Thông báo
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/activity">
-                  <History />
-                  Hoạt động của tôi
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/profile">
-                  <UserRound />
-                  Hồ sơ
-                </Link>
-              </DropdownMenuItem>
+              {role === "finance" && (
+                <>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/documents">
+                      <FileSearch />
+                      Tài liệu
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/review">
+                      <BellDot />
+                      Hàng đợi duyệt
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/reports">
+                      <BadgeDollarSign />
+                      Báo cáo
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/notifications">
+                      <BellDot />
+                      Thông báo
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/activity">
+                      <History />
+                      Hoạt động của tôi
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to="/profile">
+                      <UserRound />
+                      Hồ sơ
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              )}
               {role === "admin" && (
                 <>
                   <DropdownMenuItem asChild className="cursor-pointer">

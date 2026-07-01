@@ -41,13 +41,24 @@ export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | nul
 
     const user = await getCurrentUser();
     const idToken = tokens.idToken;
-    const payload = idToken?.payload;
-    const email = payload?.email?.toString() || user.signInDetails?.loginId || '';
-    const name = payload?.name?.toString() || email.split('@')[0] || user.username;
+    const accessToken = tokens.accessToken;
+    const idPayload = idToken?.payload;
+    const accessPayload = accessToken?.payload;
     
-    // AWS Cognito Groups
-    const groups = (payload?.['cognito:groups'] as string[]) || [];
+    const email = idPayload?.email?.toString() || user.signInDetails?.loginId || '';
+    const name = idPayload?.name?.toString() || email.split('@')[0] || user.username;
+    
+    // AWS Cognito Groups might be in accessToken or idToken
+    const groups = (idPayload?.['cognito:groups'] as string[]) || (accessPayload?.['cognito:groups'] as string[]) || [];
     const role = inferRoleFromCognito(groups, email);
+
+    // DEBUGGING: Log payloads to console so we can see what Cognito actually returned
+    console.log("=== AUTH DEBUG ===");
+    console.log("ID Token Payload:", idPayload);
+    console.log("Access Token Payload:", accessPayload);
+    console.log("Extracted Groups:", groups);
+    console.log("Derived Role:", role);
+    console.log("==================");
 
     return {
       authenticated: true,

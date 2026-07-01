@@ -497,11 +497,13 @@ export const vendorSpend = documents
   }))
   .sort((a, b) => b.amount - a.amount)
 
-export function formatMoney(value: number, currency: "VND" | "USD") {
+export function formatMoney(value: number, currency?: string | null) {
+  const safeCurrency = (currency || "VND").toUpperCase()
+  const finalCurrency = /^[A-Z]{3}$/.test(safeCurrency) ? safeCurrency : "VND"
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency,
-    maximumFractionDigits: currency === "VND" ? 0 : 2,
+    currency: finalCurrency,
+    maximumFractionDigits: finalCurrency === "VND" ? 0 : 2,
   }).format(value)
 }
 

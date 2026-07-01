@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { BellRing, Check, CircleDollarSign, Mail, ShieldAlert, Siren, Workflow } from "lucide-react"
-import { BaseLayout } from "@/components/layouts/base-layout"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,18 +48,21 @@ export default function NotificationSettings() {
   }
 
   return (
-    <BaseLayout
-      title="Alert control"
-      description="Configure how operational failures, low-confidence results, queue exceptions, and budget events reach the team."
-    >
+    <>
       <div className="grid gap-5 px-4 lg:px-6">
-        <section className="grid overflow-hidden border bg-[#10261d] text-white lg:grid-cols-[1fr_auto]">
-          <div className="p-5 md:p-6">
-            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.15em] text-[#d8ff72]"><span className="size-1.5 bg-[#d8ff72]" /> Alert path healthy</div>
+        <section className="relative overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg grid lg:grid-cols-[1fr_auto]">
+          {/* Decorative circles to match Dashboard hero */}
+          <div className="pointer-events-none absolute -right-16 -top-24 size-80 rounded-full border border-white/[0.06]" />
+          <div className="pointer-events-none absolute -right-4 -top-12 size-52 rounded-full border border-[#d8ff72]/20" />
+
+          <div className="relative p-5 md:p-6 z-10">
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.15em] text-[#d8ff72]">
+              <span className="size-1.5 bg-[#d8ff72] rounded-full animate-pulse" /> Alert path healthy
+            </div>
             <h2 className="mt-3 font-display text-2xl font-semibold tracking-[-0.04em]">CloudWatch → SNS → SES</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/58">The frontend manages demo preferences only. Production delivery is enforced by the approved AWS alerting path.</p>
           </div>
-          <div className="grid min-w-56 grid-cols-3 border-t border-white/15 lg:border-l lg:border-t-0">
+          <div className="relative grid min-w-56 grid-cols-3 border-t border-white/15 lg:border-l lg:border-t-0 z-10">
             {["CloudWatch", "SNS", "SES"].map((step, index) => <div key={step} className="flex flex-col items-center justify-center gap-2 border-r border-white/15 p-4 last:border-r-0"><span className="font-mono text-[9px] text-white/35">0{index + 1}</span><span className="text-xs font-medium">{step}</span></div>)}
           </div>
         </section>
@@ -113,6 +116,6 @@ export default function NotificationSettings() {
           <Button onClick={savePreferences} className="sm:min-w-40">Save preferences</Button>
         </div>
       </div>
-    </BaseLayout>
+    </>
   )
 }

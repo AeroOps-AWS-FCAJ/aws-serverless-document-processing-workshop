@@ -13,11 +13,11 @@ import {
   KeyRound,
   LockKeyhole,
   ScrollText,
+  Settings2,
   ShieldCheck,
-  TerminalSquare,
   Trash2,
 } from "lucide-react"
-import { BaseLayout } from "@/components/layouts/base-layout"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -153,19 +153,21 @@ export default function AdminGovernancePage() {
   const cleanupReadiness = Math.round((cleanupDone / cleanupSteps.length) * 100)
 
   return (
-    <BaseLayout
-      title="Governance"
-      description="Admin security, cost, audit, and cleanup control board for the approved AWS serverless architecture."
-    >
+    <>
       <section className="px-4 lg:px-6">
-        <div className="overflow-hidden border bg-[#10261d] text-white">
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="p-5 sm:p-7">
+        <div className="relative overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
+          {/* Decorative circles to match Dashboard hero */}
+          <div className="pointer-events-none absolute -right-16 -top-24 size-80 rounded-full border border-white/[0.06]" />
+          <div className="pointer-events-none absolute -right-4 -top-12 size-52 rounded-full border border-[#d8ff72]/20" />
+
+          <div className="relative grid gap-0 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="relative p-5 sm:p-7">
+              <div className="absolute inset-y-0 right-0 hidden w-px bg-white/12 lg:block" />
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
+                <Badge className="border-[#d8ff72]/30 bg-[#d8ff72] font-semibold text-[11px] text-[#10261d]">
                   Security and cost
                 </Badge>
-                <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
+                <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
                   IAM / KMS / Secrets / Budgets
                 </Badge>
               </div>
@@ -177,16 +179,16 @@ export default function AdminGovernancePage() {
                 a concrete admin checklist with owner and evidence state.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]">
+                <Button asChild className="bg-[#d8ff72] font-semibold text-[#10261d] hover:bg-[#c7ee5f] transition-colors duration-200">
                   <Link to="/evidence">
                     Open evidence packet
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
-                  <Link to="/operations">
-                    Operations runbook
-                    <TerminalSquare className="size-4" />
+                <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10">
+                  <Link to="/settings/notifications">
+                    Configure notifications
+                    <Settings2 className="size-4" />
                   </Link>
                 </Button>
               </div>
@@ -418,6 +420,6 @@ export default function AdminGovernancePage() {
           </Card>
         </div>
       </section>
-    </BaseLayout>
+    </>
   )
 }
