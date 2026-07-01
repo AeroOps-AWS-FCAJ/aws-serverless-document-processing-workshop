@@ -1,0 +1,391 @@
+Bạn là Senior UI/UX Designer và Frontend Engineer có hơn 15 năm kinh nghiệm thiết kế các hệ thống SaaS, ERP, CRM và Dashboard Enterprise.
+
+Tôi đang phát triển hệ thống DocuFlow AI.
+
+Yêu cầu cực kỳ quan trọng:
+
+KHÔNG được thay đổi:
+
+- bất kỳ field dữ liệu nào
+- tên trường
+- API
+- logic nghiệp vụ
+- workflow
+- trạng thái
+- schema
+- cấu trúc dữ liệu
+- thứ tự xử lý của hệ thống
+
+Mọi cải tiến chỉ được phép thực hiện ở tầng UI/UX.
+
+Mục tiêu là làm cho hệ thống hiện đại hơn, trực quan hơn, dễ sử dụng hơn và tăng trải nghiệm người dùng cuối nhưng vẫn giữ nguyên toàn bộ chức năng hiện tại.
+
+==================================================
+1. INFORMATION ARCHITECTURE
+==================================================
+
+Đánh giá bố cục tổng thể.
+
+Đề xuất:
+
+- khoảng trắng
+- alignment
+- visual hierarchy
+- responsive layout
+- spacing
+- card layout
+- grid layout
+
+Không thay đổi dữ liệu.
+
+==================================================
+2. DASHBOARD
+==================================================
+
+Cải thiện dashboard bằng cách:
+
+- KPI cards
+- trạng thái workflow
+- progress visualization
+- processing summary
+- recent activity
+- quick actions
+
+Không thêm dữ liệu mới.
+Chỉ trình bày lại dữ liệu hiện có.
+
+==================================================
+3. SIDEBAR
+==================================================
+
+Cải thiện sidebar:
+
+- active state
+- hover animation
+- icon consistency
+- collapse mode
+- tooltip
+- grouping menu
+
+Không thay đổi menu.
+
+==================================================
+4. HEADER
+==================================================
+
+Thiết kế lại:
+
+- Search
+- Region
+- Health Status
+- Theme switch
+- User Profile
+
+Tăng khả năng sử dụng.
+
+==================================================
+5. DOCUMENT UPLOAD
+==================================================
+
+Thiết kế lại màn upload:
+
+- Drag & Drop đẹp hơn
+- Progress animation
+- Upload success
+- Upload error
+- Retry
+- Preview file
+- Loading skeleton
+
+Không thay đổi API upload.
+
+==================================================
+6. DOCUMENT LIST
+==================================================
+
+Đề xuất cải thiện:
+
+- Table
+- Card View
+- Search
+- Filter
+- Sort
+- Pagination
+- Status Badge
+- Empty State
+
+Không thay đổi dữ liệu.
+
+==================================================
+7. REVIEW PAGE
+==================================================
+
+Thiết kế:
+
+- Side-by-side
+
+Original Document
+
+↓
+
+AI Extracted Data
+
+↓
+
+Validation Result
+
+↓
+
+Approve / Reject
+
+Có highlight các field sai.
+
+==================================================
+8. REPORT PAGE
+==================================================
+
+Thiết kế:
+
+Charts
+
+Progress
+
+Statistics
+
+Export
+
+Date Range
+
+Responsive
+
+Không thay đổi nguồn dữ liệu.
+
+==================================================
+9. NOTIFICATION
+==================================================
+
+Thiết kế notification:
+
+Success
+
+Warning
+
+Error
+
+Processing
+
+Toast
+
+History
+
+==================================================
+10. MY ACTIVITY
+==================================================
+
+Timeline
+
+Recent Actions
+
+Search
+
+Filter
+
+==================================================
+11. PROFILE
+==================================================
+
+Thiết kế profile hiện đại hơn.
+
+Avatar
+
+Information
+
+Role
+
+Recent Login
+
+Preferences
+
+==================================================
+12. DESIGN SYSTEM
+==================================================
+
+Xây dựng Design System.
+
+Bao gồm:
+
+Color Palette
+
+Typography
+
+Spacing
+
+Border Radius
+
+Elevation
+
+Shadow
+
+Icon
+
+Button
+
+Input
+
+Select
+
+Table
+
+Card
+
+Badge
+
+Alert
+
+Toast
+
+Loading
+
+Skeleton
+
+==================================================
+13. VISUAL IMPROVEMENT
+==================================================
+
+Tăng tính hiện đại bằng:
+
+Glassmorphism nhẹ
+
+Gradient rất ít
+
+Blur
+
+Micro Animation
+
+Smooth Transition
+
+Hover
+
+Focus
+
+Ripple
+
+Loading Effect
+
+Shimmer
+
+==================================================
+14. ACCESSIBILITY
+==================================================
+
+Đảm bảo:
+
+WCAG
+
+Keyboard Navigation
+
+Focus Ring
+
+Contrast
+
+Screen Reader
+
+==================================================
+15. RESPONSIVE
+==================================================
+
+Desktop
+
+Laptop
+
+Tablet
+
+Mobile
+
+==================================================
+16. UX IMPROVEMENT
+==================================================
+
+Đề xuất cải thiện trải nghiệm:
+
+Reduce Click
+
+Reduce Cognitive Load
+
+Clear Feedback
+
+Undo Action
+
+Confirmation Dialog
+
+Loading State
+
+Error Recovery
+
+Empty State
+
+Skeleton Screen
+
+==================================================
+17. PERFORMANCE
+==================================================
+
+Không làm giảm hiệu năng.
+
+Lazy Loading
+
+Memoization
+
+Virtual List
+
+Code Splitting
+
+==================================================
+18. OUTPUT
+==================================================
+
+Cho mỗi màn hình hãy trình bày:
+
+1. Vấn đề hiện tại
+
+2. Lý do UX chưa tốt
+
+3. Giải pháp
+
+4. Wireframe mô tả
+
+5. Component cần sửa
+
+6. Animation
+
+7. Responsive
+
+8. Ưu tiên thực hiện
+
+9. Độ khó (Low / Medium / High)
+
+10. Thời gian ước lượng
+
+==================================================
+19. LƯU Ý
+==================================================
+
+Không được thay đổi:
+
+Database
+
+API
+
+Workflow
+
+Business Logic
+
+Field
+
+Schema
+
+Status
+
+Tên dữ liệu
+
+Chỉ thay đổi UI/UX.

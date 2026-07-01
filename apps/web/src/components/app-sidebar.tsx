@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
-
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -26,47 +25,55 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar {...props} className="border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
+
+      {/* ── Logo / brand header ─────────────────────────────────────────── */}
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="h-14 hover:bg-sidebar-accent">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="h-12 rounded-lg transition-colors duration-200 hover:bg-sidebar-accent/40"
+            >
               <Link to="/dashboard">
-                <div className="flex aspect-square size-9 items-center justify-center rounded-sm bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Logo size={25} className="text-current" />
+                {/* Icon block */}
+                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+                  <Logo size={20} className="text-current" />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-display text-[15px] font-semibold tracking-[-0.025em]">DocuFlow AI</span>
-                  <span className="truncate font-mono text-[9px] uppercase tracking-[0.15em] text-sidebar-foreground/55">{roleLabels[role]}</span>
+                {/* Text block */}
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate font-display text-[14px] font-semibold tracking-[-0.02em] text-sidebar-foreground">
+                    DocuFlow AI
+                  </span>
+                  <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-sidebar-foreground/45">
+                    {roleLabels[role]}
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="px-2 py-3">
+
+      {/* ── Navigation items ────────────────────────────────────────────── */}
+      <SidebarContent className="px-2 py-2">
         {navGroups.map((group) => (
           <NavMain key={group.label} label={group.label} items={group.items} />
         ))}
       </SidebarContent>
-      <div className="mx-3 mb-3 hidden rounded-sm border border-sidebar-border bg-sidebar-accent/60 p-3 group-data-[collapsible=icon]:hidden md:block">
-        <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/55">
-          <span className="size-1.5 rounded-full bg-sidebar-primary shadow-[0_0_0_4px_rgba(216,255,114,.1)]" />
-          Pipeline online
-        </div>
-        <div className="text-xs leading-5 text-sidebar-foreground/80">
-          Textract + AI Proxy<br />asynchronous workflow
-        </div>
-      </div>
-      <SidebarFooter>
+
+      {/* ── User footer ─────────────────────────────────────────────────── */}
+      <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <NavUser
           user={{
-            name: session?.name ?? "Finance User",
-            email: session?.email ?? "finance@docuflow.ai",
+            name: session?.name ?? "Người dùng",
+            email: session?.email ?? "user@docuflow.ai",
             avatar: "",
           }}
           role={role}
         />
       </SidebarFooter>
+
     </Sidebar>
   )
 }

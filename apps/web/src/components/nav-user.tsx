@@ -105,37 +105,37 @@ export function NavUser({
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/documents">
                   <FileSearch />
-                  Documents
+                  Tài liệu
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/review">
                   <BellDot />
-                  Review queue
+                  Hàng đợi duyệt
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/reports">
                   <BadgeDollarSign />
-                  Reports
+                  Báo cáo
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/notifications">
                   <BellDot />
-                  Notifications
+                  Thông báo
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/activity">
                   <History />
-                  My activity
+                  Hoạt động của tôi
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/profile">
                   <UserRound />
-                  Profile
+                  Hồ sơ
                 </Link>
               </DropdownMenuItem>
               {role === "admin" && (
@@ -143,31 +143,31 @@ export function NavUser({
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/operations">
                       <Activity />
-                      Operations
+                      Vận hành
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/ingestion">
                       <Route />
-                      Ingestion
+                      Tiếp nhận
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/workflow">
                       <GitBranch />
-                      Workflow
+                      Quy trình
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/observability">
                       <BarChart3 />
-                      Observability
+                      Quan sát
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/governance">
                       <ShieldCheck />
-                      Governance
+                      Quản trị
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -176,7 +176,7 @@ export function NavUser({
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <Link to="/settings/notifications">
                     <BellDot />
-                    Alert settings
+                    Cài đặt cảnh báo
                   </Link>
                 </DropdownMenuItem>
               )}
@@ -184,7 +184,7 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
               <LogOut />
-              Log out
+              Đăng xuất
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

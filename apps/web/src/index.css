@@ -169,6 +169,28 @@
     font-weight: 500;
     letter-spacing: 0.01em;
   }
+
+  .glass-panel {
+    @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg dark:bg-black/40;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
+  }
+
+  .pulse-indicator {
+    @apply relative flex h-2 w-2;
+  }
+  
+  .pulse-indicator::before {
+    content: '';
+    @apply absolute inline-flex h-full w-full rounded-full bg-current opacity-75 animate-ping;
+  }
+  
+  .pulse-indicator::after {
+    content: '';
+    @apply relative inline-flex rounded-full h-2 w-2 bg-current;
+  }
 }
 
 ::selection {

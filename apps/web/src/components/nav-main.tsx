@@ -38,62 +38,103 @@ export function NavMain({
 }) {
   const location = useLocation()
 
-  // Check if any subitem is active to determine if parent should be open
-  const shouldBeOpen = (item: typeof items[0]) => {
+  const shouldBeOpen = (item: (typeof items)[0]) => {
     if (item.isActive) return true
-    return item.items?.some(subItem => location.pathname === subItem.url) || false
+    return item.items?.some((sub) => location.pathname === sub.url) ?? false
   }
 
   return (
-    <SidebarGroup className="py-2">
-      <SidebarGroupLabel className="font-mono text-[9px] uppercase tracking-[0.16em] text-sidebar-foreground/45">{label}</SidebarGroupLabel>
-      <SidebarMenu>
-        {items.map((item) => (
-          <Collapsible
-            key={item.title}
-            asChild
-            defaultOpen={shouldBeOpen(item)}
-            className="group/collapsible"
-          >
-            <SidebarMenuItem>
-              {item.items?.length ? (
-                <>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip={item.title} className="cursor-pointer">
-                      {item.icon && <item.icon />}
+    <SidebarGroup className="py-1.5">
+      {/* Group label */}
+      <SidebarGroupLabel className="mb-1 px-2 font-mono text-[8.5px] uppercase tracking-[0.18em] text-sidebar-foreground/35">
+        {label}
+      </SidebarGroupLabel>
+
+      <SidebarMenu className="gap-0.5">
+        {items.map((item) => {
+          const isActive = location.pathname === item.url
+          return (
+            <Collapsible
+              key={item.title}
+              asChild
+              defaultOpen={shouldBeOpen(item)}
+              className="group/collapsible"
+            >
+              <SidebarMenuItem>
+                {item.items?.length ? (
+                  /* ── Has sub-items → collapsible trigger ─────────────── */
+                  <>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={item.title}
+                        className="h-9 cursor-pointer rounded-md px-2.5 text-sidebar-foreground/65 transition-colors duration-150 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      >
+                        {item.icon && (
+                          <item.icon className="size-4 shrink-0 opacity-80" />
+                        )}
+                        <span className="text-[13px] font-medium">{item.title}</span>
+                        <ChevronRight className="ml-auto size-3.5 text-sidebar-foreground/30 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub className="ml-4 gap-0.5 border-l border-sidebar-border/50 pl-3">
+                        {item.items?.map((sub) => {
+                          const subActive = location.pathname === sub.url
+                          return (
+                            <SidebarMenuSubItem key={sub.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={subActive}
+                                className={[
+                                  "h-8 cursor-pointer rounded-md px-2 text-[12.5px] transition-colors duration-150",
+                                  subActive
+                                    ? "bg-sidebar-primary/12 font-semibold text-sidebar-primary"
+                                    : "text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                                ].join(" ")}
+                              >
+                                <Link to={sub.url}>
+                                  <span>{sub.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )
+                        })}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </>
+                ) : (
+                  /* ── No sub-items → direct link ──────────────────────── */
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={isActive}
+                    className={[
+                      "relative h-9 cursor-pointer rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150",
+                      "before:absolute before:left-0 before:top-1/2 before:h-[60%] before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:transition-all before:duration-200",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-foreground before:bg-sidebar-primary before:opacity-100"
+                        : "text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground before:opacity-0",
+                    ].join(" ")}
+                  >
+                    <Link to={item.url} className="flex items-center gap-2.5">
+                      {item.icon && (
+                        <item.icon
+                          className={[
+                            "size-4 shrink-0 transition-colors",
+                            isActive
+                              ? "text-sidebar-primary"
+                              : "text-sidebar-foreground/50",
+                          ].join(" ")}
+                        />
+                      )}
                       <span>{item.title}</span>
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {item.items?.map((subItem) => (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild className="cursor-pointer" isActive={location.pathname === subItem.url}>
-                            <Link 
-                              to={subItem.url}
-                              target={(item.title === "Auth Pages" || item.title === "Errors") ? "_blank" : undefined}
-                              rel={(item.title === "Auth Pages" || item.title === "Errors") ? "noopener noreferrer" : undefined}
-                            >
-                              <span>{subItem.title}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </>
-              ) : (
-                <SidebarMenuButton asChild tooltip={item.title} className="h-10 cursor-pointer rounded-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:font-semibold data-[active=true]:text-sidebar-primary-foreground" isActive={location.pathname === item.url}>
-                  <Link to={item.url}>
-                    {item.icon && <item.icon />}
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              )}
-            </SidebarMenuItem>
-          </Collapsible>
-        ))}
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+            </Collapsible>
+          )
+        })}
       </SidebarMenu>
     </SidebarGroup>
   )

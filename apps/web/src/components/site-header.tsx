@@ -7,7 +7,6 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Radio } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
 export function SiteHeader() {
@@ -39,27 +38,31 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/88 backdrop-blur-xl transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-        <div className="flex w-full items-center gap-1 px-4 py-3 lg:gap-2 lg:px-6">
-          <SidebarTrigger className="-ml-1" />
-          <Separator
-            orientation="vertical"
-            className="mx-2 data-[orientation=vertical]:h-4"
-          />
-          <div className="flex-1 max-w-sm">
-            <SearchTrigger onClick={() => setSearchOpen(true)} />
+      <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/60 backdrop-blur-2xl transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) shadow-sm dark:bg-black/40">
+        <div className="flex w-full items-center px-4 py-3 lg:px-6 relative">
+          <div className="flex items-center gap-1 lg:gap-2">
+            <SidebarTrigger className="-ml-1 hover-lift" />
+            <Separator
+              orientation="vertical"
+              className="mx-2 data-[orientation=vertical]:h-4"
+            />
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="mr-1 hidden items-center gap-2 border-r pr-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground lg:flex">
-              <Radio className="size-3 text-emerald-700" />
-              ap-southeast-1 / healthy
+          
+          <div className="flex-1 flex justify-center px-2">
+            <div className="w-full max-w-[150px] sm:max-w-xs lg:max-w-sm transition-all duration-300">
+              <SearchTrigger onClick={() => setSearchOpen(true)} />
             </div>
+          </div>
+          
+          <div className="ml-auto flex items-center gap-2">
             {shortcuts.map((shortcut) => (
-              <Button key={shortcut.url} variant="ghost" asChild size="sm" className="hidden sm:flex">
+              <Button key={shortcut.url} variant="ghost" asChild size="sm" className="hidden sm:flex transition-colors hover:bg-muted/80">
                 <Link to={shortcut.url} className="dark:text-foreground">{shortcut.label}</Link>
               </Button>
             ))}
-            <ModeToggle />
+            <div className="hover-lift">
+              <ModeToggle />
+            </div>
           </div>
         </div>
       </header>

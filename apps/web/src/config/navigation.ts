@@ -32,52 +32,52 @@ export interface AppNavigationGroup {
 
 const navigationGroups: AppNavigationGroup[] = [
   {
-    label: "Document workspace",
+    label: "Không gian tài liệu",
     items: [
       {
-        title: "Overview",
+        title: "Tổng quan",
         url: "/dashboard",
         icon: LayoutDashboard,
         roles: ["finance", "admin"],
       },
       {
-        title: "Upload document",
+        title: "Tải tài liệu lên",
         url: "/upload",
         icon: UploadCloud,
         roles: ["finance", "admin"],
       },
       {
-        title: "Documents",
+        title: "Tài liệu",
         url: "/documents",
         icon: FileSearch,
         roles: ["finance", "admin"],
       },
       {
-        title: "Review queue",
+        title: "Hàng đợi duyệt",
         url: "/review",
         icon: Bell,
         roles: ["finance", "admin"],
       },
       {
-        title: "Reports",
+        title: "Báo cáo",
         url: "/reports",
         icon: BadgeDollarSign,
         roles: ["finance", "admin"],
       },
       {
-        title: "Notifications",
+        title: "Thông báo",
         url: "/notifications",
         icon: MailCheck,
         roles: ["finance", "admin"],
       },
       {
-        title: "My activity",
+        title: "Hoạt động của tôi",
         url: "/activity",
         icon: History,
         roles: ["finance", "admin"],
       },
       {
-        title: "Profile",
+        title: "Hồ sơ",
         url: "/profile",
         icon: UserRound,
         roles: ["finance", "admin"],
@@ -85,46 +85,46 @@ const navigationGroups: AppNavigationGroup[] = [
     ],
   },
   {
-    label: "Administration",
+    label: "Quản trị hệ thống",
     items: [
       {
-        title: "Operations",
+        title: "Vận hành",
         url: "/operations",
         icon: Activity,
         roles: ["admin"],
       },
       {
-        title: "Ingestion",
+        title: "Tiếp nhận",
         url: "/admin/ingestion",
         icon: Route,
         roles: ["admin"],
       },
       {
-        title: "Workflow",
+        title: "Quy trình",
         url: "/admin/workflow",
         icon: GitBranch,
         roles: ["admin"],
       },
       {
-        title: "Observability",
+        title: "Quan sát",
         url: "/admin/observability",
         icon: BarChart3,
         roles: ["admin"],
       },
       {
-        title: "Governance",
+        title: "Quản trị",
         url: "/admin/governance",
         icon: ShieldCheck,
         roles: ["admin"],
       },
       {
-        title: "Project evidence",
+        title: "Bằng chứng dự án",
         url: "/evidence",
         icon: ClipboardList,
         roles: ["admin"],
       },
       {
-        title: "Alert settings",
+        title: "Cài đặt cảnh báo",
         url: "/settings/notifications",
         icon: Settings2,
         roles: ["admin"],

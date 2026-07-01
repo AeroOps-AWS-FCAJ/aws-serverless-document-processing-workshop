@@ -92,9 +92,15 @@ export async function requestUploadUrl(
   request: UploadUrlRequest
 ): Promise<UploadUrlResponse> {
   if (apiBaseUrl) {
+    const payload = {
+      fileName: request.originalFileName,
+      contentType: request.mimeType,
+      fileSizeBytes: request.fileSizeBytes,
+      pageCount: request.pageCount,
+    }
     return apiRequest<UploadUrlResponse>("/documents/upload-url", {
       method: "POST",
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     })
   }
 
