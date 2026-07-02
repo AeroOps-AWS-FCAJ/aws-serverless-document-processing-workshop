@@ -38,7 +38,7 @@ function getAgeDays(updatedAt: string) {
 function getPriority(d: DocumentRecord): Priority {
   const age = getAgeDays(d.updatedAt)
   if (d.status === "FAILED" || d.confidenceScore < 0.5 || age >= 3) return "Cao"
-  if (d.status === "REVIEW_REQUIRED" || d.reviewReasons.length > 1 || age >= 1) return "Trung bình"
+  if (d.status === "REVIEW_REQUIRED" || (Array.isArray(d.reviewReasons) && d.reviewReasons.length > 1) || age >= 1) return "Trung bình"
   return "Thấp"
 }
 
@@ -56,7 +56,7 @@ function actionLabel(status: DocumentStatus) {
 
 function attentionReason(d: DocumentRecord) {
   if (d.status === "CORRECTED") return "Các trường đã chỉnh sửa, sẵn sàng để phê duyệt."
-  if (d.reviewReasons.length) return d.reviewReasons.join("; ")
+  if (Array.isArray(d.reviewReasons) && d.reviewReasons.length) return d.reviewReasons.join("; ")
   return d.errorMessage ?? "Một hoặc nhiều trường bắt buộc không thể xác nhận."
 }
 
@@ -161,7 +161,7 @@ export default function ReviewPage() {
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase()
     return alertItems.filter((d) => {
-      const mq = !q || [d.documentId,d.fileName,d.vendorName,d.status,d.documentType,d.reviewReasons.join(" "),d.errorMessage].join(" ").toLowerCase().includes(q)
+      const mq = !q || [d.documentId,d.fileName,d.vendorName,d.status,d.documentType,Array.isArray(d.reviewReasons) ? d.reviewReasons.join(" ") : "",d.errorMessage].join(" ").toLowerCase().includes(q)
       const mf = queueFilter==="ALL" || d.status===queueFilter
         || (queueFilter==="LOW_CONFIDENCE" && d.confidenceScore < CONFIDENCE_THRESHOLD)
         || (queueFilter==="OLDEST" && getAgeDays(d.updatedAt) >= 1)

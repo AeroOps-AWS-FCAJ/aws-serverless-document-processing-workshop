@@ -70,7 +70,9 @@ export async function listDocuments(
       response.items.forEach(doc => {
         doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
         doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
-        doc.correctedFields = Array.isArray(doc.correctedFields) ? doc.correctedFields : []
+        doc.correctedFields = doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
+          ? doc.correctedFields
+          : null
       })
     }
     return response
@@ -93,7 +95,9 @@ export async function getDocument(documentId: string): Promise<DocumentResult | 
     if (doc) {
       doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
       doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
-      doc.correctedFields = Array.isArray(doc.correctedFields) ? doc.correctedFields : []
+      doc.correctedFields = doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
+        ? doc.correctedFields
+        : null
     }
     return doc
   }
@@ -110,8 +114,8 @@ export async function requestUploadUrl(
 ): Promise<UploadUrlResponse> {
   if (apiBaseUrl) {
     const payload = {
-      fileName: request.originalFileName,
-      contentType: request.mimeType,
+      originalFileName: request.originalFileName,
+      mimeType: request.mimeType,
       fileSizeBytes: request.fileSizeBytes,
       pageCount: request.pageCount,
     }

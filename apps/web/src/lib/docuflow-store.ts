@@ -21,6 +21,17 @@ function cloneSeedDocuments() {
   return seedDocuments.map((document) => ({ ...document }))
 }
 
+function sanitizeDocument(doc: any): DocumentRecord {
+  return {
+    ...doc,
+    reviewReasons: Array.isArray(doc.reviewReasons) ? doc.reviewReasons : [],
+    lineItems: Array.isArray(doc.lineItems) ? doc.lineItems : [],
+    correctedFields: doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
+      ? doc.correctedFields
+      : null,
+  }
+}
+
 export function readDocuFlowDocuments(): DocumentRecord[] {
   const isApi = isApiConfigured()
   if (typeof window === "undefined") return isApi ? [] : cloneSeedDocuments()
@@ -31,10 +42,11 @@ export function readDocuFlowDocuments(): DocumentRecord[] {
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) {
+      const sanitized = parsed.map(sanitizeDocument)
       if (isApi) {
-        return parsed.filter((doc) => !seedIds.has(doc.documentId)) as DocumentRecord[]
+        return sanitized.filter((doc) => !seedIds.has(doc.documentId))
       }
-      return parsed as DocumentRecord[]
+      return sanitized
     }
   } catch {
     window.localStorage.removeItem(STORAGE_KEY)
