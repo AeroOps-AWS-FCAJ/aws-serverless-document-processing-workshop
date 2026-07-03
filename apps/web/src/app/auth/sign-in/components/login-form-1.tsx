@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
-import { signIn } from "aws-amplify/auth"
+import { confirmSignIn, signIn } from "aws-amplify/auth"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -35,6 +35,14 @@ const loginFormSchema = z.object({
 })
 
 type LoginFormValues = z.infer<typeof loginFormSchema>
+type ChallengeKind = "NEW_PASSWORD" | "MFA_CODE" | "UNSUPPORTED"
+
+function resolveChallengeKind(step?: string): ChallengeKind {
+  if (!step) return "UNSUPPORTED"
+  if (step.includes("NEW_PASSWORD")) return "NEW_PASSWORD"
+  if (step.includes("SMS") || step.includes("TOTP") || step.includes("EMAIL")) return "MFA_CODE"
+  return "UNSUPPORTED"
+}
 
 export function LoginForm1({
   className,
@@ -43,6 +51,8 @@ export function LoginForm1({
   const navigate = useNavigate()
   const { refreshSession } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [challenge, setChallenge] = useState<{ kind: ChallengeKind; step: string } | null>(null)
+  const [challengeResponse, setChallengeResponse] = useState("")
 
 
   const form = useForm<LoginFormValues>({
@@ -53,6 +63,26 @@ export function LoginForm1({
     },
   })
 
+  async function finishSignedIn() {
+    toast.success("Signed in successfully!");
+    await refreshSession();
+    const { getCurrentDocuFlowSession } = await import("@/lib/auth");
+    const session = await getCurrentDocuFlowSession();
+    const rolePath = session ? roleHomePaths[session.role] : "/dashboard";
+    navigate(rolePath, { replace: true });
+  }
+
+  function handleNextStep(step: string) {
+    const kind = resolveChallengeKind(step)
+    setChallenge({ kind, step })
+    setChallengeResponse("")
+    if (kind === "UNSUPPORTED") {
+      toast.error(`Cognito yêu cầu bước chưa hỗ trợ trong UI: ${step}`)
+      return
+    }
+    toast.info(kind === "NEW_PASSWORD" ? "Vui lòng đặt mật khẩu mới để tiếp tục." : "Vui lòng nhập mã xác nhận Cognito.")
+  }
+
   async function completeSignIn(values: LoginFormValues) {
     setIsLoading(true)
     try {
@@ -62,20 +92,9 @@ export function LoginForm1({
       });
 
       if (isSignedIn) {
-        toast.success("Signed in successfully!");
-        // Refresh session to get role info, then redirect to role-specific home
-        await refreshSession();
-        // After refresh, AuthContext has the updated session.
-        // We use getCurrentDocuFlowSession directly to read role for redirect.
-        const { getCurrentDocuFlowSession } = await import("@/lib/auth");
-        const session = await getCurrentDocuFlowSession();
-        const rolePath = session ? roleHomePaths[session.role] : "/dashboard";
-        // Always redirect to the role's home page to ensure proper layout initialization.
-        navigate(rolePath, { replace: true });
+        await finishSignedIn()
       } else {
-        // Handle next steps like NEW_PASSWORD_REQUIRED, CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED
-        console.log("Next step required:", nextStep);
-        toast.error(`Please complete the next step: ${nextStep.signInStep}`);
+        handleNextStep(nextStep.signInStep)
       }
     } catch (error: unknown) {
       console.error("Error signing in", error);
@@ -89,6 +108,34 @@ export function LoginForm1({
     }
   }
 
+  async function completeChallenge(event: React.FormEvent) {
+    event.preventDefault()
+    if (!challenge || challenge.kind === "UNSUPPORTED") return
+    if (!challengeResponse.trim()) {
+      toast.error(challenge.kind === "NEW_PASSWORD" ? "Vui lòng nhập mật khẩu mới." : "Vui lòng nhập mã xác nhận.")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const { isSignedIn, nextStep } = await confirmSignIn({
+        challengeResponse: challengeResponse.trim(),
+      })
+
+      if (isSignedIn) {
+        setChallenge(null)
+        await finishSignedIn()
+      } else {
+        handleNextStep(nextStep.signInStep)
+      }
+    } catch (error: unknown) {
+      console.error("Error completing sign-in challenge", error);
+      toast.error(error instanceof Error ? error.message : "Không thể hoàn tất bước xác nhận Cognito.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]">
@@ -99,6 +146,33 @@ export function LoginForm1({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {challenge && challenge.kind !== "UNSUPPORTED" ? (
+            <form onSubmit={completeChallenge}>
+              <div className="grid gap-5 mt-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium text-[#405047]" htmlFor="challengeResponse">
+                    {challenge.kind === "NEW_PASSWORD" ? "Mật khẩu mới" : "Mã xác nhận"}
+                  </label>
+                  <Input
+                    id="challengeResponse"
+                    type={challenge.kind === "NEW_PASSWORD" ? "password" : "text"}
+                    value={challengeResponse}
+                    onChange={(event) => setChallengeResponse(event.target.value)}
+                    className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                  <p className="text-xs text-[#647069]">{challenge.step}</p>
+                </div>
+                <Button disabled={isLoading} type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
+                  {isLoading ? <LoadingSpinner /> : "Tiếp tục"}
+                </Button>
+                <Button type="button" variant="outline" className="w-full cursor-pointer" onClick={() => setChallenge(null)} disabled={isLoading}>
+                  Quay lại đăng nhập
+                </Button>
+              </div>
+            </form>
+          ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(completeSignIn)}>
               <div className="grid gap-6 mt-4">
@@ -160,6 +234,7 @@ export function LoginForm1({
               </div>
             </form>
           </Form>
+          )}
         </CardContent>
       </Card>
     </div>

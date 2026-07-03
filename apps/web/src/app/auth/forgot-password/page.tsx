@@ -1,19 +1,14 @@
 import { ForgotPasswordForm1 } from "./components/forgot-password-form-1"
-import { Logo } from "@/components/logo"
-import { Link } from "react-router-dom"
+import { AuthShell } from "@/app/auth/components/auth-shell"
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <Link to="/dashboard" className="flex items-center gap-2 self-center font-medium">
-          <div className="bg-primary text-primary-foreground flex size-9 items-center justify-center rounded-md">
-            <Logo size={24} />
-          </div>
-          DocuFlow AI
-        </Link>
-        <ForgotPasswordForm1 />
-      </div>
-    </div>
+    <AuthShell
+      eyebrow="Credential recovery"
+      title="Reset access."
+      description="Use your Cognito email and confirmation code to set a new password."
+    >
+      <ForgotPasswordForm1 />
+    </AuthShell>
   )
 }

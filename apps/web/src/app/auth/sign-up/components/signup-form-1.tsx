@@ -43,6 +43,12 @@ const signupFormSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupFormSchema>
 
+const authCardClass = "border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]"
+const authInputClass = "!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+const authLabelClass = "text-[#405047]"
+const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]"
+const authOutlineButtonClass = "w-full cursor-pointer border-[#40584b]/35 bg-transparent text-[#153f30] hover:bg-[#eef2e9] hover:text-[#10261d]"
+
 export function SignupForm1({
   className,
   ...props
@@ -155,19 +161,19 @@ export function SignupForm1({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
+      <Card className={authCardClass}>
         {step === "signUp" ? (
           <>
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl">Create DocuFlow account</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-[#e2e3db] text-left">
+              <CardTitle className="text-lg text-[#11251d]">Account setup</CardTitle>
+              <CardDescription className="text-[#647069]">
                 Register a Cognito user for the finance workspace.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                  <div className="grid gap-6">
+                  <div className="grid gap-6 mt-4">
                     <div className="grid gap-4">
                       <div className="grid grid-cols-2 gap-3">
                         <FormField
@@ -175,9 +181,9 @@ export function SignupForm1({
                           name="firstName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>First Name</FormLabel>
+                              <FormLabel className={authLabelClass}>First Name</FormLabel>
                               <FormControl>
-                                <Input placeholder="Minh" {...field} disabled={isLoading} />
+                                <Input placeholder="Minh" className={authInputClass} {...field} disabled={isLoading} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -188,9 +194,9 @@ export function SignupForm1({
                           name="lastName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Last Name</FormLabel>
+                              <FormLabel className={authLabelClass}>Last Name</FormLabel>
                               <FormControl>
-                                <Input placeholder="Nguyen" {...field} disabled={isLoading} />
+                                <Input placeholder="Nguyen" className={authInputClass} {...field} disabled={isLoading} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -202,11 +208,12 @@ export function SignupForm1({
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel className={authLabelClass}>Email</FormLabel>
                             <FormControl>
                               <Input
                                 type="email"
                                 placeholder="finance@docuflow.ai"
+                                className={authInputClass}
                                 {...field}
                                 disabled={isLoading}
                               />
@@ -220,9 +227,9 @@ export function SignupForm1({
                         name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Password</FormLabel>
+                            <FormLabel className={authLabelClass}>Password</FormLabel>
                             <FormControl>
-                              <Input type="password" {...field} disabled={isLoading} />
+                              <Input type="password" className={authInputClass} {...field} disabled={isLoading} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -233,9 +240,9 @@ export function SignupForm1({
                         name="confirmPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Confirm Password</FormLabel>
+                            <FormLabel className={authLabelClass}>Confirm Password</FormLabel>
                             <FormControl>
-                              <Input type="password" {...field} disabled={isLoading} />
+                              <Input type="password" className={authInputClass} {...field} disabled={isLoading} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -250,23 +257,23 @@ export function SignupForm1({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                className="mt-0.5"
+                                className="mt-0.5 border-[#40584b] data-[state=checked]:border-[#d8ff72] data-[state=checked]:bg-[#d8ff72] data-[state=checked]:text-[#10261d]"
                                 disabled={isLoading}
                               />
                             </FormControl>
-                            <FormLabel className="text-sm">
+                            <FormLabel className="text-sm leading-5 text-[#647069]">
                               I agree to the terms of service and privacy policy
                             </FormLabel>
                           </FormItem>
                         )}
                       />
-                      <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
+                      <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
                         {isLoading ? <LoadingSpinner /> : "Create account"}
                       </Button>
                     </div>
-                    <div className="text-center text-sm">
+                    <div className="text-center text-sm text-[#647069]">
                       Already have an account?{" "}
-                      <Link to="/auth/sign-in" className="underline underline-offset-4">
+                      <Link to="/auth/sign-in" className="font-medium text-[#153f30] underline underline-offset-4">
                         Sign in
                       </Link>
                     </div>
@@ -277,47 +284,48 @@ export function SignupForm1({
           </>
         ) : (
           <>
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl">Confirm your account</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-[#e2e3db] text-left">
+              <CardTitle className="text-lg text-[#11251d]">Confirm account</CardTitle>
+              <CardDescription className="text-[#647069]">
                 Enter the verification code sent to {registeredEmail}.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleConfirmCode}>
-                <div className="grid gap-6">
+                <div className="grid gap-6 mt-4">
                   <div className="grid gap-4">
                     <div className="grid gap-3">
-                      <Label htmlFor="verificationCode">Verification Code</Label>
+                      <Label htmlFor="verificationCode" className={authLabelClass}>Verification Code</Label>
                       <Input
                         id="verificationCode"
                         type="text"
                         placeholder="123456"
                         value={verificationCode}
                         onChange={(e) => setVerificationCode(e.target.value)}
+                        className={authInputClass}
                         disabled={isLoading}
                         required
                       />
                     </div>
-                    <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
+                    <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
                       {isLoading ? <LoadingSpinner /> : "Confirm Account"}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full cursor-pointer"
+                      className={authOutlineButtonClass}
                       onClick={handleResendCode}
                       disabled={isLoading}
                     >
                       Resend Code
                     </Button>
                   </div>
-                  <div className="text-center text-sm">
+                  <div className="text-center text-sm text-[#647069]">
                     Need to change email?{" "}
                     <button
                       type="button"
                       onClick={() => setStep("signUp")}
-                      className="underline underline-offset-4 cursor-pointer text-primary hover:text-primary/80 bg-transparent border-0 p-0"
+                      className="cursor-pointer border-0 bg-transparent p-0 font-medium text-[#153f30] underline underline-offset-4 hover:text-[#10261d]"
                     >
                       Back to sign up
                     </button>
@@ -328,7 +336,7 @@ export function SignupForm1({
           </>
         )}
       </Card>
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+      <div className="text-center text-xs text-[#647069] text-balance *:[a]:underline *:[a]:underline-offset-4 *:[a]:hover:text-[#153f30]">
         Finance access is the default. Administrator access is assigned separately.
       </div>
     </div>
