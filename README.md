@@ -26,7 +26,7 @@ This repository contains the application code for DocuFlow AI. Workshop document
     │   ├── shared-types/          # Frontend data and API contracts
     │   └── shared-config/         # Shared status and confidence settings
     ├── services/
-    │   ├── functions/             # 5 Lambda handlers
+    │   ├── functions/             # Lambda handlers
     │   └── statemachines/         # Step Functions ASL JSON
     └── infrastructure/            # AWS SAM template
 
