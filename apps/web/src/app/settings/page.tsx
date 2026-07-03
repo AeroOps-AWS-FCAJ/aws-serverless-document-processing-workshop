@@ -826,22 +826,54 @@ export default function SettingsPage() {
       setIsLoadingSettingsApi(true)
       setSettingsApiWarning(null)
 
+      async function loadAllNotificationPages() {
+        const items: ApiNotificationItem[] = []
+        const seenTokens = new Set<string>()
+        let nextToken: string | undefined
+
+        do {
+          const page = await listNotifications(nextToken)
+          items.push(...page.items)
+          if (!page.nextToken || seenTokens.has(page.nextToken)) break
+          seenTokens.add(page.nextToken)
+          nextToken = page.nextToken
+        } while (seenTokens.size < 20)
+
+        return items
+      }
+
+      async function loadAllActivityPages() {
+        const items: ApiActivityItem[] = []
+        const seenTokens = new Set<string>()
+        let nextToken: string | undefined
+
+        do {
+          const page = await listActivity(nextToken)
+          items.push(...page.items)
+          if (!page.nextToken || seenTokens.has(page.nextToken)) break
+          seenTokens.add(page.nextToken)
+          nextToken = page.nextToken
+        } while (seenTokens.size < 20)
+
+        return items
+      }
+
       const [notificationResult, activityResult] = await Promise.allSettled([
-        listNotifications(),
-        listActivity(),
+        loadAllNotificationPages(),
+        loadAllActivityPages(),
       ])
 
       if (cancelled) return
 
       if (notificationResult.status === "fulfilled") {
-        setApiNotifications(notificationResult.value.items)
+        setApiNotifications(notificationResult.value)
       } else {
         setApiNotifications(null)
         setSettingsApiWarning("Backend chưa trả được /notifications, đang dùng thông báo dựng từ danh sách tài liệu.")
       }
 
       if (activityResult.status === "fulfilled") {
-        setApiActivityEvents(activityResult.value.items)
+        setApiActivityEvents(activityResult.value)
       } else {
         setApiActivityEvents(null)
         setSettingsApiWarning((current) =>
