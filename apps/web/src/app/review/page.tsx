@@ -1,30 +1,52 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import {
   ArrowRight, BadgeCheck, Bell, CheckCircle2, Clock3, Download, Eye,
-  FileWarning, ListChecks, MailWarning, Search, ShieldAlert, X,
+  FileWarning, ListChecks, MailWarning, Search, ShieldAlert, Trash2, X,
 } from "lucide-react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatMoney, statusMeta, type DocumentRecord, type DocumentStatus } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { deleteDocument as deleteDocumentApi, deleteDocuments as deleteDocumentsApi } from "@/lib/docuflow-api"
 import { SpotlightCard } from "@/components/spotlight-card"
 import { useAuth } from "@/contexts/auth-context"
-import { isApiConfigured } from "@/lib/docuflow-api"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
+import { TableBulkControls, type BulkTableColumn, type TableColumnVisibility } from "@/components/table-bulk-controls"
+import { TablePagination } from "@/components/table-pagination"
+import { TableSkeletonRows } from "@/components/table-skeleton-rows"
+import { toast } from "sonner"
 
 type QueueFilter = "ALL" | "REVIEW_REQUIRED" | "FAILED" | "CORRECTED" | "LOW_CONFIDENCE" | "OLDEST"
 type Priority = "Cao" | "Trung bình" | "Thấp"
 
 const attentionStatuses: DocumentStatus[] = ["REVIEW_REQUIRED", "FAILED", "CORRECTED"]
+const reviewTableColumns: BulkTableColumn[] = [
+  { key: "document", label: "Tài liệu", locked: true },
+  { key: "status", label: "Trạng thái" },
+  { key: "priority", label: "Ưu tiên" },
+  { key: "confidence", label: "Độ tin cậy" },
+  { key: "reason", label: "Lý do" },
+  { key: "age", label: "Ngày" },
+  { key: "action", label: "Hành động", locked: true },
+]
+
+const defaultReviewColumnVisibility = reviewTableColumns.reduce<TableColumnVisibility>((visibility, column) => {
+  visibility[column.key] = true
+  return visibility
+}, {})
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
   const meta = statusMeta[status]; const Icon = meta.icon
@@ -133,14 +155,71 @@ function ReviewPreviewDrawer({ document: d }: { document: DocumentRecord }) {
   )
 }
 
+function ConfirmDeleteDialog({
+  trigger,
+  title,
+  description,
+  confirmLabel,
+  isDeleting,
+  onConfirm,
+}: {
+  trigger: ReactNode
+  title: string
+  description: string
+  confirmLabel: string
+  isDeleting: boolean
+  onConfirm: () => Promise<boolean>
+}) {
+  const [open, setOpen] = useState(false)
+
+  const handleConfirm = async () => {
+    const confirmed = await onConfirm()
+    if (confirmed) setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!isDeleting) setOpen(nextOpen) }}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)} disabled={isDeleting}>
+            Hủy
+          </Button>
+          <Button type="button" variant="destructive" className="cursor-pointer" onClick={handleConfirm} disabled={isDeleting}>
+            {isDeleting ? <Clock3 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function ReviewPage() {
-  const { documents: allDocuments } = useDocuFlowDocuments()
+  const { documents: allDocuments, mergeDocuments, removeDocument, removeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
   const role = session?.role ?? "finance"
-  const apiMode = isApiConfigured()
+  const { apiMode, isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments)
   const documents = role === "finance" ? allDocuments.filter((d) => d.userId === session?.userId) : allDocuments
   const [query, setQuery] = useState("")
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("ALL")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [isPageLoading, setIsPageLoading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const pageLoadingTimer = useRef<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [columnVisibility, setColumnVisibility] = useState<TableColumnVisibility>(defaultReviewColumnVisibility)
+
+  useEffect(() => {
+    return () => {
+      if (pageLoadingTimer.current) window.clearTimeout(pageLoadingTimer.current)
+    }
+  }, [])
 
   const alertItems = useMemo(() =>
     documents.filter((d) => attentionStatuses.includes(d.status))
@@ -168,6 +247,92 @@ export default function ReviewPage() {
       return mq && mf
     })
   }, [alertItems, query, queueFilter])
+
+  const selectedItems = useMemo(() => filteredItems.filter((d) => selectedIds.includes(d.documentId)), [filteredItems, selectedIds])
+  const allVisibleSelected = filteredItems.length > 0 && filteredItems.every((d) => selectedIds.includes(d.documentId))
+  const totalItems = filteredItems.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const paginatedItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
+
+  const showPageSkeleton = () => {
+    if (pageLoadingTimer.current) window.clearTimeout(pageLoadingTimer.current)
+    setIsPageLoading(true)
+    pageLoadingTimer.current = window.setTimeout(() => setIsPageLoading(false), 220)
+  }
+
+  const handlePageChange = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages)
+    if (nextPage === currentPage) return
+    setCurrentPage(nextPage)
+    showPageSkeleton()
+  }
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    if (nextPageSize === pageSize) return
+    setPageSize(nextPageSize)
+    setCurrentPage(1)
+    showPageSkeleton()
+  }
+
+  const resetPage = () => {
+    setCurrentPage(1)
+    setIsPageLoading(false)
+  }
+
+  const toggleSelected = (id: string, checked: boolean) => setSelectedIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id))
+  const toggleAllVisible = (checked: boolean) => {
+    setSelectedIds((current) => {
+      const ids = filteredItems.map((d) => d.documentId)
+      return checked ? Array.from(new Set([...current, ...ids])) : current.filter((id) => !ids.includes(id))
+    })
+  }
+  const setColumnVisible = (key: string, visible: boolean) => {
+    const column = reviewTableColumns.find((item) => item.key === key)
+    if (column?.locked) return
+    setColumnVisibility((current) => ({ ...current, [key]: visible }))
+  }
+  const resetColumns = () => setColumnVisibility(defaultReviewColumnVisibility)
+  const isColumnVisible = (key: string) => columnVisibility[key] !== false
+  const visibleColumnCount = 2 + reviewTableColumns.filter((column) => isColumnVisible(column.key)).length
+
+  const handleDeleteDocument = async (document: DocumentRecord) => {
+    setIsDeleting(true)
+    try {
+      await deleteDocumentApi(document.documentId)
+      removeDocument(document.documentId)
+      setSelectedIds((current) => current.filter((id) => id !== document.documentId))
+      toast.success(`Đã xóa ${document.originalFileName}.`)
+      return true
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể xóa tài liệu.")
+      return false
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleBulkDeleteDocuments = async () => {
+    if (!selectedItems.length) return false
+
+    const ids = selectedItems.map((document) => document.documentId)
+    setIsDeleting(true)
+    try {
+      await deleteDocumentsApi(ids)
+      removeDocuments(ids)
+      setSelectedIds([])
+      toast.success(`Đã xóa ${ids.length} tài liệu khỏi hàng đợi kiểm duyệt.`)
+      return true
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể xóa các tài liệu đã chọn.")
+      return false
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const quickFilters: Array<{key: QueueFilter; label: string; count: number}> = [
     { key:"ALL", label:"Tất cả", count:alertItems.length },
@@ -220,16 +385,24 @@ export default function ReviewPage() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base"><Bell className="size-4" />Hàng đợi chú ý</CardTitle>
-                  <CardDescription className="text-xs">Hiển thị {filteredItems.length} / {alertItems.length} bản ghi ngoại lệ.</CardDescription>
+                  <CardDescription className="text-xs">
+                    Hiển thị {filteredItems.length} / {alertItems.length} bản ghi ngoại lệ.
+                    {syncMessage && <span className="ml-2 text-primary">{syncMessage}</span>}
+                  </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => exportReviewCsv(filteredItems)} disabled={!filteredItems.length}>
-                  <Download className="size-3.5" />Xuất ngoại lệ
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                    <Clock3 className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"} />Làm mới
+                  </Button>
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => exportReviewCsv(filteredItems)} disabled={!filteredItems.length}>
+                    <Download className="size-3.5" />Xuất ngoại lệ
+                  </Button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-1.5">
                 {quickFilters.map((f) => (
-                  <button key={f.key} type="button" onClick={() => setQueueFilter(f.key)}
+                  <button key={f.key} type="button" onClick={() => { setQueueFilter(f.key); resetPage() }}
                     className={["rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
                       f.key === queueFilter ? "border-[#0f2a22] bg-[#0f2a22] text-white shadow-sm" : "bg-background hover:border-foreground/25 hover:bg-muted/40"].join(" ")}>
                     {f.label}<span className={`ml-1.5 font-mono text-[9px] ${f.key === queueFilter ? "opacity-70" : "opacity-45"}`}>{f.count}</span>
@@ -240,10 +413,10 @@ export default function ReviewPage() {
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                 <div className="relative max-w-lg flex-1">
                   <Search className="text-muted-foreground absolute left-3 top-1/2 size-3.5 -translate-y-1/2" />
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tệp, nhà cung cấp, lý do, trạng thái..." className="pl-9 h-9 text-sm" />
+                  <Input value={query} onChange={(e) => { setQuery(e.target.value); resetPage() }} placeholder="Tìm tệp, nhà cung cấp, lý do, trạng thái..." className="pl-9 h-9 text-sm" />
                 </div>
                 {(query || queueFilter !== "ALL") && (
-                  <Button variant="ghost" size="sm" className="cursor-pointer h-9" onClick={() => { setQuery(""); setQueueFilter("ALL") }}>
+                  <Button variant="ghost" size="sm" className="cursor-pointer h-9" onClick={() => { setQuery(""); setQueueFilter("ALL"); resetPage() }}>
                     <X className="size-3.5" />Xóa
                   </Button>
                 )}
@@ -251,73 +424,155 @@ export default function ReviewPage() {
             </CardHeader>
 
             <CardContent className="p-4">
+              <TableBulkControls
+                selectedCount={selectedItems.length}
+                totalCount={filteredItems.length}
+                allSelected={allVisibleSelected}
+                columns={reviewTableColumns}
+                columnVisibility={columnVisibility}
+                onToggleAll={toggleAllVisible}
+                onClearSelection={() => setSelectedIds([])}
+                onColumnVisibilityChange={setColumnVisible}
+                onResetColumns={resetColumns}
+                className="mb-3"
+              >
+                <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => exportReviewCsv(selectedItems)}>
+                  <Download className="size-3.5" />Xuất đã chọn
+                </Button>
+                <ConfirmDeleteDialog
+                  title={`Xóa ${selectedItems.length} tài liệu?`}
+                  description={apiMode
+                    ? "Thao tác này sẽ gọi API xóa thật cho các tài liệu đã chọn và không thể hoàn tác từ giao diện."
+                    : "Thao tác này sẽ xóa các tài liệu đã chọn khỏi dữ liệu demo cục bộ."}
+                  confirmLabel="Xóa đã chọn"
+                  isDeleting={isDeleting}
+                  onConfirm={handleBulkDeleteDocuments}
+                  trigger={
+                    <Button variant="destructive" size="sm" className="h-8 cursor-pointer" disabled={isDeleting}>
+                      <Trash2 className="size-3.5" />Xóa đã chọn
+                    </Button>
+                  }
+                />
+              </TableBulkControls>
+
               <div className="overflow-x-auto rounded-xl border">
                 <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="w-[84px]" />
                       <TableHead>Tài liệu</TableHead>
-                      <TableHead>Trạng thái</TableHead>
-                      <TableHead>Ưu tiên</TableHead>
-                      <TableHead>Độ tin cậy</TableHead>
-                      <TableHead>Lý do</TableHead>
-                      <TableHead>Tuổi</TableHead>
+                      {isColumnVisible("status") && <TableHead>Trạng thái</TableHead>}
+                      {isColumnVisible("priority") && <TableHead>Ưu tiên</TableHead>}
+                      {isColumnVisible("confidence") && <TableHead>Độ tin cậy</TableHead>}
+                      {isColumnVisible("reason") && <TableHead>Lý do</TableHead>}
+                      {isColumnVisible("age") && <TableHead>Ngày</TableHead>}
                       <TableHead className="w-24" />
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredItems.map((d) => {
-                      const priority = getPriority(d); const confidence = Math.round(d.confidenceScore * 100)
-                      return (
-                        <TableRow key={d.documentId} className="hover:bg-muted/25">
-                          <TableCell>
-                            <div className="font-medium text-sm leading-tight">{d.originalFileName}</div>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                              <span className="font-mono">{d.documentId}</span>
-                              <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? "HĐ" : "BN"}</Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell><StatusBadge status={d.status} /></TableCell>
-                          <TableCell><Badge variant="outline" className={priorityClass(priority)}>{priority}</Badge></TableCell>
-                          <TableCell>
-                            <div className="min-w-20">
-                              <div className={`mb-1 text-xs font-semibold ${confidence < 80 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}`}>{confidence}%</div>
-                              <Progress value={confidence} className={`h-1.5 ${confidence < 80 ? "[&>div]:bg-amber-500" : "[&>div]:bg-emerald-500"}`} />
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[240px]"><div className="line-clamp-2 text-xs leading-5 text-muted-foreground">{attentionReason(d)}</div></TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1 text-xs"><Clock3 className="size-3 text-muted-foreground" />{getAgeDays(d.updatedAt)}n</div>
-                            <div className="text-muted-foreground text-xs">{formatDate(d.updatedAt)}</div>
-                          </TableCell>
-                          <TableCell>
-                            <Button asChild variant="outline" size="sm" className="cursor-pointer h-7 text-xs">
-                              <Link to={`/documents/${d.documentId}`}>{actionLabel(d.status)}<ArrowRight className="size-3" /></Link>
-                            </Button>
-                          </TableCell>
-                          <TableCell><ReviewPreviewDrawer document={d} /></TableCell>
-                        </TableRow>
-                      )
-                    })}
-                    {!filteredItems.length && (
-                      <TableRow>
-                        <TableCell colSpan={8} className="h-44 text-center">
-                          <div className="mx-auto grid max-w-xs place-items-center gap-3 py-6">
-                            <div className="rounded-full border bg-muted/30 p-3">
-                              {alertItems.length ? <Search className="size-5 text-muted-foreground" /> : <CheckCircle2 className="size-5 text-emerald-600" />}
-                            </div>
-                            <div className="font-medium text-sm">{alertItems.length ? "Không có mục nào khớp." : "Hàng đợi trống."}</div>
-                            <p className="text-xs text-muted-foreground">{alertItems.length ? "Xóa bộ lọc để thấy tất cả ngoại lệ." : "Tất cả ngoại lệ đã được giải quyết."}</p>
-                            {alertItems.length
-                              ? <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => { setQuery(""); setQueueFilter("ALL") }}>Xóa bộ lọc</Button>
-                              : <Button asChild variant="outline" size="sm" className="cursor-pointer"><Link to="/documents">Về danh sách</Link></Button>}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                    {isPageLoading ? (
+                      <TableSkeletonRows rows={Math.min(pageSize, 10)} columns={visibleColumnCount} />
+                    ) : (
+                      <>
+                        {paginatedItems.map((d) => {
+                          const priority = getPriority(d); const confidence = Math.round(d.confidenceScore * 100)
+                          return (
+                            <TableRow key={d.documentId} className={selectedIds.includes(d.documentId) ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/25"}>
+                              <TableCell>
+                                <Checkbox
+                                  aria-label={`Chọn ${d.originalFileName}`}
+                                  checked={selectedIds.includes(d.documentId)}
+                                  onCheckedChange={(value) => toggleSelected(d.documentId, value === true)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm leading-tight">{d.originalFileName}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                  <span className="font-mono">{d.documentId}</span>
+                                  <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? "HĐ" : "BN"}</Badge>
+                                </div>
+                              </TableCell>
+                              {isColumnVisible("status") && <TableCell><StatusBadge status={d.status} /></TableCell>}
+                              {isColumnVisible("priority") && <TableCell><Badge variant="outline" className={priorityClass(priority)}>{priority}</Badge></TableCell>}
+                              {isColumnVisible("confidence") && (
+                                <TableCell>
+                                  <div className="min-w-20">
+                                    <div className={`mb-1 text-xs font-semibold ${confidence < 80 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}`}>{confidence}%</div>
+                                    <Progress value={confidence} className={`h-1.5 ${confidence < 80 ? "[&>div]:bg-amber-500" : "[&>div]:bg-emerald-500"}`} />
+                                  </div>
+                                </TableCell>
+                              )}
+                              {isColumnVisible("reason") && <TableCell className="max-w-[240px]"><div className="line-clamp-2 text-xs leading-5 text-muted-foreground">{attentionReason(d)}</div></TableCell>}
+                              {isColumnVisible("age") && (
+                                <TableCell>
+                                  <div className="flex items-center gap-1 text-xs"><Clock3 className="size-3 text-muted-foreground" />{getAgeDays(d.updatedAt)}n</div>
+                                  <div className="text-muted-foreground text-xs">{formatDate(d.updatedAt)}</div>
+                                </TableCell>
+                              )}
+                              <TableCell>
+                                <Button asChild variant="outline" size="sm" className="cursor-pointer h-7 text-xs">
+                                  <Link to={`/documents/${d.documentId}`}>{actionLabel(d.status)}<ArrowRight className="size-3" /></Link>
+                                </Button>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-end gap-1">
+                                  <ReviewPreviewDrawer document={d} />
+                                  <ConfirmDeleteDialog
+                                    title="Xóa tài liệu?"
+                                    description={`Bạn sắp xóa ${d.originalFileName} khỏi hàng đợi kiểm duyệt. Thao tác này không thể hoàn tác từ giao diện.`}
+                                    confirmLabel="Xóa"
+                                    isDeleting={isDeleting}
+                                    onConfirm={() => handleDeleteDocument(d)}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                        disabled={isDeleting}
+                                      >
+                                        <Trash2 className="size-4" />
+                                        <span className="sr-only">Xóa tài liệu</span>
+                                      </Button>
+                                    }
+                                  />
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                        {!filteredItems.length && (
+                          <TableRow>
+                            <TableCell colSpan={visibleColumnCount} className="h-44 text-center">
+                              <div className="mx-auto grid max-w-xs place-items-center gap-3 py-6">
+                                <div className="rounded-full border bg-muted/30 p-3">
+                                  {alertItems.length ? <Search className="size-5 text-muted-foreground" /> : <CheckCircle2 className="size-5 text-emerald-600" />}
+                                </div>
+                                <div className="font-medium text-sm">{alertItems.length ? "Không có mục nào khớp." : "Hàng đợi trống."}</div>
+                                <p className="text-xs text-muted-foreground">{alertItems.length ? "Xóa bộ lọc để thấy tất cả ngoại lệ." : "Tất cả ngoại lệ đã được giải quyết."}</p>
+                                {alertItems.length
+                                  ? <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => { setQuery(""); setQueueFilter("ALL"); resetPage() }}>Xóa bộ lọc</Button>
+                                  : <Button asChild variant="outline" size="sm" className="cursor-pointer"><Link to="/documents">Về danh sách</Link></Button>}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     )}
                   </TableBody>
                 </Table>
               </div>
+              {totalItems > 0 && (
+                <TablePagination
+                  page={currentPage}
+                  pageSize={pageSize}
+                  totalItems={totalItems}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  isLoading={isPageLoading}
+                />
+              )}
             </CardContent>
           </Card>
 
