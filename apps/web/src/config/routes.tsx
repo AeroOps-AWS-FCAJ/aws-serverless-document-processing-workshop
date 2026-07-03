@@ -78,11 +78,11 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/documents",
-    element: <RequireRole allowed={["finance"]}><Documents /></RequireRole>,
+    element: <RequireRole allowed={["finance", "admin"]}><Documents /></RequireRole>,
   },
   {
     path: "/documents/:documentId",
-    element: <RequireRole allowed={["finance"]}><DocumentDetail /></RequireRole>,
+    element: <RequireRole allowed={["finance", "admin"]}><DocumentDetail /></RequireRole>,
   },
   {
     path: "/review",
