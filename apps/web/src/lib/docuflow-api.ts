@@ -1,4 +1,6 @@
 import type {
+  DeleteDocumentResponse,
+  DeleteDocumentsResponse,
   DocumentResult,
   ListDocumentsRequest,
   ListDocumentsResponse,
@@ -23,6 +25,18 @@ type RawApiDocument = Partial<DocumentResult> & {
 type ApiListEnvelope = {
   items?: unknown
   nextToken?: unknown
+}
+
+class ApiRequestError extends Error {
+  status: number
+  body: string
+
+  constructor(status: number, message: string, body: string) {
+    super(message)
+    this.name = "ApiRequestError"
+    this.status = status
+    this.body = body
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,14 +67,16 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const message = await response.text()
-    throw new Error(message || `API request failed with status ${response.status}`)
+    throw new ApiRequestError(
+      response.status,
+      message || `API request failed with status ${response.status}`,
+      message
+    )
   }
 
-  const json = await response.json()
+  const text = await response.text()
+  const json = text ? JSON.parse(text) : null
   
-  // Debug: log raw backend response to identify field name mismatches
-  console.debug(`[DocuFlow API] ${init?.method ?? "GET"} ${path}`, json)
-
   if (json && typeof json === 'object' && 'success' in json) {
     if (!json.success) {
       throw new Error(json.error?.errorMessage || "API returned success: false")
@@ -69,6 +85,20 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return json as T
+}
+
+function isNotFoundError(error: unknown) {
+  if (error instanceof ApiRequestError && error.status === 404) return true
+
+  const message = error instanceof Error ? error.message : String(error)
+  if (!message) return false
+
+  try {
+    const parsed = JSON.parse(message)
+    return parsed?.error?.errorCode === "NOT_FOUND"
+  } catch {
+    return message.includes('"errorCode":"NOT_FOUND"') || message.includes("Document not found")
+  }
 }
 
 /**
@@ -84,9 +114,14 @@ function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
     originalFileName: raw.originalFileName ?? (typeof raw.fileName === "string" ? raw.fileName : "unknown"),
     documentType:     raw.documentType ?? "INVOICE",
     status:           raw.status ?? "UPLOADED",
+    invoiceNumber:    typeof raw.invoiceNumber === "string" ? raw.invoiceNumber : "",
     vendorName:       raw.vendorName ?? "Unknown",
     invoiceDate:      raw.invoiceDate ?? "",
+    dueDate:          typeof raw.dueDate === "string" ? raw.dueDate : "",
     currency:         normalizeCurrencyCode(raw.currency),
+    subtotalAmount:   raw.subtotalAmount == null ? undefined : toNumber(raw.subtotalAmount),
+    discountAmount:   raw.discountAmount == null ? undefined : toNumber(raw.discountAmount),
+    shippingAmount:   raw.shippingAmount == null ? undefined : toNumber(raw.shippingAmount),
     totalAmount:      typeof raw.totalAmount === "number" ? raw.totalAmount : Number(raw.totalAmount) || 0,
     taxAmount:        raw.taxAmount == null ? null : (typeof raw.taxAmount === "number" ? raw.taxAmount : Number(raw.taxAmount) || 0),
     confidenceScore:  normalizeConfidenceScore(raw.confidenceScore),
@@ -96,6 +131,7 @@ function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
     normalizationMethod: raw.normalizationMethod ?? "TEXTRACT_ONLY",
     rawS3Key:         raw.rawS3Key ?? "",
     processedS3Key:   raw.processedS3Key ?? "",
+    sourceUrl:        typeof raw.sourceUrl === "string" ? raw.sourceUrl : null,
     createdAt:        raw.createdAt ?? new Date().toISOString(),
     updatedAt:        raw.updatedAt ?? new Date().toISOString(),
     reviewedAt:       raw.reviewedAt ?? null,
@@ -175,7 +211,13 @@ export async function listDocuments(
 
 export async function getDocument(documentId: string): Promise<DocumentResult | null> {
   if (apiBaseUrl) {
-    const raw = await apiRequest<unknown>(`/documents/${encodeURIComponent(documentId)}`)
+    let raw: unknown
+    try {
+      raw = await apiRequest<unknown>(`/documents/${encodeURIComponent(documentId)}`)
+    } catch (error) {
+      if (isNotFoundError(error)) return null
+      throw error
+    }
     if (!isRecord(raw)) return null
     return sanitizeApiDocument(raw)
   }
@@ -196,6 +238,7 @@ export async function requestUploadUrl(
       mimeType: request.mimeType,
       fileSizeBytes: request.fileSizeBytes,
       pageCount: request.pageCount,
+      ...(request.documentType ? { documentType: request.documentType } : {}),
     }
     return apiRequest<UploadUrlResponse>("/documents/upload-url", {
       method: "POST",
@@ -307,6 +350,61 @@ export async function reviewDocument(
     status: request.reviewStatus === "APPROVED" ? "APPROVED" : "CORRECTED",
     reviewStatus: request.reviewStatus === "APPROVED" ? "APPROVED" : "CORRECTED",
     updatedAt: new Date().toISOString(),
+  }
+}
+
+export async function deleteDocument(documentId: string): Promise<DeleteDocumentResponse> {
+  if (apiBaseUrl) {
+    const response = await apiRequest<DeleteDocumentResponse | null>(
+      `/documents/${encodeURIComponent(documentId)}`,
+      { method: "DELETE" }
+    )
+    return response ?? {
+      documentId,
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+    }
+  }
+
+  await wait()
+  return {
+    documentId,
+    deleted: true,
+    deletedAt: new Date().toISOString(),
+  }
+}
+
+export async function deleteDocuments(documentIds: string[]): Promise<DeleteDocumentsResponse> {
+  const uniqueDocumentIds = Array.from(new Set(documentIds)).filter(Boolean)
+
+  if (!uniqueDocumentIds.length) {
+    return {
+      documentIds: [],
+      deletedCount: 0,
+      deletedAt: new Date().toISOString(),
+    }
+  }
+
+  if (apiBaseUrl) {
+    const response = await apiRequest<DeleteDocumentsResponse | null>(
+      "/documents",
+      {
+        method: "DELETE",
+        body: JSON.stringify({ documentIds: uniqueDocumentIds }),
+      }
+    )
+    return response ?? {
+      documentIds: uniqueDocumentIds,
+      deletedCount: uniqueDocumentIds.length,
+      deletedAt: new Date().toISOString(),
+    }
+  }
+
+  await wait()
+  return {
+    documentIds: uniqueDocumentIds,
+    deletedCount: uniqueDocumentIds.length,
+    deletedAt: new Date().toISOString(),
   }
 }
 

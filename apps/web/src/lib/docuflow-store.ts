@@ -37,9 +37,14 @@ function sanitizeDocument(doc: unknown): DocumentRecord {
     originalFileName: record.originalFileName ?? "unknown",
     documentType: record.documentType ?? "INVOICE",
     status: record.status ?? "UPLOADED",
+    invoiceNumber: record.invoiceNumber ?? "",
     vendorName: record.vendorName ?? "Unknown",
     invoiceDate: record.invoiceDate ?? "",
+    dueDate: record.dueDate ?? "",
     currency: normalizeCurrencyCode(record.currency),
+    subtotalAmount: record.subtotalAmount,
+    discountAmount: record.discountAmount,
+    shippingAmount: record.shippingAmount,
     totalAmount: record.totalAmount ?? 0,
     taxAmount: record.taxAmount ?? null,
     confidenceScore: normalizeConfidenceScore(record.confidenceScore),
@@ -49,6 +54,7 @@ function sanitizeDocument(doc: unknown): DocumentRecord {
     normalizationMethod: record.normalizationMethod ?? "TEXTRACT_ONLY",
     rawS3Key: record.rawS3Key ?? "",
     processedS3Key: record.processedS3Key ?? "",
+    sourceUrl: record.sourceUrl ?? null,
     createdAt: record.createdAt ?? new Date().toISOString(),
     updatedAt: record.updatedAt ?? new Date().toISOString(),
     reviewedAt: record.reviewedAt ?? null,
@@ -155,6 +161,21 @@ export function useDocuFlowDocuments() {
     [replaceDocuments]
   )
 
+  const removeDocument = useCallback(
+    (documentId: string) => {
+      replaceDocuments((current) => current.filter((document) => document.documentId !== documentId))
+    },
+    [replaceDocuments]
+  )
+
+  const removeDocuments = useCallback(
+    (documentIds: string[]) => {
+      const ids = new Set(documentIds)
+      replaceDocuments((current) => current.filter((document) => !ids.has(document.documentId)))
+    },
+    [replaceDocuments]
+  )
+
   const resetDocuments = useCallback(() => {
     const nextDocuments = cloneSeedDocuments()
     writeDocuFlowDocuments(nextDocuments)
@@ -164,6 +185,8 @@ export function useDocuFlowDocuments() {
   return {
     documents: items,
     mergeDocuments,
+    removeDocument,
+    removeDocuments,
     resetDocuments,
     updateDocument,
     upsertDocument,
@@ -177,7 +200,7 @@ export function createQueuedDocument(
 ): DocumentRecord {
   const now = new Date().toISOString()
   const extension = request.originalFileName.split(".").pop()?.toLowerCase()
-  const documentType = request.originalFileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE"
+  const documentType = request.documentType ?? (request.originalFileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE")
 
   return {
     documentId: response.documentId,
@@ -185,9 +208,14 @@ export function createQueuedDocument(
     documentType,
     status: "UPLOADED",
     reviewStatus: "PENDING",
+    invoiceNumber: "",
     vendorName: "Pending extraction",
     invoiceDate: now.slice(0, 10),
+    dueDate: "",
     currency: "VND",
+    subtotalAmount: undefined,
+    discountAmount: undefined,
+    shippingAmount: undefined,
     totalAmount: 0,
     taxAmount: null,
     confidenceScore: 0,
@@ -198,6 +226,7 @@ export function createQueuedDocument(
     userId,
     rawS3Key: response.rawS3Key,
     processedS3Key: `processed/${userId}/${response.documentId}/result.json`,
+    sourceUrl: null,
     reviewReasonCodes: ["vendorName pending", "totalAmount pending", "taxAmount pending"],
     lineItems: [],
     errorMessage:

@@ -344,6 +344,16 @@ export const apiContracts = [
     path: "/documents/{documentId}/review",
     purpose: "Persist corrected fields or approve a reviewed document result.",
   },
+  {
+    method: "DELETE",
+    path: "/documents/{documentId}",
+    purpose: "Delete document metadata and related raw/processed objects for the authenticated owner.",
+  },
+  {
+    method: "DELETE",
+    path: "/documents",
+    purpose: "Bulk delete document metadata and related raw/processed objects for the authenticated owner.",
+  },
 ]
 
 export const operationalChecks = [

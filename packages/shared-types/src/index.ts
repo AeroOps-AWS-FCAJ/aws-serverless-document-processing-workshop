@@ -22,11 +22,17 @@ export interface LineItem {
 }
 
 export interface CorrectedFields {
+  invoiceNumber?: string
   vendorName?: string
   invoiceDate?: string
+  dueDate?: string
   currency?: Currency
+  subtotalAmount?: number
+  discountAmount?: number
+  shippingAmount?: number
   totalAmount?: number
   taxAmount?: number | null
+  lineItems?: LineItem[]
 }
 
 export interface DocumentResult {
@@ -35,9 +41,14 @@ export interface DocumentResult {
   originalFileName: string
   documentType: DocumentType
   status: DocumentStatus
+  invoiceNumber?: string
   vendorName: string
   invoiceDate: string
+  dueDate?: string
   currency: Currency
+  subtotalAmount?: number
+  discountAmount?: number
+  shippingAmount?: number
   totalAmount: number
   taxAmount: number | null
   confidenceScore: number
@@ -50,6 +61,7 @@ export interface DocumentResult {
     | "FAILED_BEFORE_NORMALIZE"
   rawS3Key: string
   processedS3Key: string
+  sourceUrl?: string | null
   createdAt: string
   updatedAt: string
   reviewedAt: string | null
@@ -74,6 +86,7 @@ export interface UploadUrlRequest {
   mimeType: string
   fileSizeBytes: number
   pageCount: number
+  documentType?: DocumentType
 }
 
 export interface UploadUrlResponse {
@@ -100,4 +113,16 @@ export interface ReviewDocumentResponse {
   status: "CORRECTED" | "APPROVED"
   reviewStatus: "CORRECTED" | "APPROVED"
   updatedAt: string
+}
+
+export interface DeleteDocumentResponse {
+  documentId: string
+  deleted: boolean
+  deletedAt?: string
+}
+
+export interface DeleteDocumentsResponse {
+  documentIds: string[]
+  deletedCount: number
+  deletedAt?: string
 }
