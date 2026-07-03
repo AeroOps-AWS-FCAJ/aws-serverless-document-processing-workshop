@@ -27,7 +27,7 @@ import { roleCapabilities } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
 
-const workspaceLinks = [
+const financeWorkspaceLinks = [
   { label: "Tải tài liệu lên", to: "/upload", icon: UploadCloud },
   { label: "Danh sách tài liệu", to: "/documents", icon: FileSearch },
   { label: "Hàng đợi kiểm duyệt", to: "/review", icon: BellDot },
@@ -36,12 +36,22 @@ const workspaceLinks = [
   { label: "Lịch sử hoạt động", to: "/activity", icon: Workflow },
 ]
 
+const adminWorkspaceLinks = [
+  { label: "Vận hành hệ thống", to: "/operations", icon: Workflow },
+  { label: "Hàng đợi kiểm duyệt", to: "/review", icon: BellDot },
+  { label: "Ingestion", to: "/admin/ingestion", icon: UploadCloud },
+  { label: "Workflow", to: "/admin/workflow", icon: Workflow },
+  { label: "Observability", to: "/admin/observability", icon: ShieldCheck },
+  { label: "Governance", to: "/admin/governance", icon: BadgeCheck },
+]
+
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const { documents } = useDocuFlowDocuments()
   const role = session?.role ?? "finance"
   const capability = roleCapabilities.find((item) => item.role === role)
+  const workspaceLinks = role === "admin" ? adminWorkspaceLinks : financeWorkspaceLinks
   const visibleDocuments = documents.filter((document) => role === "admin" || document.userId === session?.userId)
   const reviewCount = visibleDocuments.filter((document) =>
     ["REVIEW_REQUIRED", "FAILED", "CORRECTED"].includes(document.status)

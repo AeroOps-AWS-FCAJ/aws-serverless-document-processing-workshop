@@ -13,6 +13,7 @@ import {
   FileWarning,
   Inbox,
   MailCheck,
+  RefreshCw,
   Search,
   ShieldAlert,
   SlidersHorizontal,
@@ -36,6 +37,7 @@ import {
   type DocumentRecord,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 
 type NotificationKind = "ACTION" | "FAILED" | "COMPLETE" | "PROCESSING"
 type NotificationFilter = "ALL" | NotificationKind | "UNREAD"
@@ -128,8 +130,9 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
 
 
 export default function NotificationsPage() {
-  const { documents } = useDocuFlowDocuments()
+  const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<NotificationFilter>("ALL")
 
@@ -157,8 +160,7 @@ export default function NotificationsPage() {
     return matchesQuery && matchesFilter
   })
 
-  // Chỉ lấy 5 thông báo gần đây nhất sau khi đã lọc và sắp xếp
-  const displayedNotifications = filteredNotifications.slice(0, 5)
+  const displayedNotifications = filteredNotifications
 
   const unreadCount = notifications.filter((notification) => notification.unread).length
   const failedCount = notifications.filter((notification) => notification.kind === "FAILED").length
@@ -187,7 +189,14 @@ export default function NotificationsPage() {
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
                 Nơi tổng hợp các thông báo cập nhật về trạng thái xử lý tài liệu của bạn trong hệ thống.
+                {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
+              <div className="mt-4">
+                <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                  <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
+                  Làm mới
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
@@ -278,7 +287,7 @@ export default function NotificationsPage() {
                   Danh sách thông báo
                 </CardTitle>
                 <CardDescription>
-                  Đang hiển thị {displayedNotifications.length} thông báo gần nhất trên tổng số {filteredNotifications.length} thông báo.
+                  Đang hiển thị {displayedNotifications.length} / {filteredNotifications.length} thông báo phù hợp.
                 </CardDescription>
               </div>
               {/* Mobile-only: search + filter chips */}

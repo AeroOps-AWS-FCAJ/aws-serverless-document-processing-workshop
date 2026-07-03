@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Activity,
   AlertTriangle,
@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/chart"
 import { roleLabels } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
-import { isApiConfigured, listDocuments } from "@/lib/docuflow-api"
 import {
   convertToDemoVnd,
   demoCurrencyRateDetail,
@@ -47,9 +46,9 @@ import {
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { SpotlightCard } from "@/components/spotlight-card"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 
 type TrendWindow = "30d" | "90d" | "6m"
-type SyncState = "idle" | "syncing" | "synced" | "error"
 
 const trendConfig = {
   extracted: { label: "Đã trích xuất", color: "#153f30" },
@@ -113,10 +112,9 @@ export default function DashboardPage() {
   const { documents: allDocuments, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
   const role        = session?.role ?? "finance"
-  const apiConn     = isApiConfigured()
+  const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
 
   const [trendWindow, setTrendWindow] = useState<TrendWindow>("6m")
-  const [syncState,   setSyncState]   = useState<SyncState>("idle")
   const [lastSync,    setLastSync]    = useState(() => new Date())
 
   const documents = useMemo(
@@ -126,24 +124,19 @@ export default function DashboardPage() {
     [allDocuments, role, session?.userId],
   )
 
-  // ── Data refresh ─────────────────────────────────────────────────────────
-  const refresh = useCallback(async () => {
-    setSyncState("syncing")
-    if (!apiConn) { setLastSync(new Date()); setSyncState("synced"); return }
-    try {
-      const res = await listDocuments()
-      mergeDocuments(res.items)
-      setLastSync(new Date())
-      setSyncState("synced")
-    } catch { setSyncState("error") }
-  }, [apiConn, mergeDocuments])
+  useEffect(() => {
+    if (!apiMode) return
+    const t = window.setInterval(() => void refreshDocuments(), 15_000)
+    return () => window.clearInterval(t)
+  }, [apiMode, refreshDocuments])
 
   useEffect(() => {
-    if (!apiConn) return
-    void refresh()
-    const t = window.setInterval(() => void refresh(), 15_000)
-    return () => window.clearInterval(t)
-  }, [apiConn, refresh])
+    if (syncMessage && !syncError) setLastSync(new Date())
+  }, [syncError, syncMessage])
+
+  const handleRefresh = () => {
+    void refreshDocuments()
+  }
 
   // ── Derived numbers ───────────────────────────────────────────────────────
   const processingCount = documents.filter((d) => ["UPLOADED","QUEUED","PROCESSING"].includes(d.status)).length
@@ -239,20 +232,20 @@ export default function DashboardPage() {
                 </div>
                 {/* Sync pill — small, unobtrusive */}
                 <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1">
-                  {apiConn
+                  {apiMode
                     ? <Wifi className="size-3 text-emerald-400" />
                     : <WifiOff className="size-3 text-amber-400" />}
-                  <span className="font-mono text-[9px] text-white/50">
-                    {lastSync.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  <span className={`font-mono text-[9px] ${syncError ? "text-red-300" : "text-white/50"}`} title={syncError ?? syncMessage}>
+                    {syncError ? "Lỗi đồng bộ" : lastSync.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                   <button
                     type="button"
-                    onClick={refresh}
-                    disabled={syncState === "syncing"}
+                    onClick={handleRefresh}
+                    disabled={isSyncing}
                     className="ml-0.5 rounded text-white/40 transition hover:text-white/80 disabled:opacity-30"
                     aria-label="Làm mới"
                   >
-                    <RefreshCw className={syncState === "syncing" ? "size-3 animate-spin" : "size-3"} />
+                    <RefreshCw className={isSyncing ? "size-3 animate-spin" : "size-3"} />
                   </button>
                 </div>
               </div>

@@ -12,6 +12,7 @@ import {
   FileBarChart2,
   FileWarning,
   PieChart,
+  RefreshCw,
   ReceiptText,
   TrendingUp,
 } from "lucide-react"
@@ -44,6 +45,7 @@ import {
   type DocumentStatus,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 
 function toVnd(document: DocumentRecord) {
   return convertToDemoVnd(document.totalAmount, document.currency)
@@ -88,8 +90,9 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 }
 
 export default function ReportsPage() {
-  const { documents } = useDocuFlowDocuments()
+  const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
   
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
@@ -135,18 +138,20 @@ export default function ReportsPage() {
   }, [reportableDocuments])
 
   const monthlyRows = useMemo(() => {
-    const grouped = new Map<string, { month: string; amount: number; documents: number }>()
+    const grouped = new Map<string, { month: string; sortKey: string; amount: number; documents: number }>()
     reportableDocuments.forEach((document) => {
       const date = new Date(document.invoiceDate)
+      const isInvalid = Number.isNaN(date.getTime())
       const month = Number.isNaN(date.getTime())
         ? "Không xác định"
         : date.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })
-      const current = grouped.get(month) ?? { month, amount: 0, documents: 0 }
+      const sortKey = isInvalid ? "9999-99" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const current = grouped.get(month) ?? { month, sortKey, amount: 0, documents: 0 }
       current.amount += toVnd(document)
       current.documents += 1
       grouped.set(month, current)
     })
-    return [...grouped.values()].sort((a, b) => a.month.localeCompare(b.month))
+    return [...grouped.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
   }, [reportableDocuments])
 
   const maxVendorAmount = Math.max(...vendorRows.map((row) => row.amount), 1)
@@ -187,8 +192,13 @@ export default function ReportsPage() {
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
                 Tổng hợp số liệu từ hóa đơn và biên nhận đã xử lý: chi tiêu theo nhà cung cấp,
                 theo tháng và trạng thái từng tài liệu.
+                {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                  <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
+                  Làm mới
+                </Button>
                 <Button className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]" onClick={() => exportCsv(visibleDocuments)}>
                   <Download className="size-4" />
                   Xuất báo cáo CSV
