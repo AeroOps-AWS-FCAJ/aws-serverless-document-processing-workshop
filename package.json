@@ -15,5 +15,7 @@
     "build": "pnpm -r --parallel run build",
     "sam:validate": "sam validate --lint --template infrastructure/template.yaml"
   },
-  "devDependencies": {}
+  "dependencies": {
+    "@aws-sdk/s3-request-presigner": "^3.1079.0"
+  }
 }

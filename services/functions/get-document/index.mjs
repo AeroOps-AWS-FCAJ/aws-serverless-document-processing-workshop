@@ -7,7 +7,11 @@ const docClient = DynamoDBDocumentClient.from(ddbClient);
 const s3Client = new S3Client({});
 
 const TABLE_NAME = process.env.DOCUFLOW_DEV_TABLE_NAME;
+const RAW_BUCKET = process.env.DOCUFLOW_DEV_RAW_BUCKET || process.env.DOCUFLOW_DEV_RAW_BUCKET_NAME;
 const PROCESSED_BUCKET = process.env.DOCUFLOW_DEV_PROCESSED_BUCKET;
+const SOURCE_URL_EXPIRES_SECONDS = Number(process.env.SOURCE_URL_EXPIRES_SECONDS || 900);
+
+let getSignedUrl;
 
 export const handler = async (event) => {
   try {
@@ -49,7 +53,7 @@ export const handler = async (event) => {
     const processedS3Key = resolveProcessedS3Key(safeItem);
 
     if (!processedS3Key) {
-      return formatResponse(200, true, normalizeDocumentResponse(safeItem, null));
+      return formatResponse(200, true, await normalizeDocumentResponse(safeItem, null));
     }
 
     let fullDocument;
@@ -79,7 +83,7 @@ export const handler = async (event) => {
       });
 
       return formatResponse(200, true, {
-        ...normalizeDocumentResponse({ ...safeItem, processedS3Key }, null),
+        ...await normalizeDocumentResponse({ ...safeItem, processedS3Key }, null),
         s3ReadWarning: {
           errorCode: "S3_READ_FAILED",
           errorMessage: s3Error?.message || "Could not read processed result from S3.",
@@ -91,7 +95,7 @@ export const handler = async (event) => {
     return formatResponse(
       200,
       true,
-      normalizeDocumentResponse({ ...safeItem, processedS3Key }, fullDocument)
+      await normalizeDocumentResponse({ ...safeItem, processedS3Key }, fullDocument)
     );
   } catch (error) {
     logError("Unhandled error", {
@@ -188,6 +192,73 @@ function resolveProcessedS3Key(item = {}) {
   );
 }
 
+function resolveRawS3Key(item = {}) {
+  return (
+    item.rawS3Key ||
+    item.storage?.rawS3Key ||
+    item.raw?.s3Key ||
+    item.sourceS3Key ||
+    null
+  );
+}
+
+function parseS3Location(value, fallbackBucket = null) {
+  if (!value) return { bucket: null, key: null };
+
+  if (value.startsWith("s3://")) {
+    const withoutScheme = value.slice("s3://".length);
+    const slashIndex = withoutScheme.indexOf("/");
+    if (slashIndex < 0) return { bucket: withoutScheme, key: null };
+    return {
+      bucket: withoutScheme.slice(0, slashIndex),
+      key: withoutScheme.slice(slashIndex + 1),
+    };
+  }
+
+  return {
+    bucket: fallbackBucket,
+    key: normalizeS3Key(value),
+  };
+}
+
+async function loadGetSignedUrl() {
+  if (getSignedUrl) return getSignedUrl;
+
+  const presigner = await import("@aws-sdk/s3-request-presigner");
+  getSignedUrl = presigner.getSignedUrl;
+  return getSignedUrl;
+}
+
+async function createSourceUrl(rawS3Key) {
+  const { bucket, key } = parseS3Location(rawS3Key, RAW_BUCKET);
+
+  if (!bucket || !key) {
+    return null;
+  }
+
+  try {
+    const sign = await loadGetSignedUrl();
+    return await sign(
+      s3Client,
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }),
+      {
+        expiresIn: SOURCE_URL_EXPIRES_SECONDS,
+      }
+    );
+  } catch (error) {
+    logError("Failed to create source document presigned URL.", {
+      rawS3Bucket: bucket,
+      rawS3Key: key,
+      errorName: error?.name,
+      errorMessage: error?.message,
+    });
+    return null;
+  }
+}
+
 function normalizeS3Key(key) {
   if (!key) return key;
 
@@ -219,7 +290,7 @@ function parsePossiblyDoubleStringifiedJson(value) {
   return parsed;
 }
 
-function normalizeDocumentResponse(safeItem, fullDocument) {
+async function normalizeDocumentResponse(safeItem, fullDocument) {
   const doc = unwrapProcessedDocument(fullDocument);
   const invoice = firstRecord(
     doc?.invoice,
@@ -235,6 +306,8 @@ function normalizeDocumentResponse(safeItem, fullDocument) {
   const file = firstRecord(doc?.file, {});
   const textractSummary = extractTextractSummaryFields(doc);
   const lineItems = extractLineItems(doc, invoice);
+  const rawS3Key = pickValue(storage.rawS3Key, doc?.rawS3Key, safeItem.rawS3Key);
+  const sourceUrl = pickValue(doc?.sourceUrl, safeItem.sourceUrl, await createSourceUrl(rawS3Key), null);
 
   return {
     ...safeItem,
@@ -245,8 +318,9 @@ function normalizeDocumentResponse(safeItem, fullDocument) {
     status: pickValue(doc?.status, safeItem.status),
 
     originalFileName: pickValue(file.originalFileName, doc?.originalFileName, doc?.fileName, safeItem.originalFileName),
-    rawS3Key: pickValue(storage.rawS3Key, doc?.rawS3Key, safeItem.rawS3Key),
+    rawS3Key,
     processedS3Key: pickValue(storage.processedS3Key, doc?.processedS3Key, safeItem.processedS3Key),
+    sourceUrl,
 
     vendorName: pickValue(invoice.vendorName, doc?.vendorName, textractSummary.vendorName, safeItem.vendorName, ""),
     invoiceNumber: pickValue(invoice.invoiceNumber, doc?.invoiceNumber, textractSummary.invoiceNumber, safeItem.invoiceNumber, ""),
