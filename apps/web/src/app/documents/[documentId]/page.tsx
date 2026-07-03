@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   ArrowLeft, BadgeCheck, CheckCircle2, Clock3, Database, FileJson,
-  FileText, Save, ShieldAlert, TrendingUp, FileWarning
+  FileText, Save, ShieldAlert, TrendingUp, FileWarning, UploadCloud
 } from "lucide-react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatDate, formatMoney, statusMeta, type DocumentRecord, type DocumentStatus } from "@/lib/docuflow-data"
+import { formatDate, formatMoney, statusMeta, supportedCurrencies, type DocumentRecord, type DocumentStatus } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
 import { getDocument, isApiConfigured, reviewDocument } from "@/lib/docuflow-api"
@@ -354,9 +354,16 @@ export default function DocumentDetailPage() {
                     </div>
                     <div className="grid gap-1.5">
                       <Label className="text-xs font-semibold">Tiền tệ</Label>
-                      <Select value={form.currency} onValueChange={(v)=>setForm((c)=>({...c,currency:v as DocumentRecord["currency"]}))}>
+                      <Select value={form.currency} onValueChange={(v)=>setForm((c)=>({...c,currency:v}))}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="VND">VND</SelectItem><SelectItem value="USD">USD</SelectItem></SelectContent>
+                        <SelectContent className="max-h-72">
+                          {supportedCurrencies.map((currency) => (
+                            <SelectItem key={currency.code} value={currency.code}>
+                              <span className="font-mono">{currency.code}</span>
+                              <span className="ml-2 text-muted-foreground">{currency.label}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -387,13 +394,48 @@ export default function DocumentDetailPage() {
             </Card>
           )}
 
+          {doc.status === "FAILED" && (
+            <Card className="rounded-xl border-red-200 bg-red-50/70 shadow-sm dark:border-red-900 dark:bg-red-950/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base text-red-800 dark:text-red-200">
+                  <ShieldAlert className="size-4" />
+                  Tài liệu cần tải lên lại
+                </CardTitle>
+                <CardDescription className="text-xs text-red-700/75 dark:text-red-300/75">
+                  Workflow không tạo được kết quả có thể kiểm duyệt. Hãy tải bản scan rõ hơn hoặc đúng định dạng để tạo lượt xử lý mới.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Button asChild className="cursor-pointer">
+                  <Link to="/upload">
+                    <UploadCloud className="size-4" />
+                    Tải bản thay thế
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="cursor-pointer border-red-200 bg-white/70 text-red-900 hover:bg-white dark:border-red-900 dark:bg-transparent dark:text-red-100">
+                  <Link to="/documents">Quay lại danh sách</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {doc.errorMessage && (
             <Card className="rounded-xl border-amber-200 shadow-sm dark:border-amber-900">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-300"><ShieldAlert className="size-4" />Ghi chú xử lý</CardTitle>
                 <CardDescription className="text-xs">Dùng ghi chú này để quyết định tài liệu cần chỉnh sửa hay tải lên lại.</CardDescription>
               </CardHeader>
-              <CardContent className="text-sm leading-6 text-amber-800 dark:text-amber-300">{doc.errorMessage}</CardContent>
+              <CardContent className="grid gap-3 text-sm leading-6 text-amber-800 dark:text-amber-300">
+                <p>{doc.errorMessage}</p>
+                {doc.status === "FAILED" && (
+                  <Button asChild variant="outline" size="sm" className="w-fit cursor-pointer">
+                    <Link to="/upload">
+                      <UploadCloud className="size-4" />
+                      Tải lại tài liệu
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
             </Card>
           )}
 

@@ -22,13 +22,8 @@ export const roleHomePaths: Record<DocuFlowRole, string> = {
   admin: "/operations",
 }
 
-// Hàm hỗ trợ suy luận Role từ các group Cognito (nếu cấu hình)
-// Trong phạm vi workshop, ta có thể dùng inferRole từ email hoặc nhóm.
-function inferRoleFromCognito(groups?: string[], email?: string): DocuFlowRole {
+function inferRoleFromCognito(groups?: string[]): DocuFlowRole {
   if (groups && groups.includes('docuflow-dev-admins')) {
-    return 'admin';
-  }
-  if (email && email.toLowerCase().startsWith('admin')) {
     return 'admin';
   }
   return 'finance';
@@ -50,15 +45,7 @@ export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | nul
     
     // AWS Cognito Groups might be in accessToken or idToken
     const groups = (idPayload?.['cognito:groups'] as string[]) || (accessPayload?.['cognito:groups'] as string[]) || [];
-    const role = inferRoleFromCognito(groups, email);
-
-    // DEBUGGING: Log payloads to console so we can see what Cognito actually returned
-    console.log("=== AUTH DEBUG ===");
-    console.log("ID Token Payload:", idPayload);
-    console.log("Access Token Payload:", accessPayload);
-    console.log("Extracted Groups:", groups);
-    console.log("Derived Role:", role);
-    console.log("==================");
+    const role = inferRoleFromCognito(groups);
 
     return {
       authenticated: true,

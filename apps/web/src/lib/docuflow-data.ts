@@ -340,7 +340,7 @@ export const apiContracts = [
     purpose: "Return document metadata, status, extracted fields, and review information.",
   },
   {
-    method: "POST",
+    method: "PATCH",
     path: "/documents/{documentId}/review",
     purpose: "Persist corrected fields or approve a reviewed document result.",
   },
@@ -445,10 +445,10 @@ export const roleCapabilities = [
   },
   {
     role: "admin",
-    canUpload: true,
+    canUpload: false,
     canReview: true,
     canOperate: true,
-    description: "Monitors alerts, IAM ownership, budget checks, and cleanup readiness.",
+    description: "Monitors alerts, IAM ownership, budget checks, cleanup readiness, and unresolved review work.",
   },
 ]
 
@@ -500,24 +500,91 @@ export const statusDistribution = Object.entries(statusMeta).map(([status, meta]
   count: documents.filter((document) => document.status === status).length,
 }))
 
+export const supportedCurrencies = [
+  { code: "VND", label: "Đồng Việt Nam" },
+  { code: "USD", label: "Đô la Mỹ" },
+  { code: "EUR", label: "Euro" },
+  { code: "GBP", label: "Bảng Anh" },
+  { code: "JPY", label: "Yên Nhật" },
+  { code: "CNY", label: "Nhân dân tệ" },
+  { code: "KRW", label: "Won Hàn Quốc" },
+  { code: "SGD", label: "Đô la Singapore" },
+  { code: "THB", label: "Baht Thái" },
+  { code: "AUD", label: "Đô la Úc" },
+  { code: "CAD", label: "Đô la Canada" },
+  { code: "CHF", label: "Franc Thụy Sĩ" },
+  { code: "HKD", label: "Đô la Hồng Kông" },
+  { code: "INR", label: "Rupee Ấn Độ" },
+  { code: "IDR", label: "Rupiah Indonesia" },
+  { code: "MYR", label: "Ringgit Malaysia" },
+  { code: "PHP", label: "Peso Philippines" },
+  { code: "TWD", label: "Đô la Đài Loan" },
+] as const
+
+const zeroDecimalCurrencies = new Set(["VND", "JPY", "KRW"])
+
+export const demoVndExchangeRates: Record<string, number> = {
+  VND: 1,
+  USD: 25000,
+  EUR: 27000,
+  GBP: 31500,
+  JPY: 170,
+  CNY: 3450,
+  KRW: 18,
+  SGD: 18500,
+  THB: 690,
+  AUD: 16500,
+  CAD: 18200,
+  CHF: 28000,
+  HKD: 3200,
+  INR: 300,
+  IDR: 1.55,
+  MYR: 5300,
+  PHP: 430,
+  TWD: 780,
+}
+
+export function normalizeCurrencyCode(value: unknown, fallback = "VND") {
+  const code = String(value || "")
+    .trim()
+    .toUpperCase()
+
+  return /^[A-Z]{3}$/.test(code) ? code : fallback
+}
+
+export function convertToDemoVnd(value: number | null | undefined, currency?: string | null) {
+  if (value == null || Number.isNaN(value)) return 0
+  const code = normalizeCurrencyCode(currency)
+  return value * (demoVndExchangeRates[code] ?? 1)
+}
+
+export function demoCurrencyRateDetail() {
+  return "Quy đổi demo theo bảng tỷ giá nội bộ"
+}
+
 export const vendorSpend = documents
   .filter((document) => document.totalAmount > 0)
   .map((document) => ({
     vendor: document.vendorName,
-    amount: document.currency === "USD" ? document.totalAmount * 25000 : document.totalAmount,
+    amount: convertToDemoVnd(document.totalAmount, document.currency),
     confidence: document.confidenceScore,
   }))
   .sort((a, b) => b.amount - a.amount)
 
 export function formatMoney(value: number | null | undefined, currency?: string | null) {
   if (value == null || Number.isNaN(value)) return "—"
-  const safeCurrency = (currency || "VND").toUpperCase()
-  const finalCurrency = /^[A-Z]{3}$/.test(safeCurrency) ? safeCurrency : "VND"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: finalCurrency,
-    maximumFractionDigits: finalCurrency === "VND" ? 0 : 2,
-  }).format(value)
+  const finalCurrency = normalizeCurrencyCode(currency)
+  const hasDecimals = !Number.isInteger(value)
+
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: finalCurrency,
+      maximumFractionDigits: zeroDecimalCurrencies.has(finalCurrency) && !hasDecimals ? 0 : 2,
+    }).format(value)
+  } catch {
+    return `${finalCurrency} ${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+  }
 }
 
 export function formatDate(value: string) {

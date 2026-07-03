@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import { useAuth } from "@/contexts/auth-context"
 import {
+  convertToDemoVnd,
   formatDate,
   formatMoney,
   statusMeta,
@@ -45,7 +46,7 @@ import {
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 
 function toVnd(document: DocumentRecord) {
-  return document.currency === "USD" ? document.totalAmount * 25_000 : document.totalAmount
+  return convertToDemoVnd(document.totalAmount, document.currency)
 }
 
 function escapeCsv(value: string | number | null) {

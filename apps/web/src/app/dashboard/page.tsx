@@ -37,6 +37,8 @@ import { roleLabels } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
 import { isApiConfigured, listDocuments } from "@/lib/docuflow-api"
 import {
+  convertToDemoVnd,
+  demoCurrencyRateDetail,
   formatDate,
   formatMoney,
   monthlyVolume,
@@ -48,8 +50,6 @@ import { SpotlightCard } from "@/components/spotlight-card"
 
 type TrendWindow = "30d" | "90d" | "6m"
 type SyncState = "idle" | "syncing" | "synced" | "error"
-
-const DEMO_USD_TO_VND = 25_000
 
 const trendConfig = {
   extracted: { label: "Đã trích xuất", color: "#153f30" },
@@ -156,8 +156,7 @@ export default function DashboardPage() {
   const confDocs        = documents.filter((d) => d.confidenceScore > 0)
   const avgConf         = confDocs.length
     ? Math.round((confDocs.reduce((s, d) => s + d.confidenceScore, 0) / confDocs.length) * 100) : 0
-  const totalVnd        = documents.reduce(
-    (s, d) => s + (d.currency === "USD" ? d.totalAmount * DEMO_USD_TO_VND : d.totalAmount), 0)
+  const totalVnd        = documents.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
 
   const attentionQueue = [...documents]
     .filter((d) => ["REVIEW_REQUIRED","FAILED","CORRECTED"].includes(d.status))
@@ -179,7 +178,7 @@ export default function DashboardPage() {
     const m = new Map<string, number>()
     for (const d of documents) {
       if (!d.totalAmount || d.vendorName === "Pending extraction" || d.vendorName === "Unknown") continue
-      const amt = d.currency === "USD" ? d.totalAmount * DEMO_USD_TO_VND : d.totalAmount
+      const amt = convertToDemoVnd(d.totalAmount, d.currency)
       m.set(d.vendorName, (m.get(d.vendorName) ?? 0) + amt)
     }
     return [...m.entries()].map(([vendor, amount]) => ({ vendor, amount })).sort((a, b) => b.amount - a.amount).slice(0, 4)
@@ -357,7 +356,7 @@ export default function DashboardPage() {
           <KpiTile
             label="Giá trị xử lý"
             value={formatMoney(totalVnd, "VND")}
-            detail={`USD quy đổi ${DEMO_USD_TO_VND.toLocaleString("vi")}:1`}
+            detail={demoCurrencyRateDetail()}
             icon={Banknote}
           />
           <KpiTile

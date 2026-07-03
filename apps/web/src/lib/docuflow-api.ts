@@ -7,13 +7,27 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
 } from "@docuflow/shared-types"
-import { documents, testCases } from "@/lib/docuflow-data"
+import { documents, normalizeCurrencyCode, testCases } from "@/lib/docuflow-data"
 import { getCurrentDocuFlowSession } from "@/lib/auth"
 
 export type { ListDocumentsRequest, UploadUrlRequest, UploadUrlResponse }
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "")
 const demoLatency = 250
+
+type RawApiDocument = Partial<DocumentResult> & {
+  fileName?: unknown
+  lineItems?: unknown
+}
+
+type ApiListEnvelope = {
+  items?: unknown
+  nextToken?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
 
 function wait(ms = demoLatency) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -63,19 +77,19 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
  * as `undefined`, or use slightly different types (e.g. `string` for numeric
  * values). This single function is the only place we need to handle that.
  */
-function sanitizeApiDocument(raw: any): DocumentResult {
+function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
   return {
     documentId:       raw.documentId ?? "",
     userId:           raw.userId ?? "",
-    originalFileName: raw.originalFileName ?? raw.fileName ?? "unknown",
+    originalFileName: raw.originalFileName ?? (typeof raw.fileName === "string" ? raw.fileName : "unknown"),
     documentType:     raw.documentType ?? "INVOICE",
     status:           raw.status ?? "UPLOADED",
     vendorName:       raw.vendorName ?? "Unknown",
     invoiceDate:      raw.invoiceDate ?? "",
-    currency:         raw.currency ?? "VND",
+    currency:         normalizeCurrencyCode(raw.currency),
     totalAmount:      typeof raw.totalAmount === "number" ? raw.totalAmount : Number(raw.totalAmount) || 0,
     taxAmount:        raw.taxAmount == null ? null : (typeof raw.taxAmount === "number" ? raw.taxAmount : Number(raw.taxAmount) || 0),
-    confidenceScore:  typeof raw.confidenceScore === "number" ? raw.confidenceScore : Number(raw.confidenceScore) || 0,
+    confidenceScore:  normalizeConfidenceScore(raw.confidenceScore),
     reviewStatus:     raw.reviewStatus ?? "PENDING",
     reviewReasonCodes: Array.isArray(raw.reviewReasonCodes) ? raw.reviewReasonCodes : [],
     aiProvider:       raw.aiProvider ?? "not-called",
@@ -92,25 +106,41 @@ function sanitizeApiDocument(raw: any): DocumentResult {
   }
 }
 
-const extractValue = (field: any) => field && typeof field === "object" && "value" in field ? field.value : field;
+const extractValue = (field: unknown) => isRecord(field) && "value" in field ? field.value : field;
 
-function sanitizeLineItem(raw: any): import("@docuflow/shared-types").LineItem {
-  const lineItemId = extractValue(raw?.lineItemId ?? raw?.id);
-  const description = extractValue(raw?.description);
-  const quantity = extractValue(raw?.quantity);
-  const unitPriceAmount = extractValue(raw?.unitPriceAmount ?? raw?.unitPrice);
-  const taxAmount = extractValue(raw?.taxAmount);
-  const totalAmount = extractValue(raw?.totalAmount ?? raw?.amount);
-  const confidenceScore = extractValue(raw?.confidenceScore);
+function toNumber(value: unknown, fallback = 0) {
+  if (value == null || value === "") return fallback
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function normalizeConfidenceScore(value: unknown) {
+  const score = toNumber(value)
+  if (score <= 0) return 0
+  if (score <= 1) return score
+  return Math.min(score / 100, 1)
+}
+
+function sanitizeLineItem(raw: unknown): import("@docuflow/shared-types").LineItem {
+  const item = isRecord(raw) ? raw : {}
+  const lineItemId = extractValue(item.lineItemId ?? item.id);
+  const description = extractValue(item.description ?? item.itemDescription ?? item.name ?? item.productName);
+  const quantity = extractValue(item.quantity);
+  const unitPriceAmount = extractValue(item.unitPriceAmount ?? item.unitPrice ?? item.price);
+  const taxAmount = extractValue(item.taxAmount);
+  const totalAmount = extractValue(item.totalAmount ?? item.amount ?? item.price);
+  const confidenceScore = extractValue(item.confidenceScore);
+  const normalizedTotalAmount = toNumber(totalAmount)
+  const normalizedQuantity = toNumber(quantity, normalizedTotalAmount > 0 ? 1 : 0)
 
   return {
     lineItemId:      lineItemId != null ? String(lineItemId) : "",
     description:     description != null ? String(description) : "",
-    quantity:        Number(quantity) || 0,
-    unitPriceAmount: Number(unitPriceAmount) || 0,
-    taxAmount:       Number(taxAmount) || 0,
-    totalAmount:     Number(totalAmount) || 0,
-    confidenceScore: Number(confidenceScore) || 0,
+    quantity:        normalizedQuantity,
+    unitPriceAmount: toNumber(unitPriceAmount, normalizedTotalAmount),
+    taxAmount:       toNumber(taxAmount),
+    totalAmount:     normalizedTotalAmount,
+    confidenceScore: normalizeConfidenceScore(confidenceScore),
   }
 }
 
@@ -122,12 +152,13 @@ export async function listDocuments(
     if (request.status) query.set("status", request.status)
     if (request.nextToken) query.set("nextToken", request.nextToken)
     const suffix = query.size ? `?${query.toString()}` : ""
-    const response = await apiRequest<any>(`/documents${suffix}`)
+    const response = await apiRequest<unknown>(`/documents${suffix}`)
+    const envelope: ApiListEnvelope = isRecord(response) ? response : {}
     
-    const rawItems = Array.isArray(response?.items) ? response.items : Array.isArray(response) ? response : []
+    const rawItems = Array.isArray(envelope.items) ? envelope.items : Array.isArray(response) ? response : []
     return {
-      items: rawItems.map(sanitizeApiDocument),
-      nextToken: response?.nextToken ?? null,
+      items: rawItems.map((item) => sanitizeApiDocument(isRecord(item) ? item : {})),
+      nextToken: typeof envelope.nextToken === "string" ? envelope.nextToken : null,
     }
   }
 
@@ -144,8 +175,8 @@ export async function listDocuments(
 
 export async function getDocument(documentId: string): Promise<DocumentResult | null> {
   if (apiBaseUrl) {
-    const raw = await apiRequest<any>(`/documents/${encodeURIComponent(documentId)}`)
-    if (!raw) return null
+    const raw = await apiRequest<unknown>(`/documents/${encodeURIComponent(documentId)}`)
+    if (!isRecord(raw)) return null
     return sanitizeApiDocument(raw)
   }
 

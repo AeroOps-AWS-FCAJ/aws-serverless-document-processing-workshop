@@ -16,7 +16,28 @@ interface BaseLayoutProps {
   description?: string
 }
 
-export function BaseLayout({ children, title }: BaseLayoutProps) {
+function PageHeading({ title, description }: Pick<BaseLayoutProps, "title" | "description">) {
+  if (!title && !description) return null
+
+  return (
+    <div className="px-4 lg:px-6">
+      <div className="flex max-w-3xl flex-col gap-1.5 border-l-[3px] border-primary pl-4">
+        {title && (
+          <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.04em] md:text-3xl">
+            {title}
+          </h1>
+        )}
+        {description && (
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function BaseLayout({ children, title, description }: BaseLayoutProps) {
   const { config } = useSidebarConfig()
 
   return (
@@ -42,13 +63,7 @@ export function BaseLayout({ children, title }: BaseLayoutProps) {
             <div className="paper-noise flex flex-1 flex-col overflow-hidden">
               <div className="@container/main flex flex-1 flex-col gap-2 min-w-0">
                 <main className="reveal-in mx-auto flex w-full max-w-[1500px] min-w-0 flex-col gap-5 py-5 md:gap-7 md:py-7">
-                  {title && (
-                    <div className="px-4 lg:px-6">
-                      <div className="flex max-w-3xl flex-col gap-1.5 border-l-[3px] border-primary pl-4">
-                        <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.04em] md:text-3xl">{title}</h1>
-                      </div>
-                    </div>
-                  )}
+                  <PageHeading title={title} description={description} />
                   {children}
                 </main>
               </div>
@@ -63,13 +78,7 @@ export function BaseLayout({ children, title }: BaseLayoutProps) {
             <div className="paper-noise flex flex-1 flex-col overflow-hidden">
               <div className="@container/main flex flex-1 flex-col gap-2 min-w-0">
                 <main className="reveal-in mx-auto flex w-full max-w-[1500px] min-w-0 flex-col gap-5 py-5 md:gap-7 md:py-7">
-                  {title && (
-                    <div className="px-4 lg:px-6">
-                      <div className="flex max-w-3xl flex-col gap-1.5 border-l-[3px] border-primary pl-4">
-                        <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.04em] md:text-3xl">{title}</h1>
-                      </div>
-                    </div>
-                  )}
+                  <PageHeading title={title} description={description} />
                   {children}
                 </main>
               </div>

@@ -9,7 +9,7 @@ export type DocumentStatus =
   | "APPROVED"
 
 export type DocumentType = "INVOICE" | "RECEIPT"
-export type Currency = "VND" | "USD"
+export type Currency = string
 
 export interface LineItem {
   lineItemId: string

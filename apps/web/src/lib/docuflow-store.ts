@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   documents as seedDocuments,
+  normalizeCurrencyCode,
   type DocumentRecord,
   type DocumentStatus,
 } from "@/lib/docuflow-data"
@@ -14,6 +15,13 @@ const DOCUMENTS_UPDATED_EVENT = "docuflow-documents-updated"
 
 const seedIds = new Set(["doc-001", "doc-002", "doc-003", "doc-004", "doc-005", "doc-006", "doc-007"])
 
+function normalizeConfidenceScore(value: unknown) {
+  const score = typeof value === "number" ? value : Number(value) || 0
+  if (score <= 0) return 0
+  if (score <= 1) return score
+  return Math.min(score / 100, 1)
+}
+
 function cloneSeedDocuments() {
   if (isApiConfigured()) {
     return []
@@ -21,11 +29,33 @@ function cloneSeedDocuments() {
   return seedDocuments.map((document) => ({ ...document }))
 }
 
-function sanitizeDocument(doc: any): DocumentRecord {
+function sanitizeDocument(doc: unknown): DocumentRecord {
+  const record = typeof doc === "object" && doc !== null ? doc as Partial<DocumentRecord> : {}
   return {
-    ...doc,
-    reviewReasonCodes: Array.isArray(doc.reviewReasonCodes) ? doc.reviewReasonCodes : [],
-    lineItems: Array.isArray(doc.lineItems) ? doc.lineItems : [],
+    documentId: record.documentId ?? "",
+    userId: record.userId ?? "",
+    originalFileName: record.originalFileName ?? "unknown",
+    documentType: record.documentType ?? "INVOICE",
+    status: record.status ?? "UPLOADED",
+    vendorName: record.vendorName ?? "Unknown",
+    invoiceDate: record.invoiceDate ?? "",
+    currency: normalizeCurrencyCode(record.currency),
+    totalAmount: record.totalAmount ?? 0,
+    taxAmount: record.taxAmount ?? null,
+    confidenceScore: normalizeConfidenceScore(record.confidenceScore),
+    reviewStatus: record.reviewStatus ?? "PENDING",
+    reviewReasonCodes: Array.isArray(record.reviewReasonCodes) ? record.reviewReasonCodes : [],
+    aiProvider: record.aiProvider ?? "not-called",
+    normalizationMethod: record.normalizationMethod ?? "TEXTRACT_ONLY",
+    rawS3Key: record.rawS3Key ?? "",
+    processedS3Key: record.processedS3Key ?? "",
+    createdAt: record.createdAt ?? new Date().toISOString(),
+    updatedAt: record.updatedAt ?? new Date().toISOString(),
+    reviewedAt: record.reviewedAt ?? null,
+    reviewedBy: record.reviewedBy ?? null,
+    reviewerNote: record.reviewerNote ?? null,
+    lineItems: Array.isArray(record.lineItems) ? record.lineItems : [],
+    errorMessage: record.errorMessage ?? null,
   }
 }
 
@@ -73,7 +103,7 @@ export function useDocuFlowDocuments() {
   }, [])
 
   const replaceDocuments = useCallback((updater: (current: DocumentRecord[]) => DocumentRecord[]) => {
-    const nextDocuments = updater(readDocuFlowDocuments())
+    const nextDocuments = updater(readDocuFlowDocuments()).map(sanitizeDocument)
     writeDocuFlowDocuments(nextDocuments)
     setItems(nextDocuments)
     return nextDocuments
@@ -86,11 +116,11 @@ export function useDocuFlowDocuments() {
         current.map((document) => {
           if (document.documentId !== documentId) return document
 
-          updated = {
+          updated = sanitizeDocument({
             ...document,
             ...patch,
             updatedAt: patch.updatedAt ?? new Date().toISOString(),
-          }
+          })
           return updated
         })
       )
@@ -105,10 +135,10 @@ export function useDocuFlowDocuments() {
         const exists = current.some((document) => document.documentId === nextDocument.documentId)
         if (exists) {
           return current.map((document) =>
-            document.documentId === nextDocument.documentId ? nextDocument : document
+            document.documentId === nextDocument.documentId ? sanitizeDocument(nextDocument) : document
           )
         }
-        return [nextDocument, ...current]
+        return [sanitizeDocument(nextDocument), ...current]
       })
     },
     [replaceDocuments]

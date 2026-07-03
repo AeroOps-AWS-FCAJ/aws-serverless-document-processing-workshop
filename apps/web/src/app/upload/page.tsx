@@ -18,7 +18,11 @@ import { statusMeta } from "@/lib/docuflow-data"
 import { useAuth } from "@/contexts/auth-context"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png"])
+const acceptedFileTypes = [
+  { extensions: [".pdf"], mimeType: "application/pdf" },
+  { extensions: [".jpg", ".jpeg"], mimeType: "image/jpeg" },
+  { extensions: [".png"], mimeType: "image/png" },
+] as const
 const maxFileSize  = 10 * 1024 * 1024
 const maxPageCount = 5
 
@@ -30,8 +34,15 @@ function fmtSize(n: number) {
   return `${(n / 1024 / 1024).toFixed(2)} MB`
 }
 
+function getAcceptedMimeType(file: File) {
+  const name = file.name.toLowerCase()
+  return acceptedFileTypes.find((type) =>
+    file.type === type.mimeType || type.extensions.some((extension) => name.endsWith(extension))
+  )?.mimeType ?? null
+}
+
 async function estimatePages(file: File): Promise<number | null> {
-  if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") return 1
+  if (getAcceptedMimeType(file) !== "application/pdf") return 1
   try {
     const t = new TextDecoder("latin1").decode(await file.arrayBuffer())
     return t.match(/\/Type\s*\/Page(?!s)\b/g)?.length ?? null
@@ -64,7 +75,7 @@ export default function UploadPage() {
   // ── Validation ────────────────────────────────────────────────────────────
   const validErr = useMemo(() => {
     if (!file) return null
-    if (!allowedTypes.has(file.type))      return "Loại tệp không được hỗ trợ. Dùng PDF, JPG hoặc PNG."
+    if (!getAcceptedMimeType(file))        return "Loại tệp không được hỗ trợ. Dùng PDF, JPG hoặc PNG."
     if (file.size > maxFileSize)           return "Tệp vượt giới hạn 10 MB."
     if (pages && pages > maxPageCount)     return `PDF có ${pages} trang — tối đa ${maxPageCount} trang.`
     return null
@@ -108,13 +119,14 @@ export default function UploadPage() {
     try {
       setState("REQUESTING_URL"); setProgress(15)
       setMessage("Đang chuẩn bị...")
-      const req = { originalFileName: file.name, mimeType: file.type, fileSizeBytes: file.size, pageCount: pages || 1 }
+      const contentType = getAcceptedMimeType(file) ?? file.type
+      const req = { originalFileName: file.name, mimeType: contentType, fileSizeBytes: file.size, pageCount: pages || 1 }
       const res = await requestUploadUrl(req)
 
       setState("UPLOADING"); setProgress(30)
       setMessage("Đang tải lên...")
       await uploadDocumentFile(res.uploadUrl, file, {
-        contentType: file.type,
+        contentType,
         signal: ctrl.signal,
         onProgress: (p) => {
           setProgress(Math.min(85, 30 + Math.round(p * 0.55)))
@@ -124,13 +136,13 @@ export default function UploadPage() {
       
 
       setState("QUEUING"); setProgress(92)
-      setMessage("Đang xếp hàng xử lý...")
+      setMessage(apiMode ? "Đã tải lên S3. Đang chờ workflow AWS tiếp nhận..." : "Đang xếp hàng xử lý...")
       const uid    = session?.userId ?? "user-123"
       const base   = createQueuedDocument(req, res, uid)
       const queued = { ...base, documentType: hint === "AUTO" ? base.documentType : hint, status: nextUploadStatus("UPLOADED") }
       upsertDocument(queued); setCreatedDocId(queued.documentId)
       setProgress(100); setState("COMPLETE")
-      setMessage("Tải lên thành công! Hệ thống đang xử lý tài liệu.")
+      setMessage(apiMode ? "Tải lên thành công. Kết quả sẽ tự cập nhật khi workflow hoàn tất." : "Tải lên thành công! Hệ thống đang xử lý tài liệu.")
     } catch (err) {
       setState("ERROR"); setMessage(getErrMsg(err))
     } finally {
@@ -315,7 +327,9 @@ export default function UploadPage() {
                 <div>
                   <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Tải lên thành công!</p>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    Tài liệu đang được xử lý tự động. Kết quả sẽ có trong vài giây.
+                    {apiMode
+                      ? "Tệp đã vào S3 raw bucket. Mở chi tiết để theo dõi trạng thái xử lý từ backend."
+                      : "Tài liệu đang được xử lý tự động. Kết quả sẽ có trong vài giây."}
                   </p>
                 </div>
               </div>
