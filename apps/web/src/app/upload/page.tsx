@@ -1,7 +1,9 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
+import { GlobalWorkerOptions, getDocument as getPdfDocument } from "pdfjs-dist"
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url"
 import {
   AlertTriangle, ArrowRight, CheckCircle2,
   FileText, RefreshCw, ShieldCheck, Trash2,
@@ -12,10 +14,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { isApiConfigured, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
+import { getDocument, isApiConfigured, processDocument, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
 import { createQueuedDocument, nextUploadStatus, useDocuFlowDocuments } from "@/lib/docuflow-store"
-import { statusMeta } from "@/lib/docuflow-data"
+import { statusMeta, type DocumentStatus } from "@/lib/docuflow-data"
 import { useAuth } from "@/contexts/auth-context"
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_PAGE_COUNT } from "@docuflow/shared-config"
+
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const acceptedFileTypes = [
@@ -23,11 +28,17 @@ const acceptedFileTypes = [
   { extensions: [".jpg", ".jpeg"], mimeType: "image/jpeg" },
   { extensions: [".png"], mimeType: "image/png" },
 ] as const
-const maxFileSize  = 10 * 1024 * 1024
-const maxPageCount = 5
 
 type UploadState  = "IDLE" | "VALIDATING" | "REQUESTING_URL" | "UPLOADING" | "QUEUING" | "COMPLETE" | "ERROR"
 type DocumentHint = "AUTO" | "INVOICE" | "RECEIPT"
+
+const terminalProcessingStatuses = new Set<DocumentStatus>([
+  "EXTRACTED",
+  "REVIEW_REQUIRED",
+  "APPROVED",
+  "CORRECTED",
+  "FAILED",
+])
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(n: number) {
@@ -44,9 +55,22 @@ function getAcceptedMimeType(file: File) {
 async function estimatePages(file: File): Promise<number | null> {
   if (getAcceptedMimeType(file) !== "application/pdf") return 1
   try {
-    const t = new TextDecoder("latin1").decode(await file.arrayBuffer())
-    return t.match(/\/Type\s*\/Page(?!s)\b/g)?.length ?? null
+    const data = new Uint8Array(await file.arrayBuffer())
+    const pdf = await getPdfDocument({ data }).promise
+    return pdf.numPages
   } catch { return null }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function throwIfAborted(signal: AbortSignal) {
+  if (signal.aborted) throw new DOMException("Upload canceled", "AbortError")
+}
+
+function isTerminalProcessingStatus(status: DocumentStatus) {
+  return terminalProcessingStatuses.has(status)
 }
 
 function getErrMsg(e: unknown) {
@@ -71,15 +95,34 @@ export default function UploadPage() {
   const [state,        setState]        = useState<UploadState>("IDLE")
   const [message,      setMessage]      = useState("")
   const [createdDocId, setCreatedDocId] = useState<string | null>(null)
+  const [previewUrl,   setPreviewUrl]   = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(file)
+    setPreviewUrl(objectUrl)
+
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [file])
 
   // ── Validation ────────────────────────────────────────────────────────────
   const validErr = useMemo(() => {
     if (!file) return null
-    if (!getAcceptedMimeType(file))        return "Loại tệp không được hỗ trợ. Dùng PDF, JPG hoặc PNG."
-    if (file.size > maxFileSize)           return "Tệp vượt giới hạn 10 MB."
-    if (pages && pages > maxPageCount)     return `PDF có ${pages} trang — tối đa ${maxPageCount} trang.`
+    const mimeType = getAcceptedMimeType(file)
+    if (!mimeType) return "Loại tệp không được hỗ trợ. Dùng PDF, JPG hoặc PNG."
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) return `Tệp vượt giới hạn ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)}.`
+    if (!pagesPending && mimeType === "application/pdf" && pages === null) {
+      return "Không đọc được số trang PDF. Vui lòng chọn lại file PDF hợp lệ."
+    }
+    if (pages && pages > MAX_UPLOAD_PAGE_COUNT) {
+      return `PDF có ${pages} trang, tối đa ${MAX_UPLOAD_PAGE_COUNT} trang.`
+    }
     return null
-  }, [file, pages])
+  }, [file, pages, pagesPending])
 
   const recentUploads = useMemo(() =>
     documents
@@ -110,6 +153,22 @@ export default function UploadPage() {
     void selectFile(null); setHint("AUTO"); setState("IDLE")
   }
 
+  const pollDocumentResult = useCallback(async (documentId: string, signal: AbortSignal) => {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      throwIfAborted(signal)
+      await wait(attempt === 0 ? 5000 : 3000)
+      throwIfAborted(signal)
+
+      const refreshed = await getDocument(documentId)
+      if (!refreshed) continue
+
+      upsertDocument(refreshed)
+      if (isTerminalProcessingStatus(refreshed.status)) return refreshed
+    }
+
+    return null
+  }, [upsertDocument])
+
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUpload = async () => {
     if (!file || validErr || pagesPending) {
@@ -120,8 +179,15 @@ export default function UploadPage() {
       setState("REQUESTING_URL"); setProgress(15)
       setMessage("Đang chuẩn bị...")
       const contentType = getAcceptedMimeType(file) ?? file.type
-      const req = { originalFileName: file.name, mimeType: contentType, fileSizeBytes: file.size, pageCount: pages || 1 }
+      const req = {
+        originalFileName: file.name,
+        mimeType: contentType,
+        fileSizeBytes: file.size,
+        pageCount: pages || 1,
+        ...(hint === "AUTO" ? {} : { documentType: hint }),
+      }
       const res = await requestUploadUrl(req)
+      throwIfAborted(ctrl.signal)
 
       setState("UPLOADING"); setProgress(30)
       setMessage("Đang tải lên...")
@@ -133,16 +199,48 @@ export default function UploadPage() {
           setMessage(`Đang tải lên... ${p}%`)
         },
       })
+      throwIfAborted(ctrl.signal)
       
 
       setState("QUEUING"); setProgress(92)
-      setMessage(apiMode ? "Đã tải lên S3. Đang chờ workflow AWS tiếp nhận..." : "Đang xếp hàng xử lý...")
+      setMessage(apiMode ? "Đã tải lên S3. Đang kích hoạt workflow..." : "Đang xếp hàng xử lý...")
       const uid    = session?.userId ?? "user-123"
       const base   = createQueuedDocument(req, res, uid)
       const queued = { ...base, documentType: hint === "AUTO" ? base.documentType : hint, status: nextUploadStatus("UPLOADED") }
       upsertDocument(queued); setCreatedDocId(queued.documentId)
+
+      let processWarning = false
+      if (apiMode) {
+        try {
+          await processDocument(res.documentId, res.rawS3Key)
+          throwIfAborted(ctrl.signal)
+        } catch (error) {
+          throwIfAborted(ctrl.signal)
+          processWarning = true
+          console.warn("Process endpoint did not accept the upload trigger. Waiting for bucket workflow.", error)
+        }
+      }
+
+      let syncedStatus = ""
+      if (apiMode) {
+        setProgress(96)
+        setMessage(
+          processWarning
+            ? "Tệp đã tải lên. Đang chờ workflow nền cập nhật kết quả..."
+            : "Workflow đã kích hoạt. Đang đồng bộ kết quả từ backend..."
+        )
+        const refreshed = await pollDocumentResult(res.documentId, ctrl.signal)
+        syncedStatus = refreshed?.status ?? ""
+      }
+
       setProgress(100); setState("COMPLETE")
-      setMessage(apiMode ? "Tải lên thành công. Kết quả sẽ tự cập nhật khi workflow hoàn tất." : "Tải lên thành công! Hệ thống đang xử lý tài liệu.")
+      setMessage(
+        apiMode
+          ? syncedStatus
+            ? `Tải lên thành công. Backend đã cập nhật trạng thái ${statusMeta[syncedStatus as keyof typeof statusMeta]?.label ?? syncedStatus}.`
+            : "Tải lên thành công. Tài liệu đang xử lý nền và sẽ tự cập nhật trong danh sách."
+          : "Tải lên thành công! Hệ thống đang xử lý tài liệu."
+      )
     } catch (err) {
       setState("ERROR"); setMessage(getErrMsg(err))
     } finally {
@@ -152,6 +250,7 @@ export default function UploadPage() {
 
   const isBusy    = ["VALIDATING","REQUESTING_URL","UPLOADING","QUEUING"].includes(state)
   const canUpload = Boolean(file) && !validErr && !pagesPending && !isBusy && state !== "COMPLETE"
+  const selectedMimeType = file ? getAcceptedMimeType(file) : null
 
   // ── Derived drop zone state ───────────────────────────────────────────────
   const dzState = dragging ? "drag" : validErr ? "error" : (file && !validErr) ? "ready" : "idle"
@@ -223,7 +322,7 @@ export default function UploadPage() {
                     ? `${fmtSize(file.size)}${pages ? ` · ${pages} trang` : ""} · Sẵn sàng tải lên`
                     : dzState === "error"
                       ? validErr
-                      : "PDF, JPG hoặc PNG · Tối đa 10 MB · Tối đa 5 trang"}
+                      : `PDF, JPG hoặc PNG · Tối đa ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)} · Tối đa ${MAX_UPLOAD_PAGE_COUNT} trang`}
                 </p>
               </div>
 
@@ -233,12 +332,51 @@ export default function UploadPage() {
             </label>
             <input id="doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={handleChange} />
 
+            {file && previewUrl && (
+              <div className="mt-4 overflow-hidden rounded-xl border bg-muted/10">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">Xem trước tài liệu</p>
+                    <p className="truncate text-xs text-muted-foreground">{file.name}</p>
+                  </div>
+                  {pagesPending ? (
+                    <Badge variant="outline" className="gap-1.5">
+                      <span className="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                      Đang đọc
+                    </Badge>
+                  ) : pages ? (
+                    <Badge variant="outline">{pages} trang</Badge>
+                  ) : null}
+                </div>
+                <div className="h-[320px] bg-background sm:h-[420px]">
+                  {selectedMimeType === "application/pdf" ? (
+                    <object
+                      data={`${previewUrl}#page=1&toolbar=0&navpanes=0`}
+                      type="application/pdf"
+                      className="h-full w-full"
+                    >
+                      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+                        <FileText className="size-8" />
+                        Trình duyệt không hỗ trợ xem trước PDF trực tiếp.
+                      </div>
+                    </object>
+                  ) : (
+                    <img
+                      src={previewUrl}
+                      alt={`Xem trước ${file.name}`}
+                      className="h-full w-full object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Loại tài liệu */}
             <div className="mt-4">
               <p className="mb-2 text-sm font-medium text-muted-foreground">Loại tài liệu</p>
               <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 [&>button]:min-w-0">
                 {([
-                  { key: "AUTO",    label: "Tự động",    sub: "AI nhận diện"  },
+                  { key: "AUTO",    label: "Tự động",    sub: "Auto"  },
                   { key: "INVOICE", label: "Hóa đơn",    sub: "Invoice"       },
                   { key: "RECEIPT", label: "Biên nhận",  sub: "Receipt"       },
                 ] as const).map((opt) => (
@@ -301,14 +439,14 @@ export default function UploadPage() {
                 <UploadCloud className="size-5" />
                 {isBusy ? "Đang xử lý..." : state === "ERROR" ? "Thử lại" : "Tải lên và xử lý"}
               </Button>
-              {state === "UPLOADING" && (
+              {isBusy && (
                 <Button type="button" variant="outline" size="lg" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
                   <XCircle className="size-4" />Hủy
                 </Button>
               )}
-              {state === "ERROR" && file && (
-                <Button type="button" variant="outline" size="lg" className="cursor-pointer" onClick={handleUpload} disabled={pagesPending || !!validErr}>
-                  <RefreshCw className="size-4" />Thử lại
+              {state === "ERROR" && (
+                <Button type="button" variant="outline" size="lg" className="cursor-pointer" onClick={clearFile}>
+                  <RefreshCw className="size-4" />Chọn tệp khác
                 </Button>
               )}
               {createdDocId && (
@@ -397,8 +535,8 @@ export default function UploadPage() {
               <div className="grid gap-2.5">
                 {[
                   { ok: true,  label: "Định dạng PDF, JPG hoặc PNG"                               },
-                  { ok: true,  label: "Kích thước tối đa 10 MB"                                   },
-                  { ok: true,  label: "Tối đa 5 trang mỗi tài liệu"                               },
+                  { ok: true,  label: `Kích thước tối đa ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)}` },
+                  { ok: true,  label: `Tối đa ${MAX_UPLOAD_PAGE_COUNT} trang mỗi tài liệu`       },
                   { ok: true,  label: "Scan rõ nét, không bị mờ hoặc nghiêng"                     },
                   { ok: false, label: "Không dùng ảnh chụp màn hình"                              },
                   { ok: false, label: "Không tải tài liệu có thông tin ngoài hóa đơn / biên nhận" },
@@ -426,7 +564,7 @@ export default function UploadPage() {
                 <Clock className="size-4 shrink-0 text-muted-foreground" />
                 <div>
                   <p className="text-[11px] text-muted-foreground">Thời gian xử lý</p>
-                  <p className="text-sm font-semibold">30 – 60 giây / trang</p>
+                  <p className="text-sm font-semibold">5 – 15 giây / trang</p>
                 </div>
               </div>
 
