@@ -53,10 +53,10 @@ function escapeCsv(value: string | number | null) {
 }
 
 function exportCsv(documents: DocumentRecord[]) {
-  const header = ["documentId", "fileName", "vendor", "type", "status", "currency", "amount", "amountVnd", "confidence", "updatedAt"]
+  const header = ["documentId", "originalFileName", "vendor", "type", "status", "currency", "amount", "amountVnd", "confidence", "updatedAt"]
   const rows = documents.map((document) => [
     document.documentId,
-    document.fileName,
+    document.originalFileName,
     document.vendorName,
     document.documentType,
     document.status,
@@ -343,7 +343,7 @@ export default function ReportsPage() {
                       .map((document) => (
                         <TableRow key={document.documentId}>
                           <TableCell className="max-w-[200px]">
-                            <div className="truncate font-medium" title={document.fileName}>{document.fileName}</div>
+                            <div className="truncate font-medium" title={document.originalFileName}>{document.originalFileName}</div>
                             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                               <ReceiptText className="size-3" />
                               {document.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}

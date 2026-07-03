@@ -168,25 +168,25 @@ export default function ProfilePage() {
           </Card>
 
           {/* Quick navigation */}
-          <Card>
-            <CardHeader className="border-b bg-muted/25">
-              <CardTitle className="flex items-center gap-2">
+          <Card className="border-white/10 bg-[#10261d] text-white shadow-lg">
+            <CardHeader className="border-b border-white/10 pb-4">
+              <CardTitle className="flex items-center gap-2 text-white">
                 <Workflow className="size-5" />
                 Truy cập nhanh
               </CardTitle>
-              <CardDescription>Các tính năng thường dùng trong hệ thống.</CardDescription>
+              <CardDescription className="text-white/60">Các tính năng thường dùng trong hệ thống.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3">
               {workspaceLinks.map((link) => {
                 const Icon = link.icon
                 return (
-                  <Button key={link.to} asChild variant="outline" className="h-auto justify-between p-4">
-                    <Link to={link.to}>
-                      <span className="flex items-center gap-2 text-sm">
-                        <Icon className="size-4" />
-                        {link.label}
+                  <Button key={link.to} asChild variant="outline" className="h-auto w-full min-w-0 cursor-pointer justify-between border-white/10 bg-white/5 p-4 text-white transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white">
+                    <Link to={link.to} className="flex w-full items-center justify-between overflow-hidden">
+                      <span className="flex min-w-0 items-center gap-3 text-sm font-medium">
+                        <Icon className="size-4 shrink-0 opacity-80" />
+                        <span className="truncate">{link.label}</span>
                       </span>
-                      <ArrowRight className="size-4" />
+                      <ArrowRight className="ml-2 size-4 shrink-0 opacity-80" />
                     </Link>
                   </Button>
                 )

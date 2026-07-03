@@ -38,7 +38,7 @@ function getAgeDays(updatedAt: string) {
 function getPriority(d: DocumentRecord): Priority {
   const age = getAgeDays(d.updatedAt)
   if (d.status === "FAILED" || d.confidenceScore < 0.5 || age >= 3) return "Cao"
-  if (d.status === "REVIEW_REQUIRED" || (Array.isArray(d.reviewReasons) && d.reviewReasons.length > 1) || age >= 1) return "Trung bình"
+  if (d.status === "REVIEW_REQUIRED" || (Array.isArray(d.reviewReasonCodes) && d.reviewReasonCodes.length > 1) || age >= 1) return "Trung bình"
   return "Thấp"
 }
 
@@ -56,15 +56,15 @@ function actionLabel(status: DocumentStatus) {
 
 function attentionReason(d: DocumentRecord) {
   if (d.status === "CORRECTED") return "Các trường đã chỉnh sửa, sẵn sàng để phê duyệt."
-  if (Array.isArray(d.reviewReasons) && d.reviewReasons.length) return d.reviewReasons.join("; ")
+  if (Array.isArray(d.reviewReasonCodes) && d.reviewReasonCodes.length) return d.reviewReasonCodes.join("; ")
   return d.errorMessage ?? "Một hoặc nhiều trường bắt buộc không thể xác nhận."
 }
 
 function escapeCsv(v: string | number | null) { return `"${String(v ?? "").replace(/"/g, '""')}"` }
 
 function exportReviewCsv(items: DocumentRecord[]) {
-  const header = ["documentId","fileName","status","priority","vendor","confidence","ageDays","reason","updatedAt"]
-  const rows = items.map((d) => [d.documentId,d.fileName,d.status,getPriority(d),d.vendorName,Math.round(d.confidenceScore*100),getAgeDays(d.updatedAt),attentionReason(d),d.updatedAt])
+  const header = ["documentId","originalFileName","status","priority","vendor","confidence","ageDays","reason","updatedAt"]
+  const rows = items.map((d) => [d.documentId,d.originalFileName,d.status,getPriority(d),d.vendorName,Math.round(d.confidenceScore*100),getAgeDays(d.updatedAt),attentionReason(d),d.updatedAt])
   const csv = [header,...rows].map((r)=>r.map(escapeCsv).join(",")).join("\n")
   const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}))
   const a = document.createElement("a"); a.href=url; a.download=`docuflow-review-queue-${new Date().toISOString().slice(0,10)}.csv`; a.click()
@@ -97,7 +97,7 @@ function ReviewPreviewDrawer({ document: d }: { document: DocumentRecord }) {
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle className="truncate">{d.fileName}</DrawerTitle>
+          <DrawerTitle className="truncate">{d.originalFileName}</DrawerTitle>
           <DrawerDescription className="font-mono text-[10px]">{d.documentId} · {d.documentType} · chờ {getAgeDays(d.updatedAt)} ngày</DrawerDescription>
         </DrawerHeader>
         <div className="grid gap-3 overflow-y-auto px-4 text-sm">
@@ -114,7 +114,7 @@ function ReviewPreviewDrawer({ document: d }: { document: DocumentRecord }) {
             </div>
           </div>
           <div className="grid gap-2.5 rounded-xl border p-3">
-            {[["Nhà cung cấp",d.vendorName],["Ngày",d.invoiceDate],["Tổng tiền",formatMoney(d.totalAmount,d.currency)],["Thuế",d.taxAmount===null?"Không phát hiện":formatMoney(d.taxAmount,d.currency)]].map(([l,v])=>(
+            {[["Nhà cung cấp",d.vendorName],["Ngày",d.invoiceDate],["Tổng tiền",formatMoney(d.totalAmount,d.currency)],["Thuế",d.taxAmount==null?"Không phát hiện":formatMoney(d.taxAmount,d.currency)]].map(([l,v])=>(
               <div key={l} className="flex items-start justify-between gap-4 text-xs">
                 <span className="text-muted-foreground shrink-0">{l}</span><span className="text-right font-medium">{v}</span>
               </div>
@@ -161,7 +161,7 @@ export default function ReviewPage() {
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase()
     return alertItems.filter((d) => {
-      const mq = !q || [d.documentId,d.fileName,d.vendorName,d.status,d.documentType,Array.isArray(d.reviewReasons) ? d.reviewReasons.join(" ") : "",d.errorMessage].join(" ").toLowerCase().includes(q)
+      const mq = !q || [d.documentId,d.originalFileName,d.vendorName,d.status,d.documentType,Array.isArray(d.reviewReasonCodes) ? d.reviewReasonCodes.join(" ") : "",d.errorMessage].join(" ").toLowerCase().includes(q)
       const mf = queueFilter==="ALL" || d.status===queueFilter
         || (queueFilter==="LOW_CONFIDENCE" && d.confidenceScore < CONFIDENCE_THRESHOLD)
         || (queueFilter==="OLDEST" && getAgeDays(d.updatedAt) >= 1)
@@ -271,7 +271,7 @@ export default function ReviewPage() {
                       return (
                         <TableRow key={d.documentId} className="hover:bg-muted/25">
                           <TableCell>
-                            <div className="font-medium text-sm leading-tight">{d.fileName}</div>
+                            <div className="font-medium text-sm leading-tight">{d.originalFileName}</div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                               <span className="font-mono">{d.documentId}</span>
                               <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? "HĐ" : "BN"}</Badge>

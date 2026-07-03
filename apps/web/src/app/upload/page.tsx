@@ -121,6 +121,7 @@ export default function UploadPage() {
           setMessage(`Đang tải lên... ${p}%`)
         },
       })
+      
 
       setState("QUEUING"); setProgress(92)
       setMessage("Đang xếp hàng xử lý...")
@@ -346,7 +347,7 @@ export default function UploadPage() {
                       <FileText className="size-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{d.fileName}</p>
+                      <p className="truncate text-sm font-medium">{d.originalFileName}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {d.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}
                         {" · "}

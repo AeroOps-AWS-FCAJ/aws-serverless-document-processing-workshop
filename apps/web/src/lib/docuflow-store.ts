@@ -24,11 +24,8 @@ function cloneSeedDocuments() {
 function sanitizeDocument(doc: any): DocumentRecord {
   return {
     ...doc,
-    reviewReasons: Array.isArray(doc.reviewReasons) ? doc.reviewReasons : [],
+    reviewReasonCodes: Array.isArray(doc.reviewReasonCodes) ? doc.reviewReasonCodes : [],
     lineItems: Array.isArray(doc.lineItems) ? doc.lineItems : [],
-    correctedFields: doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
-      ? doc.correctedFields
-      : null,
   }
 }
 
@@ -154,9 +151,10 @@ export function createQueuedDocument(
 
   return {
     documentId: response.documentId,
-    fileName: request.originalFileName,
+    originalFileName: request.originalFileName,
     documentType,
     status: "UPLOADED",
+    reviewStatus: "PENDING",
     vendorName: "Pending extraction",
     invoiceDate: now.slice(0, 10),
     currency: "VND",
@@ -168,15 +166,14 @@ export function createQueuedDocument(
     createdAt: now,
     updatedAt: now,
     userId,
-    s3RawPath: response.s3RawPath,
-    s3ProcessedPath: `s3://docuflow-dev-processed/processed/${userId}/${response.documentId}/result.json`,
-    reviewReasons: ["vendorName pending", "totalAmount pending", "taxAmount pending"],
+    rawS3Key: response.rawS3Key,
+    processedS3Key: `processed/${userId}/${response.documentId}/result.json`,
+    reviewReasonCodes: ["vendorName pending", "totalAmount pending", "taxAmount pending"],
     lineItems: [],
     errorMessage:
       extension === "pdf"
         ? "Uploaded successfully and waiting for background processing."
         : "Uploaded image is waiting for field extraction.",
-    correctedFields: null,
     reviewedAt: null,
     reviewedBy: null,
     reviewerNote: null,

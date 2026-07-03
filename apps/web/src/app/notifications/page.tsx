@@ -67,8 +67,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       document,
       kind: "ACTION",
       title: "Yêu cầu kiểm duyệt",
-      body: document.reviewReasons.length
-        ? document.reviewReasons.join("; ")
+      body: document.reviewReasonCodes.length
+        ? document.reviewReasonCodes.join("; ")
         : "Một số trường trích xuất cần được xác minh.",
       timestamp: document.updatedAt,
       unread: true,
@@ -148,7 +148,7 @@ export default function NotificationsPage() {
   )
 
   const filteredNotifications = notifications.filter((notification) => {
-    const text = `${notification.title} ${notification.body} ${notification.document.fileName} ${notification.document.vendorName}`.toLowerCase()
+    const text = `${notification.title} ${notification.body} ${notification.document.originalFileName} ${notification.document.vendorName}`.toLowerCase()
     const matchesQuery = !query.trim() || text.includes(query.trim().toLowerCase())
     const matchesFilter =
       filter === "ALL" ||
@@ -337,7 +337,7 @@ export default function NotificationsPage() {
                         <div className="mt-1 text-sm leading-6 text-muted-foreground">{notification.body}</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                           <MailCheck className="size-3.5" />
-                          <span className="truncate max-w-[200px]">{notification.document.fileName}</span>
+                          <span className="truncate max-w-[200px]">{notification.document.originalFileName}</span>
                           <span>{formatDate(notification.timestamp)}</span>
                         </div>
                       </div>

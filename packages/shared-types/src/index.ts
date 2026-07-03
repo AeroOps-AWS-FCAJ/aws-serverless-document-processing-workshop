@@ -12,10 +12,13 @@ export type DocumentType = "INVOICE" | "RECEIPT"
 export type Currency = "VND" | "USD"
 
 export interface LineItem {
+  lineItemId: string
   description: string
   quantity: number
-  unitPrice: number
-  amount: number
+  unitPriceAmount: number
+  taxAmount: number
+  totalAmount: number
+  confidenceScore: number
 }
 
 export interface CorrectedFields {
@@ -29,7 +32,7 @@ export interface CorrectedFields {
 export interface DocumentResult {
   documentId: string
   userId: string
-  fileName: string
+  originalFileName: string
   documentType: DocumentType
   status: DocumentStatus
   vendorName: string
@@ -38,17 +41,17 @@ export interface DocumentResult {
   totalAmount: number
   taxAmount: number | null
   confidenceScore: number
-  reviewReasons: string[]
+  reviewStatus: "NOT_REQUIRED" | "PENDING" | "CORRECTED" | "APPROVED" | "REJECTED"
+  reviewReasonCodes: string[]
   aiProvider: "external-ai-api" | "not-called"
   normalizationMethod:
     | "TEXTRACT_PLUS_AI_PROXY_EXTERNAL_API"
     | "TEXTRACT_ONLY"
     | "FAILED_BEFORE_NORMALIZE"
-  s3RawPath: string
-  s3ProcessedPath: string
+  rawS3Key: string
+  processedS3Key: string
   createdAt: string
   updatedAt: string
-  correctedFields: CorrectedFields | null
   reviewedAt: string | null
   reviewedBy: string | null
   reviewerNote: string | null
@@ -76,20 +79,25 @@ export interface UploadUrlRequest {
 export interface UploadUrlResponse {
   documentId: string
   uploadUrl: string
-  s3RawPath: string
-  expiresIn: number
+  rawS3Key: string
+  expiresInSeconds: number
+}
+
+export interface CorrectionItem {
+  fieldName: string
+  oldValue: any
+  newValue: any
 }
 
 export interface ReviewDocumentRequest {
   reviewStatus: "CORRECTED" | "APPROVED"
-  correctedFields?: CorrectedFields
+  corrections?: CorrectionItem[]
   reviewerNote?: string
 }
 
 export interface ReviewDocumentResponse {
   documentId: string
   status: "CORRECTED" | "APPROVED"
-  correctedFields: CorrectedFields | null
-  reviewedAt: string
-  reviewedBy: string
+  reviewStatus: "CORRECTED" | "APPROVED"
+  updatedAt: string
 }

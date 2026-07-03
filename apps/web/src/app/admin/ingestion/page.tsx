@@ -83,7 +83,7 @@ const ingestionStages = [
 
 const replayChecklist = [
   "Confirm the raw S3 object exists and the key matches the DynamoDB documentId.",
-  "Check the SQS message body for userId, documentId, s3RawPath, and contentType.",
+  "Check the SQS message body for userId, documentId, rawS3Key, and contentType.",
   "Inspect Job Starter Lambda logs before replaying a DLQ message.",
   "Replay only one message during demo to avoid duplicate Step Functions executions.",
 ]
@@ -307,7 +307,7 @@ export default function AdminIngestionPage() {
                       <TableRow key={`${document.documentId}-${index}`}>
                         <TableCell className="font-mono">msg-{String(index + 1).padStart(3, "0")}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{document.fileName}</div>
+                          <div className="font-medium">{document.originalFileName}</div>
                           <div className="text-xs text-muted-foreground">{document.documentId}</div>
                         </TableCell>
                         <TableCell>
@@ -322,7 +322,7 @@ export default function AdminIngestionPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-[320px]">
-                          <div className="truncate font-mono text-xs text-muted-foreground">{document.s3RawPath}</div>
+                          <div className="truncate font-mono text-xs text-muted-foreground">{document.rawS3Key}</div>
                         </TableCell>
                         <TableCell>{formatDate(document.updatedAt)}</TableCell>
                       </TableRow>

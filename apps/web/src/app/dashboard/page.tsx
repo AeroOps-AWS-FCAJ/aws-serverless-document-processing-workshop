@@ -200,8 +200,8 @@ export default function DashboardPage() {
   const PrimaryIcon = primaryAction.icon
 
   const exportCsv = () => {
-    const hdr  = ["documentId","fileName","type","status","vendor","currency","totalAmount","confidence","updatedAt"]
-    const rows = documents.map((d) => [d.documentId,d.fileName,d.documentType,d.status,d.vendorName,d.currency,d.totalAmount,d.confidenceScore,d.updatedAt])
+    const hdr  = ["documentId","originalFileName","type","status","vendor","currency","totalAmount","confidence","updatedAt"]
+    const rows = documents.map((d) => [d.documentId,d.originalFileName,d.documentType,d.status,d.vendorName,d.currency,d.totalAmount,d.confidenceScore,d.updatedAt])
     const csv  = [hdr,...rows].map((r) => r.map(csvCell).join(",")).join("\n")
     const url  = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}))
     const a    = document.createElement("a"); a.href=url; a.download=`docuflow-dashboard-${new Date().toISOString().slice(0,10)}.csv`; a.click()
@@ -332,7 +332,7 @@ export default function DashboardPage() {
                   to={`/documents/${activeDocs[0].documentId}`}
                   className="mt-3 flex items-center justify-between rounded-lg border border-[#d8ff72]/20 bg-[#d8ff72]/8 px-3 py-2 text-xs transition-colors hover:bg-[#d8ff72]/14"
                 >
-                  <span className="truncate pr-3 text-white/60">{activeDocs[0].fileName}</span>
+                  <span className="truncate pr-3 text-white/60">{activeDocs[0].originalFileName}</span>
                   <StatusBadge status={activeDocs[0].status} />
                 </Link>
               )}
@@ -423,14 +423,14 @@ export default function DashboardPage() {
                         {/* File info */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium group-hover:underline">{d.fileName}</span>
+                            <span className="truncate text-sm font-medium group-hover:underline">{d.originalFileName}</span>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <StatusBadge status={d.status} />
                             <span className="text-xs text-muted-foreground">{d.vendorName}</span>
-                            {d.reviewReasons.length > 0 && (
+                            {d.reviewReasonCodes.length > 0 && (
                               <span className="text-xs text-amber-600 dark:text-amber-400">
-                                · {d.reviewReasons.length} lý do
+                                · {d.reviewReasonCodes.length} lý do
                               </span>
                             )}
                           </div>
@@ -632,7 +632,7 @@ export default function DashboardPage() {
                     className="grid grid-cols-[1.6fr_.75fr_.7fr_.65fr] items-center gap-4 border-b px-5 py-3.5 transition-colors last:border-b-0 hover:bg-muted/25"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{d.fileName}</div>
+                      <div className="truncate text-sm font-medium">{d.originalFileName}</div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">{d.vendorName}</div>
                     </div>
                     <StatusBadge status={d.status} />

@@ -65,7 +65,7 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
       id: `${document.documentId}-created`,
       kind: "UPLOAD",
       title: "Tài liệu được tải lên",
-      detail: `${document.fileName} đã được đưa vào hàng đợi xử lý.`,
+      detail: `${document.originalFileName} đã được đưa vào hàng đợi xử lý.`,
       timestamp: document.createdAt,
       document,
       icon: UploadCloud,
@@ -101,7 +101,7 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
       id: `${document.documentId}-review`,
       kind: "REVIEW",
       title: document.status === "FAILED" ? "Xử lý thất bại" : "Cần kiểm duyệt",
-      detail: document.reviewReasons.length ? document.reviewReasons.join("; ") : document.errorMessage ?? "Cần xác minh thủ công.",
+      detail: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : document.errorMessage ?? "Cần xác minh thủ công.",
       timestamp: document.updatedAt,
       document,
       icon: FileWarning,
@@ -177,7 +177,7 @@ export default function ActivityPage() {
   )
 
   const filteredEvents = events.filter((event) => {
-    const text = `${event.title} ${event.detail} ${event.document.fileName} ${event.document.vendorName}`.toLowerCase()
+    const text = `${event.title} ${event.detail} ${event.document.originalFileName} ${event.document.vendorName}`.toLowerCase()
     return (filter === "ALL" || event.kind === filter) && (!query.trim() || text.includes(query.trim().toLowerCase()))
   })
 
@@ -372,7 +372,7 @@ export default function ActivityPage() {
                         </div>
                         <div className="mt-1 text-sm leading-6 text-muted-foreground">{event.detail}</div>
                         <div className="mt-1.5 truncate text-xs text-muted-foreground">
-                          {event.document.fileName} · {formatDate(event.timestamp)}
+                          {event.document.originalFileName} · {formatDate(event.timestamp)}
                         </div>
                       </div>
                     </div>

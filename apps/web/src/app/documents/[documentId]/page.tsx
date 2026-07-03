@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   ArrowLeft, BadgeCheck, CheckCircle2, Clock3, Database, FileJson,
-  FileText, ListChecks, Save, ShieldAlert, TrendingUp,
+  FileText, Save, ShieldAlert, TrendingUp, FileWarning
 } from "lucide-react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
@@ -96,7 +96,7 @@ function DocumentPreview({ doc }: { doc: DocumentRecord }) {
             {doc.lineItems.length ? doc.lineItems.map((item) => (
               <div key={item.description} className="flex items-center justify-between gap-4 rounded-lg bg-muted/40 p-3 text-sm">
                 <div><div className="font-medium">{item.description}</div><div className="text-muted-foreground text-xs mt-0.5">SL {item.quantity}</div></div>
-                <div className="text-right font-semibold tabular-nums">{formatMoney(item.amount, doc.currency)}</div>
+                <div className="text-right font-semibold tabular-nums">{formatMoney(item.totalAmount, doc.currency)}</div>
               </div>
             )) : (
               <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
@@ -116,32 +116,79 @@ function DocumentPreview({ doc }: { doc: DocumentRecord }) {
 
 export default function DocumentDetailPage() {
   const { documentId } = useParams()
-  const { documents, updateDocument } = useDocuFlowDocuments()
+  const { updateDocument } = useDocuFlowDocuments()
   const { session } = useAuth()
   const role = session?.role ?? "finance"
-  const matched = documents.find((d) => d.documentId === documentId)
-  const doc = matched && (role !== "finance" || matched.userId === session?.userId) ? matched : undefined
   const canReview = role === "finance" || role === "admin"
-  const docStatus = doc?.status
+  
+  const [doc, setDoc] = useState<DocumentRecord | undefined>(undefined)
+  const [isLoading, setIsLoading] = useState(true)
   const [reviewNote, setReviewNote] = useState("")
   const [isReviewing, setIsReviewing] = useState(false)
   const [isPolling, setIsPolling] = useState(false)
   const [form, setForm] = useState({ vendorName:"", invoiceDate:"", currency:"VND" as DocumentRecord["currency"], totalAmount:"", taxAmount:"" })
 
+  const docStatus = doc?.status
+
+  useEffect(() => {
+    if (!documentId) return
+    let isMounted = true
+    setIsLoading(true)
+
+    getDocument(documentId)
+      .then((r) => {
+        if (!isMounted) return
+        if (r && (role !== "finance" || r.userId === session?.userId)) {
+          setDoc(r as unknown as DocumentRecord)
+          updateDocument(documentId, r as unknown as DocumentRecord)
+        } else {
+          setDoc(undefined)
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to fetch document:", error)
+        if (isMounted) setDoc(undefined)
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false)
+      })
+
+    return () => { isMounted = false }
+  }, [documentId, role, session?.userId, updateDocument])
+
   useEffect(() => {
     if (!doc) return
-    setForm({ vendorName:doc.vendorName, invoiceDate:doc.invoiceDate, currency:doc.currency, totalAmount:String(doc.totalAmount), taxAmount:doc.taxAmount===null?"":String(doc.taxAmount) })
+    setForm({ vendorName:doc.vendorName, invoiceDate:doc.invoiceDate, currency:doc.currency, totalAmount:String(doc.totalAmount ?? 0), taxAmount:doc.taxAmount==null?"":String(doc.taxAmount) })
     setReviewNote(doc.reviewerNote ?? "")
   }, [doc])
 
   useEffect(() => {
     if (!documentId || !isApiConfigured() || !docStatus || !["UPLOADED","QUEUED","PROCESSING"].includes(docStatus)) { setIsPolling(false); return }
     let cancelled = false; setIsPolling(true)
-    const poll = async () => { try { const r = await getDocument(documentId); if (!cancelled && r) updateDocument(documentId, r) } catch { if (!cancelled) setIsPolling(false) } }
-    void poll()
+    const poll = async () => { 
+      try { 
+        const r = await getDocument(documentId); 
+        if (!cancelled && r) {
+          setDoc(r as unknown as DocumentRecord)
+          updateDocument(documentId, r as unknown as DocumentRecord) 
+        }
+      } catch { 
+        if (!cancelled) setIsPolling(false) 
+      } 
+    }
     const id = window.setInterval(poll, 5000)
     return () => { cancelled = true; window.clearInterval(id) }
   }, [documentId, docStatus, updateDocument])
+
+  if (isLoading) {
+    return (
+      <BaseLayout title="Đang tải..." description="Vui lòng đợi trong giây lát.">
+        <div className="flex h-40 items-center justify-center px-4 lg:px-6">
+          <div className="size-8 animate-spin rounded-full border-b-2 border-primary"></div>
+        </div>
+      </BaseLayout>
+    )
+  }
 
   if (!doc) {
     return (
@@ -159,10 +206,24 @@ export default function DocumentDetailPage() {
 
   const handleSaveCorrection = async () => {
     const fields = { vendorName:form.vendorName.trim()||"Unknown", invoiceDate:form.invoiceDate, currency:form.currency, totalAmount:Number(form.totalAmount)||0, taxAmount:form.taxAmount.trim()?Number(form.taxAmount):null }
+    
+    const corrections = Object.entries(fields)
+      .map(([fieldName, newValue]) => ({ fieldName, oldValue: doc[fieldName as keyof typeof doc], newValue }))
+      .filter(({ oldValue, newValue }) => {
+        if (newValue === oldValue) return false;
+        if (newValue === null || newValue === undefined || newValue === "") return false;
+        return true;
+      });
+
+    if (corrections.length === 0) {
+      toast.info("Không có thay đổi nào để lưu.");
+      return;
+    }
+
     setIsReviewing(true)
     try {
-      const res = await reviewDocument(doc.documentId, { reviewStatus:"CORRECTED", correctedFields:fields, ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
-      updateDocument(doc.documentId, { ...fields, status:res.status, reviewReasons:[], correctedFields:res.correctedFields, reviewedAt:res.reviewedAt, reviewedBy:res.reviewedBy, reviewerNote:reviewNote.trim()||null, errorMessage:null })
+      const res = await reviewDocument(doc.documentId, { reviewStatus:"CORRECTED", corrections, ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
+      updateDocument(doc.documentId, { ...fields, status:res.status, reviewStatus:res.reviewStatus, reviewReasonCodes:[], updatedAt:res.updatedAt, reviewerNote:reviewNote.trim()||null, errorMessage:null })
       toast.success("Đã lưu chỉnh sửa. Tài liệu sẵn sàng để phê duyệt.")
     } catch { toast.error("Không thể lưu chỉnh sửa. Vui lòng thử lại.") }
     finally { setIsReviewing(false) }
@@ -172,14 +233,14 @@ export default function DocumentDetailPage() {
     setIsReviewing(true)
     try {
       const res = await reviewDocument(doc.documentId, { reviewStatus:"APPROVED", ...(reviewNote.trim()?{reviewerNote:reviewNote.trim()}:{}) })
-      updateDocument(doc.documentId, { status:res.status, reviewReasons:[], reviewedAt:res.reviewedAt, reviewedBy:res.reviewedBy, reviewerNote:reviewNote.trim()||null, errorMessage:null })
+      updateDocument(doc.documentId, { status:res.status, reviewStatus:res.reviewStatus, reviewReasonCodes:[], updatedAt:res.updatedAt, reviewerNote:reviewNote.trim()||null, errorMessage:null })
       toast.success("Tài liệu đã được phê duyệt.")
     } catch { toast.error("Không thể phê duyệt. Vui lòng thử lại.") }
     finally { setIsReviewing(false) }
   }
 
   return (
-    <BaseLayout title={doc.fileName} description={`${doc.documentId} · ${doc.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"} · ${statusMeta[doc.status].label}`}>
+    <BaseLayout title={doc.originalFileName} description={`${doc.documentId} · ${doc.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"} · ${statusMeta[doc.status].label}`}>
       <div className="grid gap-5 px-4 lg:grid-cols-[1.2fr_0.8fr] lg:px-6">
 
         {/* Left column */}
@@ -190,7 +251,7 @@ export default function DocumentDetailPage() {
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Tóm tắt trích xuất</CardTitle>
+                  <CardTitle className="text-base">{doc.originalFileName}</CardTitle>
                   <CardDescription className="text-xs">Các trường có cấu trúc được trích xuất từ tài liệu đã tải lên.</CardDescription>
                 </div>
                 <StatusBadge status={doc.status} />
@@ -202,7 +263,7 @@ export default function DocumentDetailPage() {
                   ["Nhà cung cấp", doc.vendorName],
                   ["Ngày hóa đơn", doc.invoiceDate],
                   ["Tổng tiền", formatMoney(doc.totalAmount, doc.currency)],
-                  ["Thuế", doc.taxAmount === null ? "Không phát hiện" : formatMoney(doc.taxAmount, doc.currency)],
+                  ["Thuế", doc.taxAmount == null ? "Không phát hiện" : formatMoney(doc.taxAmount, doc.currency)],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-xl border bg-muted/20 p-3">
                     <div className="text-xs text-muted-foreground">{label}</div>
@@ -226,22 +287,28 @@ export default function DocumentDetailPage() {
 
               <ConfidenceBar score={doc.confidenceScore} />
 
-              {doc.reviewReasons.length > 0 && (
+              {doc.reviewReasonCodes.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                   <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    <ListChecks className="size-4" />Lý do cần duyệt
+                    <FileWarning className="size-4" />Lý do cần duyệt
                   </div>
                   <ul className="mt-2.5 grid gap-1.5 text-xs text-amber-800 dark:text-amber-300">
-                    {doc.reviewReasons.map((r) => <li key={r} className="flex gap-2"><span aria-hidden>·</span><span>{r}</span></li>)}
+                    {doc.reviewReasonCodes.map((r) => <li key={r} className="flex gap-2"><span aria-hidden>·</span><span>{r}</span></li>)}
                   </ul>
                 </div>
               )}
 
               {doc.reviewedAt && (
-                <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
-                  <div><div className="text-xs text-muted-foreground">Ngày duyệt</div><div className="mt-1 text-sm font-medium">{formatDate(doc.reviewedAt)}</div></div>
-                  <div><div className="text-xs text-muted-foreground">Người duyệt</div><div className="mt-1 text-sm font-medium">{doc.reviewedBy ?? "Không xác định"}</div></div>
-                  {doc.reviewerNote && <div className="sm:col-span-2"><div className="text-xs text-muted-foreground">Ghi chú</div><div className="mt-1 text-sm leading-6">{doc.reviewerNote}</div></div>}
+                <div className="grid gap-3 rounded-xl border bg-muted/20 p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><div className="mb-1 text-xs text-muted-foreground">Raw object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.rawS3Key}</div></div>
+                    <div><div className="mb-1 text-xs text-muted-foreground">Processed object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.processedS3Key}</div></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                    <div><div className="text-xs text-muted-foreground">Ngày duyệt</div><div className="mt-1 text-sm font-medium">{formatDate(doc.reviewedAt)}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Người duyệt</div><div className="mt-1 text-sm font-medium">{doc.reviewedBy ?? "Không xác định"}</div></div>
+                  </div>
+                  {doc.reviewerNote && <div className="pt-2 border-t"><div className="text-xs text-muted-foreground">Ghi chú</div><div className="mt-1 text-sm leading-6">{doc.reviewerNote}</div></div>}
                 </div>
               )}
 
@@ -253,8 +320,8 @@ export default function DocumentDetailPage() {
                       <TableRow key={item.description}>
                         <TableCell className="font-medium text-sm">{item.description}</TableCell>
                         <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatMoney(item.unitPrice, doc.currency)}</TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{formatMoney(item.amount, doc.currency)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatMoney(item.unitPriceAmount, doc.currency)}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{formatMoney(item.totalAmount, doc.currency)}</TableCell>
                       </TableRow>
                     )) : (
                       <TableRow><TableCell colSpan={4} className="h-16 text-center text-sm text-muted-foreground">Không có mục hàng nào được trích xuất.</TableCell></TableRow>
@@ -369,11 +436,11 @@ export default function DocumentDetailPage() {
               <CardContent className="grid gap-4 p-4 text-sm">
                 <div>
                   <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><Database className="size-3.5" />Raw S3 object</div>
-                  <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.s3RawPath}</div>
+                  <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.rawS3Key}</div>
                 </div>
                 <div>
                   <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><FileJson className="size-3.5" />Processed artifact</div>
-                  <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.s3ProcessedPath}</div>
+                  <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.processedS3Key}</div>
                 </div>
                 <Separator />
                 <Button asChild variant="outline" size="sm" className="cursor-pointer">

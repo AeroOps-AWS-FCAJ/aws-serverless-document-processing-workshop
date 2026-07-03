@@ -43,7 +43,7 @@ function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
 function ConfidenceSignal({ document }: { document: DocumentRecord }) {
   const value = Math.round(document.confidenceScore * 100)
   const low = document.status === "REVIEW_REQUIRED" || document.status === "FAILED"
-    || document.reviewReasons.length > 0 || document.confidenceScore < confidenceWarningThreshold
+    || document.reviewReasonCodes.length > 0 || document.confidenceScore < confidenceWarningThreshold
   return (
     <div className="min-w-24">
       <div className={`mb-1 flex items-center justify-between gap-1 text-xs font-semibold ${low ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}`}>
@@ -59,8 +59,8 @@ function escapeCsv(value: string | number | null) {
 }
 
 function exportDocumentsCsv(items: DocumentRecord[], scope: string) {
-  const header = ["documentId","fileName","type","status","vendor","invoiceDate","currency","totalAmount","taxAmount","confidence","reviewReasons","updatedAt"]
-  const rows = items.map((d) => [d.documentId,d.fileName,d.documentType,d.status,d.vendorName,d.invoiceDate,d.currency,d.totalAmount,d.taxAmount,Math.round(d.confidenceScore*100),d.reviewReasons.join("; "),d.updatedAt])
+  const header = ["documentId","originalFileName","type","status","vendor","invoiceDate","currency","totalAmount","taxAmount","confidence","reviewReasonCodes","updatedAt"]
+  const rows = items.map((d) => [d.documentId,d.originalFileName,d.documentType,d.status,d.vendorName,d.invoiceDate,d.currency,d.totalAmount,d.taxAmount,Math.round(d.confidenceScore*100),d.reviewReasonCodes.join("; "),d.updatedAt])
   const csv = [header,...rows].map((r)=>r.map(escapeCsv).join(",")).join("\n")
   const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}))
   const a = document.createElement("a"); a.href=url; a.download=`docuflow-${scope}-${new Date().toISOString().slice(0,10)}.csv`; a.click()
@@ -79,7 +79,7 @@ function DocumentDrawer({ document, showTechnical }: { document: DocumentRecord;
       </DrawerTrigger>
       <DrawerContent className="glass-panel">
         <DrawerHeader>
-          <DrawerTitle className="truncate">{document.fileName}</DrawerTitle>
+          <DrawerTitle className="truncate">{document.originalFileName}</DrawerTitle>
           <DrawerDescription className="font-mono text-[10px]">
             {document.documentId} · {document.documentType} · cập nhật {formatDate(document.updatedAt)}
           </DrawerDescription>
@@ -103,7 +103,7 @@ function DocumentDrawer({ document, showTechnical }: { document: DocumentRecord;
               ["Nhà cung cấp", document.vendorName],
               ["Ngày hóa đơn", document.invoiceDate],
               ["Tổng tiền", formatMoney(document.totalAmount, document.currency)],
-              ["Thuế", document.taxAmount === null ? "Không phát hiện" : formatMoney(document.taxAmount, document.currency)],
+              ["Thuế", document.taxAmount == null ? "Không phát hiện" : formatMoney(document.taxAmount, document.currency)],
             ].map(([label, val]) => (
               <div key={label} className="flex items-start justify-between gap-4">
                 <span className="text-muted-foreground shrink-0">{label}</span>
@@ -111,16 +111,16 @@ function DocumentDrawer({ document, showTechnical }: { document: DocumentRecord;
               </div>
             ))}
           </div>
-          {document.reviewReasons.length > 0 && (
+          {document.reviewReasonCodes.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
               <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold"><FileWarning className="size-3.5" />Lý do cần duyệt</div>
-              <ul className="grid gap-1 text-xs">{document.reviewReasons.map((r)=><li key={r}>· {r}</li>)}</ul>
+              <ul className="grid gap-1 text-xs">{document.reviewReasonCodes.map((r)=><li key={r}>· {r}</li>)}</ul>
             </div>
           )}
           {showTechnical && (
             <div className="grid gap-2.5 rounded-xl border p-3 text-xs">
-              <div><div className="mb-1 text-muted-foreground">Raw object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{document.s3RawPath}</div></div>
-              <div><div className="mb-1 text-muted-foreground">Processed object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{document.s3ProcessedPath}</div></div>
+              <div><div className="mb-1 text-muted-foreground">Raw object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{document.rawS3Key}</div></div>
+              <div><div className="mb-1 text-muted-foreground">Processed object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{document.processedS3Key}</div></div>
             </div>
           )}
         </div>
@@ -175,7 +175,7 @@ export default function DocumentsPage() {
 
   const metrics = useMemo(() => {
     const processing = documents.filter((d) => processingStatuses.includes(d.status)).length
-    const needsReview = documents.filter((d) => d.status === "REVIEW_REQUIRED" || d.reviewReasons.length > 0).length
+    const needsReview = documents.filter((d) => d.status === "REVIEW_REQUIRED" || d.reviewReasonCodes.length > 0).length
     const failed = documents.filter((d) => d.status === "FAILED").length
     const approved = documents.filter((d) => d.status === "APPROVED").length
     const averageConfidence = documents.length
@@ -186,11 +186,11 @@ export default function DocumentsPage() {
   const filteredDocuments = useMemo(() => {
     const q = query.trim().toLowerCase()
     return documents.filter((d) => {
-      const matchQ = !q || [d.documentId,d.fileName,d.vendorName,d.status,d.documentType,d.reviewReasons.join(" ")].join(" ").toLowerCase().includes(q)
+      const matchQ = !q || [d.documentId,d.originalFileName,d.vendorName,d.status,d.documentType,d.reviewReasonCodes.join(" ")].join(" ").toLowerCase().includes(q)
       const matchS = statusFilter === "ALL" || d.status === statusFilter
       const matchT = typeFilter === "ALL" || d.documentType === typeFilter
       const matchQ2 = quickFilter === "ALL"
-        || (quickFilter === "ACTION" && (actionStatuses.includes(d.status) || d.reviewReasons.length > 0))
+        || (quickFilter === "ACTION" && (actionStatuses.includes(d.status) || d.reviewReasonCodes.length > 0))
         || (quickFilter === "PROCESSING" && processingStatuses.includes(d.status))
         || (quickFilter === "APPROVED" && d.status === "APPROVED")
         || (quickFilter === "FAILED" && d.status === "FAILED")
@@ -217,7 +217,7 @@ export default function DocumentsPage() {
   const handleMarkForReview = () => {
     selectedDocuments.forEach((d) => {
       if (d.status === "APPROVED") return
-      updateDocument(d.documentId, { status: "REVIEW_REQUIRED", reviewReasons: Array.from(new Set([...d.reviewReasons, "Yêu cầu duyệt thủ công từ danh sách tài liệu"])) })
+      updateDocument(d.documentId, { status: "REVIEW_REQUIRED", reviewReasonCodes: Array.from(new Set([...d.reviewReasonCodes, "Yêu cầu duyệt thủ công từ danh sách tài liệu"])) })
     })
     setSyncMessage(`${selectedDocuments.length} tài liệu đã được đánh dấu cần duyệt.`)
     setSelectedIds([])
@@ -382,16 +382,16 @@ export default function DocumentsPage() {
                 <TableBody>
                   <AnimatePresence initial={false}>
                     {paginatedDocuments.map((d) => {
-                      const needsReview = d.status === "REVIEW_REQUIRED" || d.status === "FAILED" || d.reviewReasons.length > 0 || d.confidenceScore < confidenceWarningThreshold
+                      const needsReview = d.status === "REVIEW_REQUIRED" || d.status === "FAILED" || d.reviewReasonCodes.length > 0 || d.confidenceScore < confidenceWarningThreshold
                       const isSelected = selectedIds.includes(d.documentId)
                       return (
                         <motion.tr key={d.documentId} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.15 }}
                           className={`border-b transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/30"}`}>
                           <TableCell>
-                            <input type="checkbox" aria-label={`Chọn ${d.fileName}`} checked={isSelected} onChange={(e) => toggleSelected(d.documentId, e.target.checked)} className="size-4 rounded border accent-primary" />
+                            <input type="checkbox" aria-label={`Chọn ${d.originalFileName}`} checked={isSelected} onChange={(e) => toggleSelected(d.documentId, e.target.checked)} className="size-4 rounded border accent-primary" />
                           </TableCell>
                           <TableCell className="max-w-[250px]">
-                            <div className="font-medium text-sm leading-tight truncate" title={d.fileName}>{d.fileName}</div>
+                            <div className="font-medium text-sm leading-tight truncate" title={d.originalFileName}>{d.originalFileName}</div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                               <span className="font-mono truncate" title={d.documentId}>{d.documentId.split('-')[1] || d.documentId.slice(0,8)}</span>
                               <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}</Badge>
@@ -404,7 +404,7 @@ export default function DocumentsPage() {
                             {needsReview && (
                               <div className="mt-0.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                                 <FileWarning className="size-3 shrink-0" />
-                                {d.reviewReasons.length ? `${d.reviewReasons.length} lý do` : "Độ tin cậy thấp"}
+                                {d.reviewReasonCodes.length ? `${d.reviewReasonCodes.length} lý do` : "Độ tin cậy thấp"}
                               </div>
                             )}
                           </TableCell>

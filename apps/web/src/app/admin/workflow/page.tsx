@@ -125,8 +125,8 @@ function executionName(document?: DocumentRecord) {
 function confidenceBreakdown(document?: DocumentRecord) {
   if (!document) return []
   const textract = Math.max(0, Math.round((document.confidenceScore || 0) * 100))
-  const completeness = document.reviewReasons?.length ? Math.max(36, 92 - document.reviewReasons.length * 18) : 96
-  const schema = document.status === "FAILED" ? 0 : document.taxAmount === null ? 78 : 94
+  const completeness = document.reviewReasonCodes?.length ? Math.max(36, 92 - document.reviewReasonCodes.length * 18) : 96
+  const schema = document.status === "FAILED" ? 0 : document.taxAmount == null ? 78 : 94
   return [
     { label: "Textract confidence", value: textract },
     { label: "Required field completeness", value: completeness },
@@ -276,7 +276,7 @@ export default function AdminWorkflowPage() {
                         <div className="mt-1 text-xs text-muted-foreground">Standard workflow</div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{execution.document.fileName}</div>
+                        <div className="font-medium">{execution.document.originalFileName}</div>
                         <div className="text-xs text-muted-foreground">{execution.document.documentId}</div>
                       </TableCell>
                       <TableCell>
@@ -387,12 +387,12 @@ export default function AdminWorkflowPage() {
                 </div>
                 <div>
                   <div className="text-muted-foreground">Review reasons</div>
-                  <div className="mt-1 font-medium">{selected.reviewReasons.length || "None"}</div>
+                  <div className="mt-1 font-medium">{selected.reviewReasonCodes.length || "None"}</div>
                 </div>
               </div>
-              {selected.reviewReasons.length > 0 && (
+              {selected.reviewReasonCodes.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {selected.reviewReasons.map((reason) => (
+                  {selected.reviewReasonCodes.map((reason) => (
                     <Badge key={reason} variant="outline" className="border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300">
                       {reason}
                     </Badge>
@@ -422,7 +422,7 @@ export default function AdminWorkflowPage() {
             </div>
             <div>
               <div className="mb-1 text-muted-foreground">S3 processed result</div>
-              <div className="break-all border bg-muted/25 p-3 font-mono">{selected.s3ProcessedPath}</div>
+              <div className="break-all border bg-muted/25 p-3 font-mono">{selected.processedS3Key}</div>
             </div>
             <div>
               <div className="mb-1 text-muted-foreground">Result status</div>

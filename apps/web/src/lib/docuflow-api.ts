@@ -44,6 +44,9 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
   const json = await response.json()
   
+  // Debug: log raw backend response to identify field name mismatches
+  console.debug(`[DocuFlow API] ${init?.method ?? "GET"} ${path}`, json)
+
   if (json && typeof json === 'object' && 'success' in json) {
     if (!json.success) {
       throw new Error(json.error?.errorMessage || "API returned success: false")
@@ -54,6 +57,63 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T
 }
 
+/**
+ * Normalize a raw backend document to ensure every field the UI relies on is
+ * present with a safe default value. The backend may omit fields, return them
+ * as `undefined`, or use slightly different types (e.g. `string` for numeric
+ * values). This single function is the only place we need to handle that.
+ */
+function sanitizeApiDocument(raw: any): DocumentResult {
+  return {
+    documentId:       raw.documentId ?? "",
+    userId:           raw.userId ?? "",
+    originalFileName: raw.originalFileName ?? raw.fileName ?? "unknown",
+    documentType:     raw.documentType ?? "INVOICE",
+    status:           raw.status ?? "UPLOADED",
+    vendorName:       raw.vendorName ?? "Unknown",
+    invoiceDate:      raw.invoiceDate ?? "",
+    currency:         raw.currency ?? "VND",
+    totalAmount:      typeof raw.totalAmount === "number" ? raw.totalAmount : Number(raw.totalAmount) || 0,
+    taxAmount:        raw.taxAmount == null ? null : (typeof raw.taxAmount === "number" ? raw.taxAmount : Number(raw.taxAmount) || 0),
+    confidenceScore:  typeof raw.confidenceScore === "number" ? raw.confidenceScore : Number(raw.confidenceScore) || 0,
+    reviewStatus:     raw.reviewStatus ?? "PENDING",
+    reviewReasonCodes: Array.isArray(raw.reviewReasonCodes) ? raw.reviewReasonCodes : [],
+    aiProvider:       raw.aiProvider ?? "not-called",
+    normalizationMethod: raw.normalizationMethod ?? "TEXTRACT_ONLY",
+    rawS3Key:         raw.rawS3Key ?? "",
+    processedS3Key:   raw.processedS3Key ?? "",
+    createdAt:        raw.createdAt ?? new Date().toISOString(),
+    updatedAt:        raw.updatedAt ?? new Date().toISOString(),
+    reviewedAt:       raw.reviewedAt ?? null,
+    reviewedBy:       raw.reviewedBy ?? null,
+    reviewerNote:     raw.reviewerNote ?? null,
+    lineItems:        Array.isArray(raw.lineItems) ? raw.lineItems.map(sanitizeLineItem) : [],
+    errorMessage:     raw.errorMessage ?? null,
+  }
+}
+
+const extractValue = (field: any) => field && typeof field === "object" && "value" in field ? field.value : field;
+
+function sanitizeLineItem(raw: any): import("@docuflow/shared-types").LineItem {
+  const lineItemId = extractValue(raw?.lineItemId ?? raw?.id);
+  const description = extractValue(raw?.description);
+  const quantity = extractValue(raw?.quantity);
+  const unitPriceAmount = extractValue(raw?.unitPriceAmount ?? raw?.unitPrice);
+  const taxAmount = extractValue(raw?.taxAmount);
+  const totalAmount = extractValue(raw?.totalAmount ?? raw?.amount);
+  const confidenceScore = extractValue(raw?.confidenceScore);
+
+  return {
+    lineItemId:      lineItemId != null ? String(lineItemId) : "",
+    description:     description != null ? String(description) : "",
+    quantity:        Number(quantity) || 0,
+    unitPriceAmount: Number(unitPriceAmount) || 0,
+    taxAmount:       Number(taxAmount) || 0,
+    totalAmount:     Number(totalAmount) || 0,
+    confidenceScore: Number(confidenceScore) || 0,
+  }
+}
+
 export async function listDocuments(
   request: ListDocumentsRequest = {}
 ): Promise<ListDocumentsResponse> {
@@ -62,20 +122,13 @@ export async function listDocuments(
     if (request.status) query.set("status", request.status)
     if (request.nextToken) query.set("nextToken", request.nextToken)
     const suffix = query.size ? `?${query.toString()}` : ""
-    const response = await apiRequest<ListDocumentsResponse>(`/documents${suffix}`)
+    const response = await apiRequest<any>(`/documents${suffix}`)
     
-    // Ensure reviewReasons is always an array to prevent frontend crashes
-    // if the backend omits it or returns null.
-    if (response.items && Array.isArray(response.items)) {
-      response.items.forEach(doc => {
-        doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
-        doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
-        doc.correctedFields = doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
-          ? doc.correctedFields
-          : null
-      })
+    const rawItems = Array.isArray(response?.items) ? response.items : Array.isArray(response) ? response : []
+    return {
+      items: rawItems.map(sanitizeApiDocument),
+      nextToken: response?.nextToken ?? null,
     }
-    return response
   }
 
   await wait()
@@ -91,15 +144,9 @@ export async function listDocuments(
 
 export async function getDocument(documentId: string): Promise<DocumentResult | null> {
   if (apiBaseUrl) {
-    const doc = await apiRequest<DocumentResult>(`/documents/${encodeURIComponent(documentId)}`)
-    if (doc) {
-      doc.reviewReasons = Array.isArray(doc.reviewReasons) ? doc.reviewReasons : []
-      doc.lineItems = Array.isArray(doc.lineItems) ? doc.lineItems : []
-      doc.correctedFields = doc.correctedFields && typeof doc.correctedFields === "object" && !Array.isArray(doc.correctedFields)
-        ? doc.correctedFields
-        : null
-    }
-    return doc
+    const raw = await apiRequest<any>(`/documents/${encodeURIComponent(documentId)}`)
+    if (!raw) return null
+    return sanitizeApiDocument(raw)
   }
 
   await wait()
@@ -130,14 +177,28 @@ export async function requestUploadUrl(
   const session = await getCurrentDocuFlowSession()
   const userId = session?.userId ?? "user-123"
   const extension = request.originalFileName.split(".").pop() || "pdf"
-  const s3RawPath = `s3://docuflow-dev-raw/raw/${userId}/${documentId}/original.${extension}`
+  const rawS3Key = `raw/${userId}/${documentId}/original.${extension}`
 
   return {
     documentId,
     uploadUrl: "https://s3-presigned-url.example.com/docuflow-demo",
-    s3RawPath,
-    expiresIn: 300,
+    rawS3Key,
+    expiresInSeconds: 300,
   }
+}
+
+export async function processDocument(
+  documentId: string,
+  rawS3Key: string
+): Promise<{ success: boolean }> {
+  if (apiBaseUrl) {
+    return apiRequest<{ success: boolean }>(`/documents/${encodeURIComponent(documentId)}/process`, {
+      method: "POST",
+      body: JSON.stringify({ rawS3Key }),
+    })
+  }
+  await wait()
+  return { success: true }
 }
 
 export interface UploadDocumentOptions {
@@ -213,9 +274,8 @@ export async function reviewDocument(
   return {
     documentId,
     status: request.reviewStatus === "APPROVED" ? "APPROVED" : "CORRECTED",
-    correctedFields: request.correctedFields ?? null,
-    reviewedAt: new Date().toISOString(),
-    reviewedBy: session.userId,
+    reviewStatus: request.reviewStatus === "APPROVED" ? "APPROVED" : "CORRECTED",
+    updatedAt: new Date().toISOString(),
   }
 }
 
