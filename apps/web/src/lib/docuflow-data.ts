@@ -330,6 +330,16 @@ export const apiContracts = [
     purpose: "Generate a 5-minute S3 presigned URL for PDF/JPG/PNG upload.",
   },
   {
+    method: "POST",
+    path: "/documents/{documentId}/process",
+    purpose: "Explicitly start or confirm background processing after a successful S3 upload.",
+  },
+  {
+    method: "POST",
+    path: "/documents/{documentId}/retry",
+    purpose: "Retry a failed or review-blocked document processing workflow.",
+  },
+  {
     method: "GET",
     path: "/documents",
     purpose: "List documents by Cognito user using userId-createdAt-index.",
@@ -353,6 +363,26 @@ export const apiContracts = [
     method: "DELETE",
     path: "/documents",
     purpose: "Bulk delete document metadata and related raw/processed objects for the authenticated owner.",
+  },
+  {
+    method: "GET",
+    path: "/notifications",
+    purpose: "Return actionable document alerts, processing failures, completion notices, and unread state.",
+  },
+  {
+    method: "PATCH",
+    path: "/notifications/{notificationId}",
+    purpose: "Mark a notification as read or handled for the authenticated user.",
+  },
+  {
+    method: "GET",
+    path: "/activity",
+    purpose: "Return document audit timeline events for upload, processing, review, approval, retry, and delete actions.",
+  },
+  {
+    method: "GET",
+    path: "/reports/summary",
+    purpose: "Return pre-aggregated report KPIs for dashboard and finance summary views.",
   },
 ]
 

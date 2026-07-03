@@ -9,7 +9,6 @@ import {
   LogOut,
   BellDot,
   FileSearch,
-  History,
   Route,
   ShieldCheck,
   UserRound,
@@ -123,21 +122,9 @@ export function NavUser({
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/notifications">
-                      <BellDot />
-                      Thông báo
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/activity">
-                      <History />
-                      Hoạt động của tôi
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/profile">
+                    <Link to="/settings">
                       <UserRound />
-                      Hồ sơ
+                      Settings
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -186,6 +173,14 @@ export function NavUser({
               )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            {role === "admin" && (
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/settings">
+                  <UserRound />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
               <LogOut />
               Đăng xuất

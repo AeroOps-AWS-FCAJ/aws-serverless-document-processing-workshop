@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate, formatMoney, statusMeta, supportedCurrencies, type DocumentRecord, type DocumentStatus } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
-import { deleteDocument, getDocument, isApiConfigured, reviewDocument } from "@/lib/docuflow-api"
+import { deleteDocument, getDocument, isApiConfigured, retryDocument, reviewDocument } from "@/lib/docuflow-api"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
 import { toast } from "sonner"
 import type { LineItem } from "@docuflow/shared-types"
@@ -324,6 +324,7 @@ export default function DocumentDetailPage() {
   const [reviewNote, setReviewNote] = useState("")
   const [isReviewing, setIsReviewing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
   const [isPolling, setIsPolling] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -666,6 +667,28 @@ export default function DocumentDetailPage() {
     }
   }
 
+  const handleRetryDocument = async () => {
+    if (!doc) return
+
+    setIsRetrying(true)
+    try {
+      await retryDocument(doc.documentId)
+      const patch: Partial<DocumentRecord> = {
+        status: "QUEUED",
+        errorMessage: "Đã yêu cầu chạy lại quy trình xử lý.",
+        updatedAt: new Date().toISOString(),
+      }
+      updateDocument(doc.documentId, patch)
+      setDoc((current) => current ? { ...current, ...patch } : current)
+      toast.success("Đã gửi yêu cầu chạy lại xử lý.")
+    } catch (error) {
+      console.error("Failed to retry document:", error)
+      toast.error("Không thể chạy lại xử lý. Kiểm tra endpoint retry trên backend.")
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   const handleSaveCorrection = async () => {
     const payload = buildReviewPayload()
     if (!payload) return
@@ -764,6 +787,12 @@ export default function DocumentDetailPage() {
                 <FileText className="size-4" />
                 File gốc
               </a>
+            </Button>
+          )}
+          {["FAILED", "REVIEW_REQUIRED"].includes(doc.status) && (
+            <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleRetryDocument} disabled={isRetrying}>
+              <RefreshCw className={isRetrying ? "size-4 animate-spin" : "size-4"} />
+              Chạy lại
             </Button>
           )}
           <ConfirmDeleteDialog

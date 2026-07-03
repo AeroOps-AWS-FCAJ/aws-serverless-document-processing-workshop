@@ -17,12 +17,86 @@ export type { ListDocumentsRequest, UploadUrlRequest, UploadUrlResponse }
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "")
 const demoLatency = 250
 
+export interface ProcessDocumentResponse {
+  documentId: string
+  status?: string
+  started?: boolean
+  message?: string
+}
+
+export interface RetryDocumentResponse {
+  documentId: string
+  status?: string
+  retryStarted?: boolean
+  message?: string
+  updatedAt?: string
+}
+
+export interface ApiNotificationItem {
+  id: string
+  documentId: string
+  document?: Partial<DocumentResult>
+  kind: "ACTION" | "FAILED" | "COMPLETE" | "PROCESSING"
+  title: string
+  body: string
+  timestamp: string
+  unread: boolean
+  requiresAction: boolean
+  severity: "critical" | "warning" | "success" | "info"
+}
+
+export interface ListNotificationsResponse {
+  items: ApiNotificationItem[]
+  nextToken: string | null
+}
+
+export interface AcknowledgeNotificationResponse {
+  notificationId: string
+  unread: boolean
+  acknowledgedAt?: string
+}
+
+export interface ApiActivityItem {
+  id: string
+  documentId: string
+  document?: Partial<DocumentResult>
+  kind: "UPLOAD" | "PROCESSING" | "REVIEW" | "APPROVAL"
+  title: string
+  detail: string
+  timestamp: string
+  actor: string
+  source: string
+  severity: "info" | "warning" | "error" | "success"
+}
+
+export interface ListActivityResponse {
+  items: ApiActivityItem[]
+  nextToken: string | null
+}
+
+export interface ReportsSummaryResponse {
+  totalDocuments?: number
+  approvedDocuments?: number
+  reviewRequiredDocuments?: number
+  failedDocuments?: number
+  totalAmountVnd?: number
+  approvedAmountVnd?: number
+  pendingAmountVnd?: number
+  averageConfidence?: number
+  generatedAt?: string
+}
+
 type RawApiDocument = Partial<DocumentResult> & {
   fileName?: unknown
   lineItems?: unknown
 }
 
 type ApiListEnvelope = {
+  items?: unknown
+  nextToken?: unknown
+}
+
+type ApiCollectionEnvelope = {
   items?: unknown
   nextToken?: unknown
 }
@@ -264,15 +338,37 @@ export async function requestUploadUrl(
 export async function processDocument(
   documentId: string,
   rawS3Key: string
-): Promise<{ success: boolean }> {
+): Promise<ProcessDocumentResponse> {
   if (apiBaseUrl) {
-    return apiRequest<{ success: boolean }>(`/documents/${encodeURIComponent(documentId)}/process`, {
+    const response = await apiRequest<ProcessDocumentResponse | null>(`/documents/${encodeURIComponent(documentId)}/process`, {
       method: "POST",
       body: JSON.stringify({ rawS3Key }),
     })
+    return response ?? { documentId, started: true }
   }
   await wait()
-  return { success: true }
+  return { documentId, started: true }
+}
+
+export async function retryDocument(documentId: string): Promise<RetryDocumentResponse> {
+  if (apiBaseUrl) {
+    const response = await apiRequest<RetryDocumentResponse | null>(
+      `/documents/${encodeURIComponent(documentId)}/retry`,
+      { method: "POST" }
+    )
+    return response ?? {
+      documentId,
+      retryStarted: true,
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  await wait()
+  return {
+    documentId,
+    retryStarted: true,
+    updatedAt: new Date().toISOString(),
+  }
 }
 
 export interface UploadDocumentOptions {
@@ -406,6 +502,149 @@ export async function deleteDocuments(documentIds: string[]): Promise<DeleteDocu
     deletedCount: uniqueDocumentIds.length,
     deletedAt: new Date().toISOString(),
   }
+}
+
+function sanitizeNotification(raw: unknown): ApiNotificationItem | null {
+  if (!isRecord(raw)) return null
+  const document = isRecord(raw.document) ? sanitizeApiDocument(raw.document) : undefined
+  const documentId = String(raw.documentId ?? document?.documentId ?? "")
+  if (!documentId) return null
+
+  return {
+    id: String(raw.id ?? raw.notificationId ?? `${documentId}-${raw.kind ?? "notification"}`),
+    documentId,
+    document,
+    kind: normalizeNotificationKind(raw.kind),
+    title: String(raw.title ?? "Thông báo tài liệu"),
+    body: String(raw.body ?? raw.message ?? ""),
+    timestamp: String(raw.timestamp ?? raw.createdAt ?? raw.updatedAt ?? new Date().toISOString()),
+    unread: Boolean(raw.unread ?? raw.isUnread ?? false),
+    requiresAction: Boolean(raw.requiresAction ?? raw.needsAction ?? false),
+    severity: normalizeNotificationSeverity(raw.severity),
+  }
+}
+
+function normalizeNotificationKind(value: unknown): ApiNotificationItem["kind"] {
+  const kind = String(value || "").toUpperCase()
+  if (kind === "FAILED") return "FAILED"
+  if (kind === "COMPLETE" || kind === "COMPLETED") return "COMPLETE"
+  if (kind === "PROCESSING") return "PROCESSING"
+  return "ACTION"
+}
+
+function normalizeNotificationSeverity(value: unknown): ApiNotificationItem["severity"] {
+  const severity = String(value || "").toLowerCase()
+  if (severity === "critical") return "critical"
+  if (severity === "success") return "success"
+  if (severity === "info") return "info"
+  return "warning"
+}
+
+function sanitizeActivity(raw: unknown): ApiActivityItem | null {
+  if (!isRecord(raw)) return null
+  const document = isRecord(raw.document) ? sanitizeApiDocument(raw.document) : undefined
+  const documentId = String(raw.documentId ?? document?.documentId ?? "")
+  if (!documentId) return null
+
+  return {
+    id: String(raw.id ?? raw.activityId ?? `${documentId}-${raw.kind ?? "activity"}-${raw.timestamp ?? ""}`),
+    documentId,
+    document,
+    kind: normalizeActivityKind(raw.kind),
+    title: String(raw.title ?? "Hoạt động tài liệu"),
+    detail: String(raw.detail ?? raw.message ?? ""),
+    timestamp: String(raw.timestamp ?? raw.createdAt ?? raw.updatedAt ?? new Date().toISOString()),
+    actor: String(raw.actor ?? raw.userId ?? "Backend"),
+    source: String(raw.source ?? raw.stage ?? "DocuFlow API"),
+    severity: normalizeActivitySeverity(raw.severity),
+  }
+}
+
+function normalizeActivityKind(value: unknown): ApiActivityItem["kind"] {
+  const kind = String(value || "").toUpperCase()
+  if (kind === "PROCESSING") return "PROCESSING"
+  if (kind === "REVIEW") return "REVIEW"
+  if (kind === "APPROVAL" || kind === "APPROVED") return "APPROVAL"
+  return "UPLOAD"
+}
+
+function normalizeActivitySeverity(value: unknown): ApiActivityItem["severity"] {
+  const severity = String(value || "").toLowerCase()
+  if (severity === "warning") return "warning"
+  if (severity === "error") return "error"
+  if (severity === "success") return "success"
+  return "info"
+}
+
+export async function listNotifications(nextToken?: string): Promise<ListNotificationsResponse> {
+  if (apiBaseUrl) {
+    const query = new URLSearchParams()
+    if (nextToken) query.set("nextToken", nextToken)
+    const suffix = query.size ? `?${query.toString()}` : ""
+    const response = await apiRequest<unknown>(`/notifications${suffix}`)
+    const envelope: ApiCollectionEnvelope = isRecord(response) ? response : {}
+    const rawItems = Array.isArray(envelope.items) ? envelope.items : Array.isArray(response) ? response : []
+
+    return {
+      items: rawItems.map(sanitizeNotification).filter((item): item is ApiNotificationItem => Boolean(item)),
+      nextToken: typeof envelope.nextToken === "string" ? envelope.nextToken : null,
+    }
+  }
+
+  await wait()
+  return { items: [], nextToken: null }
+}
+
+export async function acknowledgeNotification(notificationId: string): Promise<AcknowledgeNotificationResponse> {
+  if (apiBaseUrl) {
+    const response = await apiRequest<AcknowledgeNotificationResponse | null>(
+      `/notifications/${encodeURIComponent(notificationId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ unread: false, status: "READ" }),
+      }
+    )
+    return response ?? {
+      notificationId,
+      unread: false,
+      acknowledgedAt: new Date().toISOString(),
+    }
+  }
+
+  await wait()
+  return {
+    notificationId,
+    unread: false,
+    acknowledgedAt: new Date().toISOString(),
+  }
+}
+
+export async function listActivity(nextToken?: string): Promise<ListActivityResponse> {
+  if (apiBaseUrl) {
+    const query = new URLSearchParams()
+    if (nextToken) query.set("nextToken", nextToken)
+    const suffix = query.size ? `?${query.toString()}` : ""
+    const response = await apiRequest<unknown>(`/activity${suffix}`)
+    const envelope: ApiCollectionEnvelope = isRecord(response) ? response : {}
+    const rawItems = Array.isArray(envelope.items) ? envelope.items : Array.isArray(response) ? response : []
+
+    return {
+      items: rawItems.map(sanitizeActivity).filter((item): item is ApiActivityItem => Boolean(item)),
+      nextToken: typeof envelope.nextToken === "string" ? envelope.nextToken : null,
+    }
+  }
+
+  await wait()
+  return { items: [], nextToken: null }
+}
+
+export async function getReportsSummary(): Promise<ReportsSummaryResponse | null> {
+  if (apiBaseUrl) {
+    return apiRequest<ReportsSummaryResponse | null>("/reports/summary")
+  }
+
+  await wait()
+  return null
 }
 
 export async function listTestCases() {

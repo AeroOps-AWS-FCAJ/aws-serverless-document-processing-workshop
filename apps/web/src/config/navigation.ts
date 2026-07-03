@@ -6,14 +6,11 @@ import {
   ClipboardList,
   FileSearch,
   GitBranch,
-  History,
   LayoutDashboard,
-  MailCheck,
   Route,
   Settings2,
   ShieldCheck,
   UploadCloud,
-  UserRound,
   type LucideIcon,
 } from "lucide-react"
 import type { DocuFlowRole } from "@/lib/auth"
@@ -40,9 +37,7 @@ const financeNavigationGroups: AppNavigationGroup[] = [
       { title: "Tài liệu", url: "/documents", icon: FileSearch, roles: ["finance"] },
       { title: "Hàng đợi duyệt", url: "/review", icon: Bell, roles: ["finance"] },
       { title: "Báo cáo", url: "/reports", icon: BadgeDollarSign, roles: ["finance"] },
-      { title: "Thông báo", url: "/notifications", icon: MailCheck, roles: ["finance"] },
-      { title: "Hoạt động của tôi", url: "/activity", icon: History, roles: ["finance"] },
-      { title: "Hồ sơ", url: "/profile", icon: UserRound, roles: ["finance"] },
+      { title: "Settings", url: "/settings", icon: Settings2, roles: ["finance"] },
     ],
   },
 ]

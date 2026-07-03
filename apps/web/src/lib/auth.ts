@@ -1,4 +1,9 @@
-import { fetchAuthSession, getCurrentUser, signOut as amplifySignOut } from 'aws-amplify/auth';
+import {
+  fetchAuthSession,
+  fetchUserAttributes,
+  getCurrentUser,
+  signOut as amplifySignOut,
+} from 'aws-amplify/auth';
 
 export type DocuFlowRole = "finance" | "admin"
 
@@ -8,6 +13,10 @@ export interface DocuFlowSession {
   userId: string
   name: string
   email: string
+  firstName?: string
+  lastName?: string
+  emailVerified?: boolean
+  groups?: string[]
   accessToken?: string
   idToken?: string
 }
@@ -39,9 +48,15 @@ export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | nul
     const accessToken = tokens.accessToken;
     const idPayload = idToken?.payload;
     const accessPayload = accessToken?.payload;
+    const attributes = await fetchUserAttributes().catch(() => ({})) as Record<string, string | undefined>;
     
-    const email = idPayload?.email?.toString() || user.signInDetails?.loginId || '';
-    const name = idPayload?.name?.toString() || email.split('@')[0] || user.username;
+    const email = attributes.email || idPayload?.email?.toString() || user.signInDetails?.loginId || '';
+    const firstName = attributes.given_name || idPayload?.given_name?.toString() || '';
+    const lastName = attributes.family_name || idPayload?.family_name?.toString() || '';
+    const fullNameFromParts = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const name = attributes.name || idPayload?.name?.toString() || fullNameFromParts || email.split('@')[0] || user.username;
+    const userId = idPayload?.sub?.toString() || user.userId || user.username;
+    const emailVerifiedValue = attributes.email_verified ?? idPayload?.email_verified;
     
     // AWS Cognito Groups might be in accessToken or idToken
     const groups = (idPayload?.['cognito:groups'] as string[]) || (accessPayload?.['cognito:groups'] as string[]) || [];
@@ -50,9 +65,13 @@ export async function getCurrentDocuFlowSession(): Promise<DocuFlowSession | nul
     return {
       authenticated: true,
       role,
-      userId: user.username,
+      userId,
       name,
       email,
+      firstName,
+      lastName,
+      emailVerified: emailVerifiedValue === true || emailVerifiedValue === 'true',
+      groups,
       accessToken: tokens.accessToken?.toString(),
       idToken: tokens.idToken?.toString()
     };

@@ -1,4 +1,5 @@
 import { lazy } from 'react'
+import { Navigate } from 'react-router-dom'
 import {
   GuestOnly,
   RequireRole,
@@ -13,9 +14,7 @@ const Documents = lazy(() => import('@/app/documents/page'))
 const DocumentDetail = lazy(() => import('@/app/documents/[documentId]/page'))
 const Review = lazy(() => import('@/app/review/page'))
 const Reports = lazy(() => import('@/app/reports/page'))
-const Notifications = lazy(() => import('@/app/notifications/page'))
-const Activity = lazy(() => import('@/app/activity/page'))
-const Profile = lazy(() => import('@/app/profile/page'))
+const Settings = lazy(() => import('@/app/settings/page'))
 
 // ── Admin pages ───────────────────────────────────────────────────────────────
 const Operations = lazy(() => import('@/app/operations/page'))
@@ -93,16 +92,20 @@ export const routes: RouteConfig[] = [
     element: <RequireRole allowed={["finance"]}><Reports /></RequireRole>,
   },
   {
+    path: "/settings",
+    element: <RequireRole allowed={["finance", "admin"]}><Settings /></RequireRole>,
+  },
+  {
     path: "/notifications",
-    element: <RequireRole allowed={["finance"]}><Notifications /></RequireRole>,
+    element: <RequireRole allowed={["finance"]}><Navigate to="/settings?tab=notifications" replace /></RequireRole>,
   },
   {
     path: "/activity",
-    element: <RequireRole allowed={["finance"]}><Activity /></RequireRole>,
+    element: <RequireRole allowed={["finance"]}><Navigate to="/settings?tab=activity" replace /></RequireRole>,
   },
   {
     path: "/profile",
-    element: <RequireRole allowed={["finance", "admin"]}><Profile /></RequireRole>,
+    element: <RequireRole allowed={["finance", "admin"]}><Navigate to="/settings?tab=profile" replace /></RequireRole>,
   },
 
   // ── Admin Console routes (AdminLayout — completely separate shell) ──────────
