@@ -24,6 +24,13 @@ export interface ProcessDocumentResponse {
   message?: string
 }
 
+export interface ProcessDocumentMetadata {
+  originalFileName?: string
+  mimeType?: string
+  documentType?: "INVOICE" | "RECEIPT"
+  pageCount?: number
+}
+
 export interface RetryDocumentResponse {
   documentId: string
   status?: string
@@ -83,6 +90,11 @@ export interface ReportsSummaryResponse {
   approvedAmountVnd?: number
   pendingAmountVnd?: number
   averageConfidence?: number
+  amountsByCurrency?: Record<string, number>
+  approvedAmountsByCurrency?: Record<string, number>
+  pendingAmountsByCurrency?: Record<string, number>
+  unconvertedCurrencies?: string[]
+  exchangeRateSource?: string
   generatedAt?: string
 }
 
@@ -332,17 +344,19 @@ export async function requestUploadUrl(
     uploadUrl: "https://s3-presigned-url.example.com/docuflow-demo",
     rawS3Key,
     expiresInSeconds: 300,
+    uploadHeaders: { "Content-Type": request.mimeType },
   }
 }
 
 export async function processDocument(
   documentId: string,
-  rawS3Key: string
+  rawS3Key: string,
+  metadata: ProcessDocumentMetadata = {}
 ): Promise<ProcessDocumentResponse> {
   if (apiBaseUrl) {
     const response = await apiRequest<ProcessDocumentResponse | null>(`/documents/${encodeURIComponent(documentId)}/process`, {
       method: "POST",
-      body: JSON.stringify({ rawS3Key }),
+      body: JSON.stringify({ rawS3Key, ...metadata }),
     })
     return response ?? { documentId, started: true }
   }
@@ -373,6 +387,7 @@ export async function retryDocument(documentId: string): Promise<RetryDocumentRe
 
 export interface UploadDocumentOptions {
   contentType?: string
+  headers?: Record<string, string>
   onProgress?: (progress: number) => void
   signal?: AbortSignal
 }
@@ -396,7 +411,13 @@ export async function uploadDocumentFile(
   await new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open("PUT", uploadUrl)
-    request.setRequestHeader("Content-Type", options.contentType ?? file.type)
+    const headers = {
+      "Content-Type": options.contentType ?? file.type,
+      ...options.headers,
+    }
+    for (const [name, value] of Object.entries(headers)) {
+      request.setRequestHeader(name, value)
+    }
 
     request.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) return
@@ -514,7 +535,7 @@ function sanitizeNotification(raw: unknown): ApiNotificationItem | null {
     id: String(raw.id ?? raw.notificationId ?? `${documentId}-${raw.kind ?? "notification"}`),
     documentId,
     document,
-    kind: normalizeNotificationKind(raw.kind),
+    kind: normalizeNotificationKind(raw.kind, raw.severity),
     title: String(raw.title ?? "Thông báo tài liệu"),
     body: String(raw.body ?? raw.message ?? ""),
     timestamp: String(raw.timestamp ?? raw.createdAt ?? raw.updatedAt ?? new Date().toISOString()),
@@ -524,9 +545,10 @@ function sanitizeNotification(raw: unknown): ApiNotificationItem | null {
   }
 }
 
-function normalizeNotificationKind(value: unknown): ApiNotificationItem["kind"] {
+function normalizeNotificationKind(value: unknown, severity?: unknown): ApiNotificationItem["kind"] {
   const kind = String(value || "").toUpperCase()
-  if (kind === "FAILED") return "FAILED"
+  const severityValue = String(severity || "").toLowerCase()
+  if (kind === "FAILED" || (kind === "SYSTEM" && severityValue === "error")) return "FAILED"
   if (kind === "COMPLETE" || kind === "COMPLETED") return "COMPLETE"
   if (kind === "PROCESSING") return "PROCESSING"
   return "ACTION"
@@ -534,7 +556,7 @@ function normalizeNotificationKind(value: unknown): ApiNotificationItem["kind"] 
 
 function normalizeNotificationSeverity(value: unknown): ApiNotificationItem["severity"] {
   const severity = String(value || "").toLowerCase()
-  if (severity === "critical") return "critical"
+  if (severity === "critical" || severity === "error") return "critical"
   if (severity === "success") return "success"
   if (severity === "info") return "info"
   return "warning"
@@ -562,9 +584,9 @@ function sanitizeActivity(raw: unknown): ApiActivityItem | null {
 
 function normalizeActivityKind(value: unknown): ApiActivityItem["kind"] {
   const kind = String(value || "").toUpperCase()
-  if (kind === "PROCESSING") return "PROCESSING"
-  if (kind === "REVIEW") return "REVIEW"
-  if (kind === "APPROVAL" || kind === "APPROVED") return "APPROVAL"
+  if (["PROCESSING", "EXTRACTED", "FAILED"].includes(kind)) return "PROCESSING"
+  if (kind === "REVIEW" || kind === "REVIEW_REQUIRED") return "REVIEW"
+  if (["APPROVAL", "APPROVED", "CORRECTED"].includes(kind)) return "APPROVAL"
   return "UPLOAD"
 }
 
@@ -576,10 +598,11 @@ function normalizeActivitySeverity(value: unknown): ApiActivityItem["severity"] 
   return "info"
 }
 
-export async function listNotifications(nextToken?: string): Promise<ListNotificationsResponse> {
+export async function listNotifications(nextToken?: string, limit = 100): Promise<ListNotificationsResponse> {
   if (apiBaseUrl) {
     const query = new URLSearchParams()
     if (nextToken) query.set("nextToken", nextToken)
+    query.set("limit", String(limit))
     const suffix = query.size ? `?${query.toString()}` : ""
     const response = await apiRequest<unknown>(`/notifications${suffix}`)
     const envelope: ApiCollectionEnvelope = isRecord(response) ? response : {}
@@ -619,10 +642,11 @@ export async function acknowledgeNotification(notificationId: string): Promise<A
   }
 }
 
-export async function listActivity(nextToken?: string): Promise<ListActivityResponse> {
+export async function listActivity(nextToken?: string, limit = 100): Promise<ListActivityResponse> {
   if (apiBaseUrl) {
     const query = new URLSearchParams()
     if (nextToken) query.set("nextToken", nextToken)
+    query.set("limit", String(limit))
     const suffix = query.size ? `?${query.toString()}` : ""
     const response = await apiRequest<unknown>(`/activity${suffix}`)
     const envelope: ApiCollectionEnvelope = isRecord(response) ? response : {}

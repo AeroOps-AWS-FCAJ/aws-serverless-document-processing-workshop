@@ -193,6 +193,7 @@ export default function UploadPage() {
       setMessage("Đang tải lên...")
       await uploadDocumentFile(res.uploadUrl, file, {
         contentType,
+        headers: res.uploadHeaders,
         signal: ctrl.signal,
         onProgress: (p) => {
           setProgress(Math.min(85, 30 + Math.round(p * 0.55)))
@@ -212,7 +213,12 @@ export default function UploadPage() {
       let processWarning = false
       if (apiMode) {
         try {
-          await processDocument(res.documentId, res.rawS3Key)
+          await processDocument(res.documentId, res.rawS3Key, {
+            originalFileName: file.name,
+            mimeType: contentType,
+            documentType: hint === "AUTO" ? base.documentType : hint,
+            pageCount: pages || 1,
+          })
           throwIfAborted(ctrl.signal)
         } catch (error) {
           throwIfAborted(ctrl.signal)

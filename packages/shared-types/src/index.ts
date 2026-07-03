@@ -94,6 +94,7 @@ export interface UploadUrlResponse {
   uploadUrl: string
   rawS3Key: string
   expiresInSeconds: number
+  uploadHeaders: Record<string, string>
 }
 
 export interface CorrectionItem {

@@ -21,6 +21,17 @@ export const handler = async (event) => {
       return formatResponse(200, true, null);
     }
 
+    if (method !== "GET") {
+      return formatResponse(
+        405,
+        false,
+        null,
+        "Only GET is supported.",
+        "API",
+        "METHOD_NOT_ALLOWED"
+      );
+    }
+
     const envError = validateEnvironment();
     if (envError) return envError;
 
@@ -137,6 +148,21 @@ function validateEnvironment() {
     );
   }
 
+  if (
+    !Number.isInteger(SOURCE_URL_EXPIRES_SECONDS) ||
+    SOURCE_URL_EXPIRES_SECONDS < 60 ||
+    SOURCE_URL_EXPIRES_SECONDS > 3600
+  ) {
+    return formatResponse(
+      500,
+      false,
+      null,
+      "SOURCE_URL_EXPIRES_SECONDS must be an integer between 60 and 3600.",
+      "CONFIGURATION",
+      "INVALID_ENVIRONMENT_VARIABLE"
+    );
+  }
+
   return null;
 }
 
@@ -174,7 +200,7 @@ function getUserId(event) {
     event?.requestContext?.authorizer?.claims ||
     {};
 
-  return claims.sub || event?.userId || event?.queryStringParameters?.userId || null;
+  return claims.sub || null;
 }
 
 function removeDynamoDbKeys(item = {}) {
