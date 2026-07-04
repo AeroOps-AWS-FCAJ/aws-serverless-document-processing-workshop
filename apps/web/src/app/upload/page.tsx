@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { getDocument, isApiConfigured, processDocument, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
+import { getDocument, isApiConfigured, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
 import { createQueuedDocument, nextUploadStatus, useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { statusMeta, type DocumentStatus } from "@/lib/docuflow-data"
 import { useAuth } from "@/contexts/auth-context"
@@ -207,31 +207,10 @@ export default function UploadPage() {
       const queued = { ...base, documentType: hint === "AUTO" ? base.documentType : hint, status: nextUploadStatus("UPLOADED") }
       upsertDocument(queued); setCreatedDocId(queued.documentId)
 
-      let processWarning = false
-      if (apiMode) {
-        try {
-          await processDocument(res.documentId, res.rawS3Key, {
-            originalFileName: file.name,
-            mimeType: contentType,
-            documentType: hint === "AUTO" ? base.documentType : hint,
-            pageCount: pages || 1,
-          })
-          throwIfAborted(ctrl.signal)
-        } catch (error) {
-          throwIfAborted(ctrl.signal)
-          processWarning = true
-          console.warn("Process endpoint did not accept the upload trigger. Waiting for bucket workflow.", error)
-        }
-      }
-
       let syncedStatus = ""
       if (apiMode) {
         setProgress(96)
-        setMessage(
-          processWarning
-            ? t("upload.waitingWorkflow")
-            : t("upload.syncingBackend")
-        )
+        setMessage(t("upload.waitingWorkflow"))
         const refreshed = await pollDocumentResult(res.documentId, ctrl.signal)
         syncedStatus = refreshed?.status ?? ""
       }

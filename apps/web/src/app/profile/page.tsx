@@ -12,6 +12,7 @@ import {
   UserRound,
   Workflow,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,13 @@ import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
 import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
-const financeWorkspaceLinks: { labelKey: TranslationKey; to: string; icon: any }[] = [
+type WorkspaceLink = {
+  labelKey: TranslationKey
+  to: string
+  icon: LucideIcon
+}
+
+const financeWorkspaceLinks: WorkspaceLink[] = [
   { labelKey: "nav.upload", to: "/upload", icon: UploadCloud },
   { labelKey: "nav.documents", to: "/documents", icon: FileSearch },
   { labelKey: "nav.review", to: "/review", icon: BellDot },
@@ -37,7 +44,7 @@ const financeWorkspaceLinks: { labelKey: TranslationKey; to: string; icon: any }
   { labelKey: "nav.activity", to: "/activity", icon: Workflow },
 ]
 
-const adminWorkspaceLinks: { labelKey: TranslationKey; to: string; icon: any }[] = [
+const adminWorkspaceLinks: WorkspaceLink[] = [
   { labelKey: "nav.operations", to: "/operations", icon: Workflow },
   { labelKey: "nav.review", to: "/review", icon: BellDot },
   { labelKey: "nav.ingestion", to: "/admin/ingestion", icon: UploadCloud },
@@ -140,7 +147,7 @@ export default function ProfilePage() {
               [t("profile.role"), roleLabels[role]],
               [t("profile.userId"), session?.userId ?? t("profile.unknown")],
             ].map(([label, value]) => (
-              <div key={labelKey} className="grid gap-1 rounded-xl border p-3">
+              <div key={label} className="grid gap-1 rounded-xl border p-3">
                 <div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div>
                 <div className="break-all text-sm font-medium">{value}</div>
               </div>
@@ -163,7 +170,7 @@ export default function ProfilePage() {
                 { labelKey: "profile.uploadAccess", enabled: capability?.canUpload },
                 { labelKey: "profile.reviewAccess", enabled: capability?.canReview },
                 { labelKey: "profile.adminAccess", enabled: capability?.canOperate },
-              ].map(({ label, enabled }) => (
+              ].map(({ labelKey, enabled }) => (
                 <div key={labelKey} className="rounded-xl border p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="font-medium text-sm">{t(labelKey as TranslationKey)}</span>

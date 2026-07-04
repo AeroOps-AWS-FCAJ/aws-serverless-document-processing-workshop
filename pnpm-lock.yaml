@@ -236,6 +236,330 @@ importers:
 
   packages/shared-types: {}
 
+  services/functions/ai-proxy:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/confidence-status:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/dashboard:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/delete-document:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/generate-upload-url:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/get-document:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/ingestion-job-starter:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/list-documents:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/process-control:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/review-update:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/textract:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  services/functions/workflow-validate:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-sfn':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/client-textract':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-dynamodb@3.1079.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1079.0
+        version: 3.1079.0
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
 packages:
 
   '@aws-amplify/analytics@7.0.94':

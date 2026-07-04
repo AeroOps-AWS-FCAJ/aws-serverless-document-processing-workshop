@@ -32,7 +32,12 @@ export const roleHomePaths: Record<DocuFlowRole, string> = {
 }
 
 function inferRoleFromCognito(groups?: string[]): DocuFlowRole {
-  if (groups && groups.includes('docuflow-dev-admins')) {
+  const normalizedGroups = (groups ?? []).map((group) => group.trim().toLowerCase());
+  if (
+    normalizedGroups.includes('admin') ||
+    normalizedGroups.includes('docuflow-dev-admins') ||
+    normalizedGroups.includes('docuflow-prod-admins')
+  ) {
     return 'admin';
   }
   return 'finance';

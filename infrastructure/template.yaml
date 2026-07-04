@@ -30,7 +30,7 @@ Parameters:
     Default: ''
     Description: >
       Secrets Manager secret id/arn containing the OpenAI API key. If blank,
-      Lambda uses docuflow-${Env}-external-ai-api-key.
+      Lambda uses the environment-specific docuflow-<Env>-external-ai-api-key name.
   OpenAIModel:
     Type: String
     Default: gpt-4o
@@ -57,7 +57,7 @@ Conditions:
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     Handler: index.handler
     MemorySize: 256
     Timeout: 30
@@ -322,7 +322,6 @@ Resources:
                 - s3:GetObject
                 - s3:GetObjectTagging
               Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/*
-
   TextractFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -616,6 +615,8 @@ Resources:
           Properties:
             Queue: !GetAtt IngestionQueue.Arn
             BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
   ProcessingStateMachine:
     Type: AWS::Serverless::StateMachine

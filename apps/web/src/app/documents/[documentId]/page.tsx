@@ -996,7 +996,7 @@ export default function DocumentDetailPage() {
                           {supportedCurrencies.map((currency) => (
                             <SelectItem key={currency.code} value={currency.code}>
                               <span className="font-mono">{currency.code}</span>
-                              <span className="ml-2 text-muted-foreground">{t(`currency.${currency.code}` as any)}</span>
+                              <span className="ml-2 text-muted-foreground">{t(`currency.${currency.code}` as TranslationKey)}</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
