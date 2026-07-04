@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/sidebar"
 import { getAdminNavigationGroups } from "@/config/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { useLanguage } from "@/lib/i18n"
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { session } = useAuth()
+  const { t } = useLanguage()
   const navGroups = getAdminNavigationGroups()
 
   return (
@@ -43,7 +45,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                     DocuFlow AI
                   </span>
                   <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-sidebar-foreground/45">
-                    Admin Console
+                    Admin console
                   </span>
                 </div>
               </Link>
@@ -55,7 +57,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       {/* ── Navigation items ────────────────────────────────────────────── */}
       <SidebarContent className="px-2 py-2">
         {navGroups.map((group) => (
-          <NavMain key={group.label} label={group.label} items={group.items} />
+          <NavMain key={group.label} label={group.label || ""} labelKey={group.labelKey} items={group.items} />
         ))}
       </SidebarContent>
 
@@ -63,7 +65,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <NavUser
           user={{
-            name: session?.name ?? "Quản trị viên",
+            name: session?.name ?? t("role.admin"),
             email: session?.email ?? "admin@docuflow.ai",
             avatar: "",
           }}

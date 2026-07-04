@@ -33,11 +33,11 @@ import { Input } from "@/components/ui/input"
 import { useAuth } from "@/contexts/auth-context"
 import {
   formatDate,
-  statusMeta,
   type DocumentRecord,
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type NotificationKind = "ACTION" | "FAILED" | "COMPLETE" | "PROCESSING"
 type NotificationFilter = "ALL" | NotificationKind | "UNREAD"
@@ -53,25 +53,19 @@ interface UserNotification {
   icon: typeof BellDot
 }
 
-const filters: Array<{ label: string; value: NotificationFilter }> = [
-  { label: "Tất cả", value: "ALL" },
-  { label: "Chưa đọc", value: "UNREAD" },
-  { label: "Cần xử lý", value: "ACTION" },
-  { label: "Thất bại", value: "FAILED" },
-  { label: "Hoàn thành", value: "COMPLETE" },
-  { label: "Đang xử lý", value: "PROCESSING" },
-]
-
-function buildNotification(document: DocumentRecord): UserNotification | null {
+function buildNotification(
+  document: DocumentRecord,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): UserNotification | null {
   if (document.status === "REVIEW_REQUIRED") {
     return {
       id: `${document.documentId}-review`,
       document,
       kind: "ACTION",
-      title: "Yêu cầu kiểm duyệt",
+      title: t("notifications.reviewRequested"),
       body: document.reviewReasonCodes.length
         ? document.reviewReasonCodes.join("; ")
-        : "Một số trường trích xuất cần được xác minh.",
+        : t("notifications.reviewRequestedBody"),
       timestamp: document.updatedAt,
       unread: true,
       icon: FileWarning,
@@ -82,8 +76,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-failed`,
       document,
       kind: "FAILED",
-      title: "Xử lý thất bại",
-      body: document.errorMessage ?? "Quy trình xử lý gặp lỗi trước khi cho ra kết quả.",
+      title: t("notifications.processingFailed"),
+      body: document.errorMessage ?? t("notifications.processingFailedBody"),
       timestamp: document.updatedAt,
       unread: true,
       icon: ShieldAlert,
@@ -94,8 +88,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-corrected`,
       document,
       kind: "ACTION",
-      title: "Bản sửa đã sẵn sàng",
-      body: document.reviewerNote ?? "Các trường được sửa đã sẵn sàng để duyệt lần cuối.",
+      title: t("notifications.correctionReady"),
+      body: document.reviewerNote ?? t("notifications.correctionReadyBody"),
       timestamp: document.updatedAt,
       unread: true,
       icon: FileCheck2,
@@ -106,8 +100,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-complete`,
       document,
       kind: "COMPLETE",
-      title: document.status === "APPROVED" ? "Tài liệu đã duyệt" : "Trích xuất hoàn thành",
-      body: `${document.vendorName} đã hoàn tất với độ tin cậy ${Math.round(document.confidenceScore * 100)}%.`,
+      title: document.status === "APPROVED" ? t("notifications.documentApproved") : t("notifications.extractionComplete"),
+      body: t("notifications.completeBody", { vendor: document.vendorName, confidence: Math.round(document.confidenceScore * 100) }),
       timestamp: document.updatedAt,
       unread: false,
       icon: CheckCircle2,
@@ -118,8 +112,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-processing`,
       document,
       kind: "PROCESSING",
-      title: "Đang được xử lý",
-      body: statusMeta[document.status].label,
+      title: t("notifications.beingProcessed"),
+      body: t(`status.${document.status}` as TranslationKey),
       timestamp: document.updatedAt,
       unread: false,
       icon: Clock3,
@@ -132,6 +126,7 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
 export default function NotificationsPage() {
   const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { t } = useLanguage()
   const { isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<NotificationFilter>("ALL")
@@ -144,10 +139,10 @@ export default function NotificationsPage() {
   const notifications = useMemo(
     () =>
       visibleDocuments
-        .map(buildNotification)
+        .map((document) => buildNotification(document, t))
         .filter((item): item is UserNotification => Boolean(item))
         .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
-    [visibleDocuments]
+    [t, visibleDocuments]
   )
 
   const filteredNotifications = notifications.filter((notification) => {
@@ -166,11 +161,19 @@ export default function NotificationsPage() {
   const failedCount = notifications.filter((notification) => notification.kind === "FAILED").length
   const actionCount = notifications.filter((notification) => notification.kind === "ACTION").length
   const completeCount = notifications.filter((notification) => notification.kind === "COMPLETE").length
+  const filterItems = [
+    { label: t("notifications.all"), value: "ALL" as NotificationFilter },
+    { label: t("notifications.unread"), value: "UNREAD" as NotificationFilter },
+    { label: t("notifications.actionRequired"), value: "ACTION" as NotificationFilter },
+    { label: t("notifications.failed"), value: "FAILED" as NotificationFilter },
+    { label: t("notifications.complete"), value: "COMPLETE" as NotificationFilter },
+    { label: t("notifications.processing"), value: "PROCESSING" as NotificationFilter },
+  ]
 
   return (
     <BaseLayout
-      title="Thông báo"
-      description="Các cảnh báo cá nhân về tài liệu cần chú ý, đã xử lý xong hoặc bị lỗi."
+      title={t("notifications.title")}
+      description={t("notifications.description")}
     >
       <section className="px-4 lg:px-6">
         <div className="overflow-hidden border bg-[#10261d] text-white rounded-2xl shadow-lg">
@@ -178,32 +181,32 @@ export default function NotificationsPage() {
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  Thông báo
+                  {t("notifications.badge")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  {session?.name ?? "Người dùng"}
+                  {session?.name ?? t("profile.fallbackUser")}
                 </Badge>
               </div>
               <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
-                Kiểm soát những tài liệu cần chú ý, bị lỗi và đã hoàn thành.
+                {t("notifications.heroTitle")}
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
-                Nơi tổng hợp các thông báo cập nhật về trạng thái xử lý tài liệu của bạn trong hệ thống.
+                {t("notifications.heroBody")}
                 {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               <div className="mt-4">
                 <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
                   <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
-                  Làm mới
+                  {t("common.refresh")}
                 </Button>
               </div>
             </div>
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: "Chưa đọc", value: unreadCount, icon: BellDot },
-                { label: "Cần xử lý", value: actionCount, icon: FileWarning },
-                { label: "Thất bại", value: failedCount, icon: AlertTriangle },
-                { label: "Hoàn thành", value: completeCount, icon: BadgeCheck },
+                { label: t("notifications.unread"), value: unreadCount, icon: BellDot },
+                { label: t("notifications.actionRequired"), value: actionCount, icon: FileWarning },
+                { label: t("notifications.failed"), value: failedCount, icon: AlertTriangle },
+                { label: t("notifications.complete"), value: completeCount, icon: BadgeCheck },
               ].map((item) => {
                 const Icon = item.icon
                 return (
@@ -229,9 +232,9 @@ export default function NotificationsPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <SlidersHorizontal className="size-5" />
-              Bộ lọc thông báo
+              {t("notifications.filters")}
             </CardTitle>
-            <CardDescription>Lọc trạng thái và tìm kiếm nội dung.</CardDescription>
+            <CardDescription>{t("notifications.filtersBody")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             <div className="relative">
@@ -240,7 +243,7 @@ export default function NotificationsPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 className="pl-9"
-                placeholder="Tìm kiếm thông báo..."
+                placeholder={t("notifications.searchPlaceholder")}
               />
               {query && (
                 <Button
@@ -251,12 +254,12 @@ export default function NotificationsPage() {
                   onClick={() => setQuery("")}
                 >
                   <X className="size-4" />
-                  <span className="sr-only">Xóa tìm kiếm</span>
+                  <span className="sr-only">{t("notifications.clearSearch")}</span>
                 </Button>
               )}
             </div>
             <div className="grid gap-2">
-              {filters.map((item) => (
+              {filterItems.map((item) => (
                 <Button
                   key={item.value}
                   type="button"
@@ -284,17 +287,17 @@ export default function NotificationsPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Inbox className="size-5" />
-                  Danh sách thông báo
+                  {t("notifications.list")}
                 </CardTitle>
                 <CardDescription>
-                  Đang hiển thị {displayedNotifications.length} / {filteredNotifications.length} thông báo phù hợp.
+                  {t("notifications.showing", { shown: displayedNotifications.length, total: filteredNotifications.length })}
                 </CardDescription>
               </div>
               {/* Mobile-only: search + filter chips */}
               <div className="flex flex-col gap-3 lg:hidden">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="Tìm kiếm thông báo..." />
+                  <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder={t("notifications.searchPlaceholder")} />
                   {query && (
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 size-7 -translate-y-1/2" onClick={() => setQuery("")}>
                       <X className="size-4" />
@@ -302,7 +305,7 @@ export default function NotificationsPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {filters.map((item) => (
+                  {filterItems.map((item) => (
                     <button
                       key={item.value}
                       type="button"
@@ -341,7 +344,7 @@ export default function NotificationsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-medium">{notification.title}</div>
-                          {notification.unread && <Badge className="bg-[#d8ff72] text-[#10261d]">Chưa đọc</Badge>}
+                          {notification.unread && <Badge className="bg-[#d8ff72] text-[#10261d]">{t("notifications.unread")}</Badge>}
                         </div>
                         <div className="mt-1 text-sm leading-6 text-muted-foreground">{notification.body}</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -354,14 +357,14 @@ export default function NotificationsPage() {
                     <div className="flex flex-row flex-wrap gap-2 lg:flex-col">
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/documents/${notification.document.documentId}`}>
-                          Mở tài liệu
+                          {t("notifications.openDocument")}
                           <ArrowRight className="size-3.5 ml-1" />
                         </Link>
                       </Button>
                       {notification.kind === "ACTION" && (
                         <Button asChild size="sm">
                           <Link to="/review">
-                            Kiểm duyệt
+                            {t("notifications.review")}
                             <ArrowRight className="size-3.5 ml-1" />
                           </Link>
                         </Button>
@@ -373,8 +376,8 @@ export default function NotificationsPage() {
             ) : (
               <div className="rounded-xl border border-dashed p-8 text-center">
                 <CheckCircle2 className="mx-auto mb-3 size-8 text-emerald-600" />
-                <div className="font-medium">Không có thông báo nào phù hợp.</div>
-                <div className="mt-1 text-sm text-muted-foreground">Hãy xóa bộ lọc hoặc kiểm tra lại tài liệu.</div>
+                <div className="font-medium">{t("notifications.noMatch")}</div>
+                <div className="mt-1 text-sm text-muted-foreground">{t("notifications.noMatchHint")}</div>
               </div>
             )}
           </CardContent>

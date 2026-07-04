@@ -10,14 +10,16 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
+import { LanguageToggle } from "@/components/language-toggle"
 import { useAuth } from "@/contexts/auth-context"
-import { formatDate, formatMoney, statusMeta, type DocumentRecord } from "@/lib/docuflow-data"
+import { formatDate, formatMoney, type DocumentRecord } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
-function notificationMeta(document: DocumentRecord) {
+function notificationMeta(document: DocumentRecord, t: ReturnType<typeof useLanguage>["t"]) {
   if (document.status === "FAILED") {
     return {
-      title: "Xử lý thất bại",
+      title: t("header.syncFailed"),
       icon: ShieldAlert,
       tone: "border-red-200 bg-red-50 text-red-800",
     }
@@ -25,7 +27,7 @@ function notificationMeta(document: DocumentRecord) {
 
   if (document.status === "CORRECTED") {
     return {
-      title: "Bản sửa chờ duyệt",
+      title: t("header.correctedWaiting"),
       icon: FileWarning,
       tone: "border-amber-200 bg-amber-50 text-amber-800",
     }
@@ -33,7 +35,7 @@ function notificationMeta(document: DocumentRecord) {
 
   if (document.status === "REVIEW_REQUIRED") {
     return {
-      title: "Cần kiểm duyệt",
+      title: t("header.reviewRequired"),
       icon: FileWarning,
       tone: "border-amber-200 bg-amber-50 text-amber-800",
     }
@@ -41,14 +43,14 @@ function notificationMeta(document: DocumentRecord) {
 
   if (document.status === "APPROVED" || document.status === "EXTRACTED") {
     return {
-      title: document.status === "APPROVED" ? "Đã duyệt" : "Trích xuất hoàn tất",
+      title: document.status === "APPROVED" ? t("header.approved") : t("header.extracted"),
       icon: CheckCircle2,
       tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
     }
   }
 
   return {
-    title: statusMeta[document.status].label,
+    title: t(`status.${document.status}` as TranslationKey),
     icon: Clock3,
     tone: "border-cyan-200 bg-cyan-50 text-cyan-800",
   }
@@ -57,6 +59,7 @@ function notificationMeta(document: DocumentRecord) {
 function HeaderNotifications() {
   const { session } = useAuth()
   const { documents } = useDocuFlowDocuments()
+  const { t } = useLanguage()
   const role = session?.role ?? "finance"
 
   const visibleDocuments = React.useMemo(
@@ -80,7 +83,7 @@ function HeaderNotifications() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative size-9 hover:bg-muted/80" aria-label="Xem nhanh thông báo">
+        <Button variant="ghost" size="icon" className="relative size-9 hover:bg-muted/80" aria-label={t("header.notificationsAria")}>
           <BellDot className="size-4" />
           {actionCount > 0 && (
             <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-[#d8ff72] px-1 text-[10px] font-semibold leading-4 text-[#10261d]">
@@ -92,18 +95,18 @@ function HeaderNotifications() {
       <PopoverContent align="end" className="w-[360px] p-0">
         <div className="flex items-center justify-between gap-3 border-b bg-muted/25 px-4 py-3">
           <div>
-            <div className="text-sm font-semibold">Thông báo</div>
-            <div className="text-xs text-muted-foreground">{actionCount} mục cần xử lý</div>
+            <div className="text-sm font-semibold">{t("header.notifications")}</div>
+            <div className="text-xs text-muted-foreground">{t("header.actionRequired", { count: actionCount })}</div>
           </div>
           <Button asChild variant="outline" size="sm" className="h-8">
-            <Link to="/settings?tab=notifications">Xem tất cả</Link>
+            <Link to="/settings?tab=notifications">{t("common.viewAll")}</Link>
           </Button>
         </div>
 
         <div className="max-h-[420px] overflow-y-auto p-2">
           {notifications.length ? (
             notifications.map((document) => {
-              const meta = notificationMeta(document)
+              const meta = notificationMeta(document, t)
               const Icon = meta.icon
               const needsAction = ["REVIEW_REQUIRED", "FAILED", "CORRECTED"].includes(document.status)
 
@@ -120,11 +123,11 @@ function HeaderNotifications() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <div className="truncate text-sm font-medium">{meta.title}</div>
-                        {needsAction && <Badge className="bg-[#d8ff72] text-[#10261d]">Cần xử lý</Badge>}
+                        {needsAction && <Badge className="bg-[#d8ff72] text-[#10261d]">{t("header.needsAction")}</Badge>}
                       </div>
                       <div className="mt-1 truncate text-xs text-muted-foreground">{document.originalFileName}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                        <span className="truncate">{document.vendorName || "Thiếu nhà cung cấp"}</span>
+                        <span className="truncate">{document.vendorName || t("header.missingVendor")}</span>
                         <span>{formatMoney(document.totalAmount, document.currency)}</span>
                         <span>{formatDate(document.updatedAt)}</span>
                       </div>
@@ -136,8 +139,8 @@ function HeaderNotifications() {
           ) : (
             <div className="grid place-items-center rounded-xl border border-dashed p-6 text-center">
               <CheckCircle2 className="mb-2 size-7 text-emerald-600" />
-              <div className="text-sm font-medium">Không có thông báo mới.</div>
-              <div className="mt-1 text-xs text-muted-foreground">Các cập nhật xử lý tài liệu sẽ hiện ở đây.</div>
+              <div className="text-sm font-medium">{t("header.noNotifications")}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{t("header.notificationEmptyDetail")}</div>
             </div>
           )}
         </div>
@@ -149,16 +152,17 @@ function HeaderNotifications() {
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = React.useState(false)
   const { session } = useAuth()
+  const { t } = useLanguage()
   const role = session?.role ?? "finance"
   const shortcuts =
     role === "admin"
       ? [
-          { label: "Operations", url: "/operations" },
-          { label: "Evidence", url: "/evidence" },
+          { label: t("nav.operations"), url: "/operations" },
+          { label: t("nav.evidence"), url: "/evidence" },
         ]
       : [
-          { label: "Upload", url: "/upload" },
-          { label: "Review queue", url: "/review" },
+          { label: t("common.upload"), url: "/upload" },
+          { label: t("nav.review"), url: "/review" },
         ]
 
   React.useEffect(() => {
@@ -198,6 +202,7 @@ export function SiteHeader() {
               </Button>
             ))}
             <HeaderNotifications />
+            <LanguageToggle className="hidden md:inline-flex" />
             <div className="hover-lift">
               <ModeToggle />
             </div>

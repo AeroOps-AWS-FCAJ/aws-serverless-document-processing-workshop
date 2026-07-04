@@ -4,10 +4,12 @@ import * as React from "react"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { useLanguage } from "@/lib/i18n"
 import { Logo } from "./logo"
 
 export function SidebarNotification() {
   const [isVisible, setIsVisible] = React.useState(true)
+  const { t } = useLanguage()
 
   if (!isVisible) return null
 
@@ -21,7 +23,7 @@ export function SidebarNotification() {
           onClick={() => setIsVisible(false)}
         >
           <X className="h-3 w-3" />
-          <span className="sr-only">Close notification</span>
+          <span className="sr-only">{t("common.close")}</span>
         </Button>
         
         <div className="pr-6">

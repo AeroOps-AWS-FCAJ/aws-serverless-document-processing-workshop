@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useLanguage } from "@/lib/i18n"
 import { isApiConfigured, listDocuments } from "@/lib/docuflow-api"
 import type { DocumentRecord } from "@/lib/docuflow-data"
 
@@ -15,6 +16,7 @@ export function useDocumentsSync(
 ) {
   const { auto = true, loadAllPages = false } = options
   const apiMode = isApiConfigured()
+  const { t } = useLanguage()
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState("")
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -23,7 +25,7 @@ export function useDocumentsSync(
   const refreshDocuments = useCallback(
     async (token?: string) => {
       if (!apiMode) {
-        setSyncMessage("Dữ liệu demo cục bộ đã là phiên bản mới nhất.")
+        setSyncMessage(t("sync.demoUpToDate"))
         setSyncError(null)
         setNextToken(null)
         return { count: 0, nextToken: null }
@@ -47,18 +49,18 @@ export function useDocumentsSync(
         } while (loadAllPages && cursor)
 
         setNextToken(lastNextToken)
-        setSyncMessage(`Đã đồng bộ ${total} tài liệu từ API.`)
+        setSyncMessage(t("sync.success", { total }))
         return { count: total, nextToken: lastNextToken }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Không thể đồng bộ tài liệu."
+        const message = error instanceof Error ? error.message : t("sync.failed")
         setSyncError(message)
-        setSyncMessage("Không thể làm mới. Vui lòng thử lại.")
+        setSyncMessage(t("sync.refreshFailed"))
         return { count: 0, nextToken: null }
       } finally {
         setIsSyncing(false)
       }
     },
-    [apiMode, loadAllPages, mergeDocuments]
+    [apiMode, loadAllPages, mergeDocuments, t]
   )
 
   useEffect(() => {

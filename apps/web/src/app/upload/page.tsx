@@ -14,11 +14,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { getDocument, isApiConfigured, processDocument, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
+import { getDocument, isApiConfigured, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
 import { createQueuedDocument, nextUploadStatus, useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { statusMeta, type DocumentStatus } from "@/lib/docuflow-data"
 import { useAuth } from "@/contexts/auth-context"
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_PAGE_COUNT } from "@docuflow/shared-config"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -73,18 +74,14 @@ function isTerminalProcessingStatus(status: DocumentStatus) {
   return terminalProcessingStatuses.has(status)
 }
 
-function getErrMsg(e: unknown) {
-  if (e instanceof DOMException && e.name === "AbortError") return "Đã hủy tải lên. Bạn có thể thử lại."
-  if (e instanceof Error) return e.message
-  return "Không thể bắt đầu tải lên. Kiểm tra tệp và thử lại."
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function UploadPage() {
+  const { language, t }                 = useLanguage()
   const { session }                   = useAuth()
   const { documents, upsertDocument } = useDocuFlowDocuments()
   const abortRef                      = useRef<AbortController | null>(null)
   const apiMode                       = isApiConfigured()
+  const locale                        = language === "vi" ? "vi-VN" : "en-US"
 
   const [file,         setFile]         = useState<File | null>(null)
   const [hint,         setHint]         = useState<DocumentHint>("AUTO")
@@ -113,16 +110,16 @@ export default function UploadPage() {
   const validErr = useMemo(() => {
     if (!file) return null
     const mimeType = getAcceptedMimeType(file)
-    if (!mimeType) return "Loại tệp không được hỗ trợ. Dùng PDF, JPG hoặc PNG."
-    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) return `Tệp vượt giới hạn ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)}.`
+    if (!mimeType) return t("upload.unsupportedFile")
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) return t("upload.fileTooLarge", { size: fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES) })
     if (!pagesPending && mimeType === "application/pdf" && pages === null) {
-      return "Không đọc được số trang PDF. Vui lòng chọn lại file PDF hợp lệ."
+      return t("upload.pdfUnreadable")
     }
     if (pages && pages > MAX_UPLOAD_PAGE_COUNT) {
-      return `PDF có ${pages} trang, tối đa ${MAX_UPLOAD_PAGE_COUNT} trang.`
+      return t("upload.pdfTooManyPages", { pages, max: MAX_UPLOAD_PAGE_COUNT })
     }
     return null
-  }, [file, pages, pagesPending])
+  }, [file, pages, pagesPending, t])
 
   const recentUploads = useMemo(() =>
     documents
@@ -172,12 +169,12 @@ export default function UploadPage() {
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUpload = async () => {
     if (!file || validErr || pagesPending) {
-      setState("ERROR"); setMessage(validErr ?? "Chờ kiểm tra tệp hoàn tất."); return
+      setState("ERROR"); setMessage(validErr ?? t("upload.waitValidation")); return
     }
     const ctrl = new AbortController(); abortRef.current = ctrl
     try {
       setState("REQUESTING_URL"); setProgress(15)
-      setMessage("Đang chuẩn bị...")
+      setMessage(t("upload.preparing"))
       const contentType = getAcceptedMimeType(file) ?? file.type
       const req = {
         originalFileName: file.name,
@@ -190,51 +187,30 @@ export default function UploadPage() {
       throwIfAborted(ctrl.signal)
 
       setState("UPLOADING"); setProgress(30)
-      setMessage("Đang tải lên...")
+      setMessage(t("upload.uploading"))
       await uploadDocumentFile(res.uploadUrl, file, {
         contentType,
         headers: res.uploadHeaders,
         signal: ctrl.signal,
         onProgress: (p) => {
           setProgress(Math.min(85, 30 + Math.round(p * 0.55)))
-          setMessage(`Đang tải lên... ${p}%`)
+          setMessage(t("upload.uploadingProgress", { progress: p }))
         },
       })
       throwIfAborted(ctrl.signal)
       
 
       setState("QUEUING"); setProgress(92)
-      setMessage(apiMode ? "Đã tải lên S3. Đang kích hoạt workflow..." : "Đang xếp hàng xử lý...")
+      setMessage(apiMode ? t("upload.queuedAws") : t("upload.queuedDemo"))
       const uid    = session?.userId ?? "user-123"
       const base   = createQueuedDocument(req, res, uid)
       const queued = { ...base, documentType: hint === "AUTO" ? base.documentType : hint, status: nextUploadStatus("UPLOADED") }
       upsertDocument(queued); setCreatedDocId(queued.documentId)
 
-      let processWarning = false
-      if (apiMode) {
-        try {
-          await processDocument(res.documentId, res.rawS3Key, {
-            originalFileName: file.name,
-            mimeType: contentType,
-            documentType: hint === "AUTO" ? base.documentType : hint,
-            pageCount: pages || 1,
-          })
-          throwIfAborted(ctrl.signal)
-        } catch (error) {
-          throwIfAborted(ctrl.signal)
-          processWarning = true
-          console.warn("Process endpoint did not accept the upload trigger. Waiting for bucket workflow.", error)
-        }
-      }
-
       let syncedStatus = ""
       if (apiMode) {
         setProgress(96)
-        setMessage(
-          processWarning
-            ? "Tệp đã tải lên. Đang chờ workflow nền cập nhật kết quả..."
-            : "Workflow đã kích hoạt. Đang đồng bộ kết quả từ backend..."
-        )
+        setMessage(t("upload.waitingWorkflow"))
         const refreshed = await pollDocumentResult(res.documentId, ctrl.signal)
         syncedStatus = refreshed?.status ?? ""
       }
@@ -243,12 +219,12 @@ export default function UploadPage() {
       setMessage(
         apiMode
           ? syncedStatus
-            ? `Tải lên thành công. Backend đã cập nhật trạng thái ${statusMeta[syncedStatus as keyof typeof statusMeta]?.label ?? syncedStatus}.`
-            : "Tải lên thành công. Tài liệu đang xử lý nền và sẽ tự cập nhật trong danh sách."
-          : "Tải lên thành công! Hệ thống đang xử lý tài liệu."
+            ? t("upload.backendUpdated", { status: t(`status.${syncedStatus}` as TranslationKey) ?? syncedStatus })
+            : t("upload.backgroundProcessing")
+          : t("upload.successProcessing")
       )
     } catch (err) {
-      setState("ERROR"); setMessage(getErrMsg(err))
+      setState("ERROR"); setMessage(err instanceof DOMException && err.name === "AbortError" ? t("upload.canceled") : err instanceof Error ? err.message : t("upload.startFailed"))
     } finally {
       abortRef.current = null
     }
@@ -263,8 +239,8 @@ export default function UploadPage() {
 
   return (
     <BaseLayout
-      title="Tải tài liệu lên"
-      description="Chọn hóa đơn hoặc biên nhận để bắt đầu xử lý tự động."
+      title={t("upload.title")}
+      description={t("upload.description")}
     >
       <div className="grid min-w-0 items-start gap-6 px-4 lg:grid-cols-[1fr_360px] lg:px-6">
 
@@ -277,12 +253,12 @@ export default function UploadPage() {
           {/* Drop zone — phần quan trọng nhất, chiếm không gian lớn */}
           <CardContent className="p-6">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-base font-semibold">Chọn tệp để tải lên</span>
+              <span className="text-base font-semibold">{t("upload.selectFile")}</span>
               {file && (
                 <Button type="button" variant="ghost" size="sm"
                   className="h-7 gap-1.5 text-xs text-muted-foreground cursor-pointer"
                   onClick={clearFile}>
-                  <Trash2 className="size-3.5" />Xóa
+                  <Trash2 className="size-3.5" />{t("upload.delete")}
                 </Button>
               )}
             </div>
@@ -318,22 +294,22 @@ export default function UploadPage() {
               {/* Text */}
               <div className="space-y-1">
                 <p className="text-base font-semibold">
-                  {dzState === "drag"  && "Thả tệp vào đây"}
+                  {dzState === "drag"  && t("upload.dropHere")}
                   {dzState === "ready" && file?.name}
-                  {dzState === "error" && (file?.name ?? "Tệp không hợp lệ")}
-                  {dzState === "idle"  && "Kéo thả hoặc nhấn chọn tệp"}
+                  {dzState === "error" && (file?.name ?? t("upload.invalidFile"))}
+                  {dzState === "idle"  && t("upload.dragOrChoose")}
                 </p>
                 <p className={`text-sm ${dzState === "error" ? "text-destructive" : "text-muted-foreground"}`}>
                   {dzState === "ready" && file
-                    ? `${fmtSize(file.size)}${pages ? ` · ${pages} trang` : ""} · Sẵn sàng tải lên`
+                    ? `${fmtSize(file.size)}${pages ? ` · ${pages} ${t("upload.pages")}` : ""} · ${t("upload.ready")}`
                     : dzState === "error"
                       ? validErr
-                      : `PDF, JPG hoặc PNG · Tối đa ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)} · Tối đa ${MAX_UPLOAD_PAGE_COUNT} trang`}
+                      : `PDF, JPG hoặc PNG · ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)} · ${MAX_UPLOAD_PAGE_COUNT} ${t("upload.pages")}`}
                 </p>
               </div>
 
               <span className="rounded-lg border bg-background px-5 py-2 text-sm font-medium shadow-sm transition-shadow group-hover:shadow-md">
-                {dzState === "ready" ? "Chọn tệp khác" : "Chọn tệp"}
+                {dzState === "ready" ? t("upload.chooseOther") : t("upload.chooseFile")}
               </span>
             </label>
             <input id="doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={handleChange} />
@@ -342,13 +318,13 @@ export default function UploadPage() {
               <div className="mt-4 overflow-hidden rounded-xl border bg-muted/10">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">Xem trước tài liệu</p>
+                    <p className="truncate text-sm font-semibold">{t("upload.preview")}</p>
                     <p className="truncate text-xs text-muted-foreground">{file.name}</p>
                   </div>
                   {pagesPending ? (
                     <Badge variant="outline" className="gap-1.5">
                       <span className="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                      Đang đọc
+                      {t("upload.reading")}
                     </Badge>
                   ) : pages ? (
                     <Badge variant="outline">{pages} trang</Badge>
@@ -363,13 +339,13 @@ export default function UploadPage() {
                     >
                       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
                         <FileText className="size-8" />
-                        Trình duyệt không hỗ trợ xem trước PDF trực tiếp.
+                        {t("upload.pdfPreviewUnsupported")}
                       </div>
                     </object>
                   ) : (
                     <img
                       src={previewUrl}
-                      alt={`Xem trước ${file.name}`}
+                      alt={t("upload.previewAlt", { name: file.name })}
                       className="h-full w-full object-contain"
                     />
                   )}
@@ -379,12 +355,12 @@ export default function UploadPage() {
 
             {/* Loại tài liệu */}
             <div className="mt-4">
-              <p className="mb-2 text-sm font-medium text-muted-foreground">Loại tài liệu</p>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">{t("upload.documentType")}</p>
               <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 [&>button]:min-w-0">
                 {([
-                  { key: "AUTO",    label: "Tự động",    sub: "Auto"  },
-                  { key: "INVOICE", label: "Hóa đơn",    sub: "Invoice"       },
-                  { key: "RECEIPT", label: "Biên nhận",  sub: "Receipt"       },
+                  { key: "AUTO",    label: t("upload.auto"),    sub: "Auto"  },
+                  { key: "INVOICE", label: t("upload.invoice"),    sub: "Invoice"       },
+                  { key: "RECEIPT", label: t("upload.receipt"),  sub: "Receipt"       },
                 ] as const).map((opt) => (
                   <button
                     key={opt.key}
@@ -443,22 +419,22 @@ export default function UploadPage() {
                 disabled={!canUpload}
               >
                 <UploadCloud className="size-5" />
-                {isBusy ? "Đang xử lý..." : state === "ERROR" ? "Thử lại" : "Tải lên và xử lý"}
+                {isBusy ? t("upload.processing") : state === "ERROR" ? t("upload.retry") : t("upload.uploadAndProcess")}
               </Button>
               {isBusy && (
                 <Button type="button" variant="outline" size="lg" className="cursor-pointer" onClick={() => abortRef.current?.abort()}>
-                  <XCircle className="size-4" />Hủy
+                  <XCircle className="size-4" />{t("upload.cancel")}
                 </Button>
               )}
               {state === "ERROR" && (
                 <Button type="button" variant="outline" size="lg" className="cursor-pointer" onClick={clearFile}>
-                  <RefreshCw className="size-4" />Chọn tệp khác
+                  <RefreshCw className="size-4" />{t("upload.chooseOther")}
                 </Button>
               )}
               {createdDocId && (
                 <Button asChild variant="outline" size="lg" className="cursor-pointer">
                   <Link to={`/documents/${createdDocId}`}>
-                    Xem kết quả <ArrowRight className="size-4" />
+                    {t("upload.viewResult")} <ArrowRight className="size-4" />
                   </Link>
                 </Button>
               )}
@@ -469,11 +445,11 @@ export default function UploadPage() {
               <div className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-900/15">
                 <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Tải lên thành công!</p>
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">{t("upload.successTitle")}</p>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
                     {apiMode
-                      ? "Tệp đã vào S3 raw bucket. Mở chi tiết để theo dõi trạng thái xử lý từ backend."
-                      : "Tài liệu đang được xử lý tự động. Kết quả sẽ có trong vài giây."}
+                      ? t("upload.successAws")
+                      : t("upload.successDemo")}
                   </p>
                 </div>
               </div>
@@ -484,9 +460,9 @@ export default function UploadPage() {
         {/* ── CARD 2: Tài liệu đang xử lý — thứ hai người dùng cần biết ─── */}
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Tài liệu đang xử lý</h2>
+            <h2 className="text-sm font-semibold">{t("upload.processingDocuments")}</h2>
             <Link to="/documents" className="text-xs text-primary hover:underline">
-              Xem tất cả →
+              {t("common.viewAll")} →
             </Link>
           </div>
 
@@ -507,14 +483,14 @@ export default function UploadPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{d.originalFileName}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {d.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}
+                        {d.documentType === "INVOICE" ? t("upload.invoice") : d.documentType === "RECEIPT" ? t("upload.receipt") : t("detail.unknown")}
                         {" · "}
-                        {new Date(d.createdAt).toLocaleDateString("vi-VN")}
+                        {new Date(d.createdAt).toLocaleDateString(locale)}
                       </p>
                     </div>
                     <Badge variant="outline" className={`shrink-0 ${meta.tone}`}>
                       <Icon className={`size-3 ${d.status === "PROCESSING" ? "animate-spin" : ""}`} />
-                      {meta.label}
+                      {t(`status.${d.status}` as TranslationKey)}
                     </Badge>
                     <ArrowRight className="size-4 shrink-0 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
                   </Link>
@@ -524,7 +500,7 @@ export default function UploadPage() {
           ) : (
             <div className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
               <FileCheck className="mx-auto mb-2 size-8 opacity-30" />
-              Chưa có tài liệu nào đang xử lý.
+              {t("upload.noProcessing")}
             </div>
           )}
         </div>
@@ -537,15 +513,15 @@ export default function UploadPage() {
           {/* Yêu cầu tệp */}
           <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-5">
-              <h2 className="mb-4 text-sm font-semibold">Tệp của bạn cần đáp ứng</h2>
+              <h2 className="mb-4 text-sm font-semibold">{t("upload.requirementsTitle")}</h2>
               <div className="grid gap-2.5">
                 {[
-                  { ok: true,  label: "Định dạng PDF, JPG hoặc PNG"                               },
-                  { ok: true,  label: `Kích thước tối đa ${fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES)}` },
-                  { ok: true,  label: `Tối đa ${MAX_UPLOAD_PAGE_COUNT} trang mỗi tài liệu`       },
-                  { ok: true,  label: "Scan rõ nét, không bị mờ hoặc nghiêng"                     },
-                  { ok: false, label: "Không dùng ảnh chụp màn hình"                              },
-                  { ok: false, label: "Không tải tài liệu có thông tin ngoài hóa đơn / biên nhận" },
+                  { ok: true,  label: t("upload.requirementFormat")                               },
+                  { ok: true,  label: t("upload.requirementSize", { size: fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES) }) },
+                  { ok: true,  label: t("upload.requirementPages", { count: MAX_UPLOAD_PAGE_COUNT })       },
+                  { ok: true,  label: t("upload.requirementScan")                     },
+                  { ok: false, label: t("upload.requirementNoScreenshot")                              },
+                  { ok: false, label: t("upload.requirementNoExtra") },
                 ].map((r) => (
                   <div key={r.label} className="flex items-start gap-2.5 text-sm">
                     {r.ok
@@ -560,8 +536,8 @@ export default function UploadPage() {
               <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-900/10">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
                 <p className="text-xs leading-5 text-emerald-800 dark:text-emerald-300">
-                  <strong>Tệp của bạn được bảo mật hoàn toàn.</strong>{" "}
-                  Tệp gốc không bao giờ rời khỏi môi trường AWS riêng tư.
+                  <strong>{t("upload.securityStrong")}</strong>{" "}
+                  {t("upload.securityBody")}
                 </p>
               </div>
 
@@ -569,15 +545,15 @@ export default function UploadPage() {
               <div className="mt-3 flex items-center gap-3 rounded-xl border bg-muted/20 px-4 py-3">
                 <Clock className="size-4 shrink-0 text-muted-foreground" />
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Thời gian xử lý</p>
-                  <p className="text-sm font-semibold">5 – 15 giây / trang</p>
+                  <p className="text-[11px] text-muted-foreground">{t("upload.processingTime")}</p>
+                  <p className="text-sm font-semibold">{t("upload.timePerPage")}</p>
                 </div>
               </div>
 
               {!apiMode && (
                 <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50/80 p-3 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                  Đang chạy ở chế độ demo — tài liệu không gửi lên AWS thực.
+                  {t("upload.demoMode")}
                 </div>
               )}
             </CardContent>

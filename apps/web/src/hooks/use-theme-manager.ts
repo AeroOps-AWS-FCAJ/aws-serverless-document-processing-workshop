@@ -6,6 +6,8 @@ import { baseColors } from '@/config/theme-customizer-constants'
 import { colorThemes } from '@/config/theme-data'
 import type { ThemePreset, ImportedTheme } from '@/types/theme-customizer'
 
+const TYPOGRAPHY_LOCKED_VARS = new Set(['font-sans', 'font-serif', 'font-mono'])
+
 export function useThemeManager() {
   const { theme, setTheme } = useTheme()
   const [brandColorsValues, setBrandColorsValues] = React.useState<Record<string, string>>({})
@@ -85,6 +87,7 @@ export function useThemeManager() {
     const root = document.documentElement
 
     Object.entries(styles).forEach(([key, value]) => {
+      if (TYPOGRAPHY_LOCKED_VARS.has(key)) return
       root.style.setProperty(`--${key}`, value)
     })
 
@@ -99,6 +102,7 @@ export function useThemeManager() {
     const root = document.documentElement
 
     Object.entries(styles).forEach(([key, value]) => {
+      if (TYPOGRAPHY_LOCKED_VARS.has(key)) return
       root.style.setProperty(`--${key}`, value)
     })
 
@@ -112,6 +116,7 @@ export function useThemeManager() {
     
     // Apply all variables from the theme
     Object.entries(themeVars).forEach(([variable, value]) => {
+      if (TYPOGRAPHY_LOCKED_VARS.has(variable)) return
       root.style.setProperty(`--${variable}`, value)
     })
     

@@ -1,12 +1,11 @@
-// Inter font configuration for Vite version
-// Using CSS imports since Vite doesn't have next/font optimization
+// App font configuration for Vite.
+// Fonts are loaded globally in src/index.css.
 
-export const interFontCSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+export const appFontCSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap');
 `;
 
-// CSS variable name to match Next.js version
+export const displayFontFamily = 'Plus Jakarta Sans, sans-serif';
 export const interFontVariable = '--font-inter';
-
-// Inter font family for direct CSS usage
 export const interFontFamily = 'Inter, system-ui, sans-serif';
+export const monoFontFamily = 'JetBrains Mono, monospace';

@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/sidebar"
 import { getFinanceNavigationGroups } from "@/config/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { useLanguage } from "@/lib/i18n"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { session } = useAuth()
+  const { t } = useLanguage()
   const navGroups = getFinanceNavigationGroups()
 
   return (
@@ -44,7 +46,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     DocuFlow AI
                   </span>
                   <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-sidebar-foreground/45">
-                    Finance workspace
+                    {t("brand.workspace")}
                   </span>
                 </div>
               </Link>
@@ -56,7 +58,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* ── Navigation items ────────────────────────────────────────────── */}
       <SidebarContent className="px-2 py-2">
         {navGroups.map((group) => (
-          <NavMain key={group.label} label={group.label} items={group.items} />
+          <NavMain key={group.label} label={group.label || ""} labelKey={group.labelKey} items={group.items} />
         ))}
       </SidebarContent>
 
@@ -64,7 +66,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
         <NavUser
           user={{
-            name: session?.name ?? "Người dùng",
+            name: session?.name ?? (t("role.finance") || "Finance"),
             email: session?.email ?? "user@docuflow.ai",
             avatar: "",
           }}

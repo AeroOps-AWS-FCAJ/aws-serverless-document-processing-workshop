@@ -31,8 +31,13 @@ const CONFIDENCE_THRESHOLD = normalizeThreshold(
 const validSummaryFields = {
   VENDOR_NAME: "vendorName",
   vendorName: "vendorName",
+  INVOICE_DATE: "invoiceDate",
   INVOICE_RECEIPT_DATE: "invoiceDate",
   invoiceDate: "invoiceDate",
+  ORDER_DATE: "invoiceDate",
+  PURCHASE_DATE: "invoiceDate",
+  RECEIPT_DATE: "invoiceDate",
+  TRANSACTION_DATE: "invoiceDate",
   INVOICE_RECEIPT_ID: "invoiceNumber",
   invoiceNumber: "invoiceNumber",
   DUE_DATE: "dueDate",
@@ -153,7 +158,7 @@ export const handler = async (event) => {
     return {
       ...originalRootFields,
       status: "EXTRACTED",
-      invoice: normalizeInvoice(openAiResult.invoice),
+      invoice: normalizeInvoice(openAiResult.invoice, textractData),
       lineItems,
       confidence,
     };
@@ -183,9 +188,9 @@ NGỮ CẢNH CHỨNG TỪ
 ${JSON.stringify(documentContext, null, 2)}
 
 CHECKLIST XỬ LÝ
-1. Đọc toàn bộ summaryFields và lineItems trước khi chọn giá trị.
+1. Đọc toàn bộ summaryFields, rawSummaryFields và lineItems trước khi chọn giá trị.
 2. Với mỗi field, sử dụng cả nhãn, value và confidenceScore để chọn ứng viên đúng ngữ nghĩa nhất; không mặc định chọn giá trị xuất hiện đầu tiên.
-3. Xác định semantics theo loại chứng từ: invoice number/date/due date đối với invoice; receipt number/transaction date/amount paid đối với receipt.
+3. Xác định semantics theo loại chứng từ: invoice number/date/due date đối với invoice; receipt number/transaction date/amount paid đối với receipt. Nếu không có INVOICE DATE nhưng có ORDER DATE/TRANSACTION DATE rõ ràng, dùng ngày đó làm invoiceDate vì API contract chỉ có một field ngày chính.
 4. Phân biệt rõ người bán với khách hàng, invoice/receipt number với mã đơn hàng hoặc terminal ID, subtotal với total/amount due/amount paid, và receipt total với cash tendered hoặc change.
 5. Giữ các line item theo đúng thứ tự nguồn và chỉ ghép những phần chắc chắn thuộc cùng một dòng hàng hóa hoặc dịch vụ.
 6. Không đưa value, confidenceScore, metadata Textract, documentId, documentType, ghi chú xử lý hoặc field trung gian vào JSON kết quả.
@@ -276,14 +281,18 @@ function normalizeLineItems(openAiItems, textractItems) {
   });
 }
 
-function normalizeInvoice(value) {
+function normalizeInvoice(value, textractData = {}) {
   const invoice = isRecord(value) ? value : {};
   const currency = normalizeText(invoice.currency, 3).toUpperCase();
   return {
     vendorName: normalizeText(invoice.vendorName, 500),
     invoiceNumber: normalizeText(invoice.invoiceNumber, 200),
-    invoiceDate: normalizeIsoDate(invoice.invoiceDate),
-    dueDate: normalizeIsoDate(invoice.dueDate),
+    invoiceDate:
+      normalizeIsoDate(invoice.invoiceDate) ||
+      normalizeDateValue(textractData?.summaryFields?.invoiceDate?.value),
+    dueDate:
+      normalizeIsoDate(invoice.dueDate) ||
+      normalizeDateValue(textractData?.summaryFields?.dueDate?.value),
     currency: /^[A-Z]{3}$/.test(currency) ? currency : "",
     subtotalAmount: normalizeNullableNumber(invoice.subtotalAmount),
     taxAmount: normalizeNullableNumber(invoice.taxAmount),
@@ -303,6 +312,60 @@ function normalizeIsoDate(value) {
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== normalized
     ? ""
     : normalized;
+}
+
+function normalizeDateValue(value) {
+  const text = normalizeText(value, 80).replace(/\b(\d{1,2})(st|nd|rd|th)\b/gi, "$1");
+  if (!text) return "";
+
+  const iso = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (iso) return buildIsoDate(iso[1], iso[2], iso[3]);
+
+  const monthName = text.match(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2}),?\s+(\d{4})\b/i
+  );
+  if (monthName) {
+    return buildIsoDate(monthName[3], monthIndex(monthName[1]), monthName[2]);
+  }
+
+  const numeric = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+  if (numeric) {
+    const first = Number(numeric[1]);
+    const second = Number(numeric[2]);
+    if (first > 12 && second <= 12) return buildIsoDate(numeric[3], second, first);
+    if (second > 12 && first <= 12) return buildIsoDate(numeric[3], first, second);
+  }
+
+  return "";
+}
+
+function monthIndex(value) {
+  const normalized = String(value || "").slice(0, 3).toLowerCase();
+  return {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  }[normalized];
+}
+
+function buildIsoDate(yearValue, monthValue, dayValue) {
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return "";
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return "";
+
+  const normalized = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return normalizeIsoDate(normalized);
 }
 
 function normalizeNullableNumber(value) {

@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { costGuardrails, teamModules } from "@/lib/docuflow-data"
+import { useAdminText } from "@/lib/admin-i18n"
 
 type ControlState = "Ready" | "Watch" | "Missing"
 
@@ -145,6 +146,7 @@ function stateClass(state: ControlState) {
 }
 
 export default function AdminGovernancePage() {
+  const a = useAdminText()
   const ready = controls.filter((control) => control.state === "Ready").length
   const watch = controls.filter((control) => control.state === "Watch").length
   const missing = controls.filter((control) => control.state === "Missing").length
@@ -165,29 +167,28 @@ export default function AdminGovernancePage() {
               <div className="absolute inset-y-0 right-0 hidden w-px bg-white/12 lg:block" />
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/30 bg-[#d8ff72] font-semibold text-[11px] text-[#10261d]">
-                  Security and cost
+                  {a("Security and cost")}
                 </Badge>
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
                   IAM / KMS / Secrets / Budgets
                 </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
-                Governance controls before the demo and cleanup after it.
+                {a("Governance controls before the demo and cleanup after it.")}
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-                This page turns security, audit, spend, and SAM delete requirements into
-                a concrete admin checklist with owner and evidence state.
+                {a("This page turns security, audit, spend, and SAM delete requirements into a concrete admin checklist with owner and evidence state.")}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="bg-[#d8ff72] font-semibold text-[#10261d] hover:bg-[#c7ee5f] transition-colors duration-200">
                   <Link to="/evidence">
-                    Open evidence packet
+                    {a("Open evidence packet")}
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10">
                   <Link to="/settings/notifications">
-                    Configure notifications
+                    {a("Configure notifications")}
                     <Settings2 className="size-4" />
                   </Link>
                 </Button>
@@ -208,7 +209,7 @@ export default function AdminGovernancePage() {
                       <span className="font-mono text-[10px] text-white/35">GOV</span>
                     </div>
                     <div className="text-3xl font-semibold text-white">{item.value}</div>
-                    <div className="mt-1 text-xs text-white/50">{item.label}</div>
+                    <div className="mt-1 text-xs text-white/50">{a(item.label)}</div>
                   </div>
                 )
               })}
@@ -222,10 +223,10 @@ export default function AdminGovernancePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="size-5" />
-              Control matrix
+              {a("Control matrix")}
             </CardTitle>
             <CardDescription>
-              Required security, audit, cost, and cleanup controls from the approved architecture.
+              {a("Required security, audit, cost, and cleanup controls from the approved architecture.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -233,25 +234,25 @@ export default function AdminGovernancePage() {
               <Table className="min-w-[940px]">
                 <TableHeader className="bg-muted">
                   <TableRow>
-                    <TableHead>Area</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Control</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>State</TableHead>
+                    <TableHead>{a("Area")}</TableHead>
+                    <TableHead>{a("Service")}</TableHead>
+                    <TableHead>{a("Control")}</TableHead>
+                    <TableHead>{a("Owner")}</TableHead>
+                    <TableHead>{a("State")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {controls.map((control) => (
                     <TableRow key={`${control.area}-${control.service}`}>
                       <TableCell>
-                        <Badge variant="secondary">{control.area}</Badge>
+                        <Badge variant="secondary">{a(control.area)}</Badge>
                       </TableCell>
                       <TableCell className="font-medium">{control.service}</TableCell>
-                      <TableCell className="text-muted-foreground">{control.control}</TableCell>
+                      <TableCell className="text-muted-foreground">{a(control.control)}</TableCell>
                       <TableCell>{control.owner}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={stateClass(control.state)}>
-                          {control.state}
+                          {a(control.state)}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -267,14 +268,14 @@ export default function AdminGovernancePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <BadgeCheck className="size-5" />
-                Governance readiness
+                {a("Governance readiness")}
               </CardTitle>
-              <CardDescription>Ready controls divided by expected controls.</CardDescription>
+              <CardDescription>{a("Ready controls divided by expected controls.")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-5 pt-5">
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">Control readiness</span>
+                  <span className="font-medium">{a("Control readiness")}</span>
                   <span className="font-mono text-muted-foreground">{readiness}%</span>
                 </div>
                 <Progress value={readiness} />
@@ -282,15 +283,15 @@ export default function AdminGovernancePage() {
               <div className="grid grid-cols-3 border">
                 <div className="border-r p-3">
                   <div className="text-2xl font-semibold">{ready}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Ready</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{a("Ready")}</div>
                 </div>
                 <div className="border-r p-3">
                   <div className="text-2xl font-semibold">{watch}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Watch</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{a("Watch")}</div>
                 </div>
                 <div className="p-3">
                   <div className="text-2xl font-semibold">{missing}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Missing</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{a("Missing")}</div>
                 </div>
               </div>
             </CardContent>
@@ -300,14 +301,14 @@ export default function AdminGovernancePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="size-5" />
-                Secret hygiene rules
+                {a("Secret hygiene rules")}
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5">
               {secretRules.map((rule) => (
                 <div key={rule} className="flex items-start gap-3 border p-3 text-sm leading-6">
                   <LockKeyhole className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span>{rule}</span>
+                  <span>{a(rule)}</span>
                 </div>
               ))}
             </CardContent>
@@ -320,16 +321,16 @@ export default function AdminGovernancePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Trash2 className="size-5" />
-              Cleanup checklist
+              {a("Cleanup checklist")}
             </CardTitle>
             <CardDescription>
-              Demo resources should be deleted only after evidence is captured.
+              {a("Demo resources should be deleted only after evidence is captured.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium">Cleanup readiness</span>
+                <span className="font-medium">{a("Cleanup readiness")}</span>
                 <span className="font-mono text-muted-foreground">{cleanupReadiness}%</span>
               </div>
               <Progress value={cleanupReadiness} />
@@ -337,11 +338,11 @@ export default function AdminGovernancePage() {
             <div className="grid gap-3">
               {cleanupSteps.map((step, index) => (
                 <div key={step.label} className="grid gap-3 border p-4 sm:grid-cols-[32px_minmax(0,1fr)]">
-                  <Checkbox checked={step.checked} aria-label={step.label} />
+                  <Checkbox checked={step.checked} aria-label={a(step.label)} />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">0{index + 1}</Badge>
-                      <span className="font-medium">{step.label}</span>
+                      <span className="font-medium">{a(step.label)}</span>
                     </div>
                     <div className="mt-2 break-all border bg-muted/25 p-2 font-mono text-xs text-muted-foreground">
                       {step.command}
@@ -358,20 +359,20 @@ export default function AdminGovernancePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <CircleDollarSign className="size-5" />
-                Cost guardrails
+                {a("Cost guardrails")}
               </CardTitle>
               <CardDescription>
-                Limits that keep the workshop inside expected AWS credits.
+                {a("Limits that keep the workshop inside expected AWS credits.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 md:grid-cols-2">
               {costGuardrails.map((item) => (
                 <div key={item.item} className="border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium">{item.item}</div>
-                    <Badge variant="outline">{item.owner}</Badge>
+                    <div className="font-medium">{a(item.item)}</div>
+                    <Badge variant="outline">{a(item.owner)}</Badge>
                   </div>
-                  <div className="mt-3 text-sm text-muted-foreground">{item.value}</div>
+                  <div className="mt-3 text-sm text-muted-foreground">{a(item.value)}</div>
                 </div>
               ))}
             </CardContent>
@@ -381,10 +382,10 @@ export default function AdminGovernancePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <FileKey2 className="size-5" />
-                Ownership proof
+                {a("Ownership proof")}
               </CardTitle>
               <CardDescription>
-                Admin-facing mapping for reviewer questions about service responsibility.
+                {a("Admin-facing mapping for reviewer questions about service responsibility.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5">
@@ -392,9 +393,9 @@ export default function AdminGovernancePage() {
                 <div key={module.member} className="grid gap-2 border p-3 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
                   <div>
                     <div className="font-medium">{module.member}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{module.module}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{a(module.module)}</div>
                   </div>
-                  <div className="text-sm leading-6 text-muted-foreground">{module.focus}</div>
+                  <div className="text-sm leading-6 text-muted-foreground">{a(module.focus)}</div>
                 </div>
               ))}
             </CardContent>
@@ -404,17 +405,17 @@ export default function AdminGovernancePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <ScrollText className="size-5" />
-                Audit evidence target
+                {a("Audit evidence target")}
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 text-sm">
               <div className="flex items-start gap-3 border p-3">
                 <ClipboardCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                <span>Capture CloudTrail lookup for stack deploy/delete and Secrets Manager read permission review.</span>
+                <span>{a("Capture CloudTrail lookup for stack deploy/delete and Secrets Manager read permission review.")}</span>
               </div>
               <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 p-3 text-amber-950 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>Cleanup evidence remains missing until `sam delete` output and leftover resource checks are captured.</span>
+                <span>{a("Cleanup evidence remains missing until `sam delete` output and leftover resource checks are captured.")}</span>
               </div>
             </CardContent>
           </Card>

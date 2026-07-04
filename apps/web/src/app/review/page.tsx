@@ -28,29 +28,31 @@ import { TableBulkControls, type BulkTableColumn, type TableColumnVisibility } f
 import { TablePagination } from "@/components/table-pagination"
 import { TableSkeletonRows } from "@/components/table-skeleton-rows"
 import { toast } from "sonner"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type QueueFilter = "ALL" | "REVIEW_REQUIRED" | "FAILED" | "CORRECTED" | "LOW_CONFIDENCE" | "OLDEST"
-type Priority = "Cao" | "Trung bình" | "Thấp"
+type Priority = "HIGH" | "MEDIUM" | "LOW"
 
 const attentionStatuses: DocumentStatus[] = ["REVIEW_REQUIRED", "FAILED", "CORRECTED"]
-const reviewTableColumns: BulkTableColumn[] = [
-  { key: "document", label: "Tài liệu", locked: true },
-  { key: "status", label: "Trạng thái" },
-  { key: "priority", label: "Ưu tiên" },
-  { key: "confidence", label: "Độ tin cậy" },
-  { key: "reason", label: "Lý do" },
-  { key: "age", label: "Ngày" },
-  { key: "action", label: "Hành động", locked: true },
+const reviewTableColumnDefinitions: Array<Omit<BulkTableColumn, "label"> & { labelKey: TranslationKey }> = [
+  { key: "document", labelKey: "dashboard.document", locked: true },
+  { key: "status", labelKey: "dashboard.status" },
+  { key: "priority", labelKey: "review.priority" },
+  { key: "confidence", labelKey: "dashboard.confidence" },
+  { key: "reason", labelKey: "review.reason" },
+  { key: "age", labelKey: "review.date" },
+  { key: "action", labelKey: "documents.actionColumn", locked: true },
 ]
 
-const defaultReviewColumnVisibility = reviewTableColumns.reduce<TableColumnVisibility>((visibility, column) => {
+const defaultReviewColumnVisibility = reviewTableColumnDefinitions.reduce<TableColumnVisibility>((visibility, column) => {
   visibility[column.key] = true
   return visibility
 }, {})
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]; const Icon = meta.icon
-  return <Badge variant="outline" className={meta.tone}><Icon className="size-3" />{meta.label}</Badge>
+  return <Badge variant="outline" className={meta.tone}><Icon className="size-3" />{t(`status.${status}` as TranslationKey)}</Badge>
 }
 
 function getAgeDays(updatedAt: string) {
@@ -59,27 +61,33 @@ function getAgeDays(updatedAt: string) {
 
 function getPriority(d: DocumentRecord): Priority {
   const age = getAgeDays(d.updatedAt)
-  if (d.status === "FAILED" || d.confidenceScore < 0.5 || age >= 3) return "Cao"
-  if (d.status === "REVIEW_REQUIRED" || (Array.isArray(d.reviewReasonCodes) && d.reviewReasonCodes.length > 1) || age >= 1) return "Trung bình"
-  return "Thấp"
+  if (d.status === "FAILED" || d.confidenceScore < 0.5 || age >= 3) return "HIGH"
+  if (d.status === "REVIEW_REQUIRED" || (Array.isArray(d.reviewReasonCodes) && d.reviewReasonCodes.length > 1) || age >= 1) return "MEDIUM"
+  return "LOW"
 }
 
 function priorityClass(p: Priority) {
-  if (p === "Cao") return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300"
-  if (p === "Trung bình") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
+  if (p === "HIGH") return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300"
+  if (p === "MEDIUM") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
   return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300"
 }
 
-function actionLabel(status: DocumentStatus) {
-  if (status === "CORRECTED") return "Phê duyệt"
-  if (status === "FAILED") return "Kiểm tra"
-  return "Duyệt"
+function displayPriority(t: (key: TranslationKey, values?: Record<string, string | number>) => string, p: Priority) {
+  if (p === "HIGH") return t("review.priorityHigh")
+  if (p === "MEDIUM") return t("review.priorityMedium")
+  return t("review.priorityLow")
 }
 
-function attentionReason(d: DocumentRecord) {
-  if (d.status === "CORRECTED") return "Các trường đã chỉnh sửa, sẵn sàng để phê duyệt."
+function actionLabel(status: DocumentStatus, t: (key: TranslationKey, values?: Record<string, string | number>) => string) {
+  if (status === "CORRECTED") return t("review.actionApprove")
+  if (status === "FAILED") return t("review.actionInspect")
+  return t("review.actionReview")
+}
+
+function attentionReason(d: DocumentRecord, t?: (key: TranslationKey, values?: Record<string, string | number>) => string) {
+  if (d.status === "CORRECTED") return t ? t("review.reasonCorrected") : "Fields corrected, ready for approval."
   if (Array.isArray(d.reviewReasonCodes) && d.reviewReasonCodes.length) return d.reviewReasonCodes.join("; ")
-  return d.errorMessage ?? "Một hoặc nhiều trường bắt buộc không thể xác nhận."
+  return d.errorMessage ?? (t ? t("review.reasonFallback") : "One or more required fields could not be confirmed.")
 }
 
 function escapeCsv(v: string | number | null) { return `"${String(v ?? "").replace(/"/g, '""')}"` }
@@ -109,46 +117,50 @@ function MetricCard({ label, value, detail, icon: Icon, tone="default" }: {
 }
 
 function ReviewPreviewDrawer({ document: d }: { document: DocumentRecord }) {
+  const { t } = useLanguage()
   const priority = getPriority(d); const confidence = Math.round(d.confidenceScore * 100)
+  const priorityLabel = displayPriority(t, priority)
   return (
     <Drawer direction="right">
       <DrawerTrigger asChild>
         <Button variant="ghost" size="icon" className="size-8 cursor-pointer text-muted-foreground hover:text-foreground">
-          <Eye className="size-4" /><span className="sr-only">Xem trước</span>
+          <Eye className="size-4" /><span className="sr-only">{t("review.preview")}</span>
         </Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle className="truncate">{d.originalFileName}</DrawerTitle>
-          <DrawerDescription className="font-mono text-[10px]">{d.documentId} · {d.documentType} · chờ {getAgeDays(d.updatedAt)} ngày</DrawerDescription>
+          <DrawerDescription className="font-mono text-[10px]">
+            {d.documentId} · {d.documentType} · {t("review.waitingDays", { days: getAgeDays(d.updatedAt) })}
+          </DrawerDescription>
         </DrawerHeader>
         <div className="grid gap-3 overflow-y-auto px-4 text-sm">
           <div className="grid gap-3 rounded-xl border bg-muted/20 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <StatusBadge status={d.status} />
-              <Badge variant="outline" className={priorityClass(priority)}>Ưu tiên: {priority}</Badge>
+              <Badge variant="outline" className={priorityClass(priority)}>{t("review.priorityPrefix", { priority: priorityLabel })}</Badge>
             </div>
             <div>
               <div className="mb-1.5 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Độ tin cậy</span><span className="font-semibold">{confidence}%</span>
+                <span className="text-muted-foreground">{t("dashboard.confidence")}</span><span className="font-semibold">{confidence}%</span>
               </div>
               <Progress value={confidence} className={`h-1.5 ${confidence < 80 ? "[&>div]:bg-amber-500" : "[&>div]:bg-emerald-500"}`} />
             </div>
           </div>
           <div className="grid gap-2.5 rounded-xl border p-3">
-            {[["Nhà cung cấp",d.vendorName],["Ngày",d.invoiceDate],["Tổng tiền",formatMoney(d.totalAmount,d.currency)],["Thuế",d.taxAmount==null?"Không phát hiện":formatMoney(d.taxAmount,d.currency)]].map(([l,v])=>(
+            {[[t("review.vendor"),d.vendorName],[t("review.date"),d.invoiceDate],[t("dashboard.amount"),formatMoney(d.totalAmount,d.currency)],[t("review.tax"),d.taxAmount==null?t("common.notDetected"):formatMoney(d.taxAmount,d.currency)]].map(([l,v])=>(
               <div key={l} className="flex items-start justify-between gap-4 text-xs">
                 <span className="text-muted-foreground shrink-0">{l}</span><span className="text-right font-medium">{v}</span>
               </div>
             ))}
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold"><FileWarning className="size-3.5" />Lý do ngoại lệ</div>
-            <div className="text-xs leading-5">{attentionReason(d)}</div>
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold"><FileWarning className="size-3.5" />{t("review.exceptionReason")}</div>
+            <div className="text-xs leading-5">{attentionReason(d, t)}</div>
           </div>
         </div>
         <DrawerFooter>
-          <Button asChild className="cursor-pointer"><Link to={`/documents/${d.documentId}`}>Mở không gian duyệt<ArrowRight className="size-4" /></Link></Button>
+          <Button asChild className="cursor-pointer"><Link to={`/documents/${d.documentId}`}>{t("review.openReviewSpace")}<ArrowRight className="size-4" /></Link></Button>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
@@ -170,6 +182,7 @@ function ConfirmDeleteDialog({
   isDeleting: boolean
   onConfirm: () => Promise<boolean>
 }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   const handleConfirm = async () => {
@@ -187,7 +200,7 @@ function ConfirmDeleteDialog({
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)} disabled={isDeleting}>
-            Hủy
+            {t("review.cancel")}
           </Button>
           <Button type="button" variant="destructive" className="cursor-pointer" onClick={handleConfirm} disabled={isDeleting}>
             {isDeleting ? <Clock3 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
@@ -202,6 +215,7 @@ function ConfirmDeleteDialog({
 export default function ReviewPage() {
   const { documents: allDocuments, mergeDocuments, removeDocument, removeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { t } = useLanguage()
   const role = session?.role ?? "finance"
   const { apiMode, isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments)
   const documents = role === "finance" ? allDocuments.filter((d) => d.userId === session?.userId) : allDocuments
@@ -214,6 +228,10 @@ export default function ReviewPage() {
   const pageLoadingTimer = useRef<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [columnVisibility, setColumnVisibility] = useState<TableColumnVisibility>(defaultReviewColumnVisibility)
+  const reviewTableColumns = useMemo<BulkTableColumn[]>(
+    () => reviewTableColumnDefinitions.map(({ labelKey, ...column }) => ({ ...column, label: t(labelKey) })),
+    [t],
+  )
 
   useEffect(() => {
     return () => {
@@ -224,7 +242,7 @@ export default function ReviewPage() {
   const alertItems = useMemo(() =>
     documents.filter((d) => attentionStatuses.includes(d.status))
       .sort((a, b) => {
-        const po: Record<Priority, number> = { "Cao": 0, "Trung bình": 1, "Thấp": 2 }
+        const po: Record<Priority, number> = { "HIGH": 0, "MEDIUM": 1, "LOW": 2 }
         const pd = po[getPriority(a)] - po[getPriority(b)]
         return pd !== 0 ? pd : new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
       }), [documents])
@@ -233,7 +251,7 @@ export default function ReviewPage() {
     reviewRequired: alertItems.filter((d) => d.status === "REVIEW_REQUIRED").length,
     failed: alertItems.filter((d) => d.status === "FAILED").length,
     corrected: alertItems.filter((d) => d.status === "CORRECTED").length,
-    highPriority: alertItems.filter((d) => getPriority(d) === "Cao").length,
+    highPriority: alertItems.filter((d) => getPriority(d) === "HIGH").length,
     oldestAge: alertItems.length ? Math.max(...alertItems.map((d) => getAgeDays(d.updatedAt))) : 0,
   }), [alertItems])
 
@@ -305,10 +323,10 @@ export default function ReviewPage() {
       await deleteDocumentApi(document.documentId)
       removeDocument(document.documentId)
       setSelectedIds((current) => current.filter((id) => id !== document.documentId))
-      toast.success(`Đã xóa ${document.originalFileName}.`)
+      toast.success(t("review.deletedOne", { name: document.originalFileName }))
       return true
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể xóa tài liệu.")
+      toast.error(error instanceof Error ? error.message : t("review.deleteOneFailed"))
       return false
     } finally {
       setIsDeleting(false)
@@ -324,10 +342,10 @@ export default function ReviewPage() {
       await deleteDocumentsApi(ids)
       removeDocuments(ids)
       setSelectedIds([])
-      toast.success(`Đã xóa ${ids.length} tài liệu khỏi hàng đợi kiểm duyệt.`)
+      toast.success(t("review.deletedMany", { count: ids.length }))
       return true
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể xóa các tài liệu đã chọn.")
+      toast.error(error instanceof Error ? error.message : t("review.deleteManyFailed"))
       return false
     } finally {
       setIsDeleting(false)
@@ -335,17 +353,17 @@ export default function ReviewPage() {
   }
 
   const quickFilters: Array<{key: QueueFilter; label: string; count: number}> = [
-    { key:"ALL", label:"Tất cả", count:alertItems.length },
-    { key:"REVIEW_REQUIRED", label:"Cần duyệt", count:metrics.reviewRequired },
-    { key:"FAILED", label:"Thất bại", count:metrics.failed },
-    { key:"CORRECTED", label:"Chờ phê duyệt", count:metrics.corrected },
-    { key:"LOW_CONFIDENCE", label:"Độ tin cậy thấp", count:alertItems.filter((d)=>d.confidenceScore<CONFIDENCE_THRESHOLD).length },
-    { key:"OLDEST", label:"Hơn 1 ngày", count:alertItems.filter((d)=>getAgeDays(d.updatedAt)>=1).length },
+    { key:"ALL", label:t("review.all"), count:alertItems.length },
+    { key:"REVIEW_REQUIRED", label:t("review.needsReview"), count:metrics.reviewRequired },
+    { key:"FAILED", label:t("documents.failed"), count:metrics.failed },
+    { key:"CORRECTED", label:t("review.correctedWaiting"), count:metrics.corrected },
+    { key:"LOW_CONFIDENCE", label:t("review.lowConfidence"), count:alertItems.filter((d)=>d.confidenceScore<CONFIDENCE_THRESHOLD).length },
+    { key:"OLDEST", label:t("review.olderThanDay"), count:alertItems.filter((d)=>getAgeDays(d.updatedAt)>=1).length },
   ]
 
   return (
-    <BaseLayout title="Hàng đợi kiểm duyệt"
-      description={role === "admin" ? "Theo dõi tài liệu chưa giải quyết trên toàn hệ thống." : "Xác minh trường chưa chắc chắn, giải quyết tệp thất bại và phê duyệt kết quả đã chỉnh sửa."}>
+    <BaseLayout title={t("review.title")}
+      description={role === "admin" ? t("review.adminDescription") : t("review.description")}>
       <div className="grid min-w-0 gap-5 px-4 lg:px-6">
 
         {/* Hero */}
@@ -353,29 +371,29 @@ export default function ReviewPage() {
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:p-6">
             <div className="flex-1">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <Badge className="border-[#d8ff72]/35 bg-[#d8ff72]/12 font-mono text-[9px] uppercase tracking-[0.18em] text-[#d8ff72]">{apiMode ? "AWS API" : "Demo cục bộ"}</Badge>
-                <Badge className="border-white/15 bg-white/8 text-white/80 text-xs">{role === "admin" ? "Giám sát ngoại lệ" : "Không gian kiểm duyệt tài chính"}</Badge>
+                <Badge className="border-[#d8ff72]/35 bg-[#d8ff72]/12 font-mono text-[9px] uppercase tracking-[0.18em] text-[#d8ff72]">{apiMode ? t("documents.awsApi") : t("documents.localDemo")}</Badge>
+                <Badge className="border-white/15 bg-white/8 text-white/80 text-xs">{role === "admin" ? t("review.exceptionMonitor") : t("review.financeReviewSpace")}</Badge>
               </div>
-              <h2 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">Hàng đợi ngoại lệ và kiểm soát phê duyệt</h2>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-white/60">Ưu tiên tài liệu độ tin cậy thấp, thất bại và đã chỉnh sửa trước khi trở thành bản ghi tài chính đáng tin cậy.</p>
+              <h2 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{t("review.heroTitle")}</h2>
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-white/60">{t("review.heroBody")}</p>
             </div>
             <div className="flex w-full flex-col justify-between gap-3 rounded-xl border border-white/12 bg-white/8 p-4 lg:w-52">
-              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">Chưa giải quyết lâu nhất</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">{t("review.oldestUnresolved")}</div>
               <div className="flex items-end gap-2">
                 <span className="text-4xl font-semibold">{metrics.oldestAge}</span>
-                <span className="pb-1 text-sm text-white/60">ngày</span>
+                <span className="pb-1 text-sm text-white/60">{t("review.days")}</span>
               </div>
-              <div className="text-[10px] text-white/40">Sắp xếp theo ưu tiên, sau đó theo cũ nhất.</div>
+              <div className="text-[10px] text-white/40">{t("review.prioritySort")}</div>
             </div>
           </div>
         </section>
 
         {/* Metrics */}
         <section className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="Chờ duyệt" value={alertItems.length} detail="Tất cả bản ghi ngoại lệ chưa giải quyết" icon={Bell} tone={alertItems.length ? "warning" : "success"} />
-          <MetricCard label="Ưu tiên cao" value={metrics.highPriority} detail="Thất bại, độ tin cậy rất thấp hoặc đã cũ" icon={ShieldAlert} tone={metrics.highPriority ? "danger" : "default"} />
-          <MetricCard label="Cần chỉnh sửa" value={metrics.reviewRequired} detail="Trường cần xác minh thủ công" icon={FileWarning} />
-          <MetricCard label="Chờ phê duyệt" value={metrics.corrected} detail="Đã lưu chỉnh sửa, sẵn sàng phê duyệt" icon={BadgeCheck} />
+          <MetricCard label={t("review.waiting")} value={alertItems.length} detail={t("review.waitingDetail")} icon={Bell} tone={alertItems.length ? "warning" : "success"} />
+          <MetricCard label={t("review.highPriority")} value={metrics.highPriority} detail={t("review.highPriorityDetail")} icon={ShieldAlert} tone={metrics.highPriority ? "danger" : "default"} />
+          <MetricCard label={t("review.needsEditing")} value={metrics.reviewRequired} detail={t("review.needsEditingDetail")} icon={FileWarning} />
+          <MetricCard label={t("review.waitingApproval")} value={metrics.corrected} detail={t("review.waitingApprovalDetail")} icon={BadgeCheck} />
         </section>
 
         <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -384,18 +402,18 @@ export default function ReviewPage() {
             <CardHeader className="gap-4 border-b bg-muted/20 pb-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-base"><Bell className="size-4" />Hàng đợi chú ý</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-base"><Bell className="size-4" />{t("review.attentionQueue")}</CardTitle>
                   <CardDescription className="text-xs">
-                    Hiển thị {filteredItems.length} / {alertItems.length} bản ghi ngoại lệ.
+                    {t("review.showing", { filtered: filteredItems.length, total: alertItems.length })}
                     {syncMessage && <span className="ml-2 text-primary">{syncMessage}</span>}
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => refreshDocuments()} disabled={isSyncing}>
-                    <Clock3 className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"} />Làm mới
+                    <Clock3 className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"} />{t("common.refresh")}
                   </Button>
                   <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => exportReviewCsv(filteredItems)} disabled={!filteredItems.length}>
-                    <Download className="size-3.5" />Xuất ngoại lệ
+                    <Download className="size-3.5" />{t("review.exportExceptions")}
                   </Button>
                 </div>
               </div>
@@ -413,11 +431,11 @@ export default function ReviewPage() {
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                 <div className="relative max-w-lg flex-1">
                   <Search className="text-muted-foreground absolute left-3 top-1/2 size-3.5 -translate-y-1/2" />
-                  <Input value={query} onChange={(e) => { setQuery(e.target.value); resetPage() }} placeholder="Tìm tệp, nhà cung cấp, lý do, trạng thái..." className="pl-9 h-9 text-sm" />
+                  <Input value={query} onChange={(e) => { setQuery(e.target.value); resetPage() }} placeholder={t("review.searchPlaceholder")} className="pl-9 h-9 text-sm" />
                 </div>
                 {(query || queueFilter !== "ALL") && (
                   <Button variant="ghost" size="sm" className="cursor-pointer h-9" onClick={() => { setQuery(""); setQueueFilter("ALL"); resetPage() }}>
-                    <X className="size-3.5" />Xóa
+                    <X className="size-3.5" />{t("review.clear")}
                   </Button>
                 )}
               </div>
@@ -437,19 +455,19 @@ export default function ReviewPage() {
                 className="mb-3"
               >
                 <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => exportReviewCsv(selectedItems)}>
-                  <Download className="size-3.5" />Xuất đã chọn
+                  <Download className="size-3.5" />{t("review.exportSelected")}
                 </Button>
                 <ConfirmDeleteDialog
-                  title={`Xóa ${selectedItems.length} tài liệu?`}
+                  title={t("review.deleteSelectedTitle", { count: selectedItems.length })}
                   description={apiMode
-                    ? "Thao tác này sẽ gọi API xóa thật cho các tài liệu đã chọn và không thể hoàn tác từ giao diện."
-                    : "Thao tác này sẽ xóa các tài liệu đã chọn khỏi dữ liệu demo cục bộ."}
-                  confirmLabel="Xóa đã chọn"
+                    ? t("review.deleteSelectedAws")
+                    : t("review.deleteSelectedDemo")}
+                  confirmLabel={t("review.deleteSelected")}
                   isDeleting={isDeleting}
                   onConfirm={handleBulkDeleteDocuments}
                   trigger={
                     <Button variant="destructive" size="sm" className="h-8 cursor-pointer" disabled={isDeleting}>
-                      <Trash2 className="size-3.5" />Xóa đã chọn
+                      <Trash2 className="size-3.5" />{t("review.deleteSelected")}
                     </Button>
                   }
                 />
@@ -460,12 +478,12 @@ export default function ReviewPage() {
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="w-[84px]" />
-                      <TableHead>Tài liệu</TableHead>
-                      {isColumnVisible("status") && <TableHead>Trạng thái</TableHead>}
-                      {isColumnVisible("priority") && <TableHead>Ưu tiên</TableHead>}
-                      {isColumnVisible("confidence") && <TableHead>Độ tin cậy</TableHead>}
-                      {isColumnVisible("reason") && <TableHead>Lý do</TableHead>}
-                      {isColumnVisible("age") && <TableHead>Ngày</TableHead>}
+                      <TableHead>{t("dashboard.document")}</TableHead>
+                      {isColumnVisible("status") && <TableHead>{t("dashboard.status")}</TableHead>}
+                      {isColumnVisible("priority") && <TableHead>{t("review.priority")}</TableHead>}
+                      {isColumnVisible("confidence") && <TableHead>{t("dashboard.confidence")}</TableHead>}
+                      {isColumnVisible("reason") && <TableHead>{t("review.reason")}</TableHead>}
+                      {isColumnVisible("age") && <TableHead>{t("review.date")}</TableHead>}
                       <TableHead className="w-24" />
                       <TableHead className="w-10" />
                     </TableRow>
@@ -481,7 +499,7 @@ export default function ReviewPage() {
                             <TableRow key={d.documentId} className={selectedIds.includes(d.documentId) ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/25"}>
                               <TableCell>
                                 <Checkbox
-                                  aria-label={`Chọn ${d.originalFileName}`}
+                                  aria-label={t("review.selectDocument", { name: d.originalFileName })}
                                   checked={selectedIds.includes(d.documentId)}
                                   onCheckedChange={(value) => toggleSelected(d.documentId, value === true)}
                                 />
@@ -490,11 +508,11 @@ export default function ReviewPage() {
                                 <div className="font-medium text-sm leading-tight">{d.originalFileName}</div>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                   <span className="font-mono">{d.documentId}</span>
-                                  <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? "HĐ" : "BN"}</Badge>
+                                  <Badge variant="secondary" className="h-4 px-1.5 font-mono text-[9px]">{d.documentType === "INVOICE" ? t("review.docTypeInvoiceShort") : d.documentType === "RECEIPT" ? t("review.docTypeReceiptShort") : "?"}</Badge>
                                 </div>
                               </TableCell>
                               {isColumnVisible("status") && <TableCell><StatusBadge status={d.status} /></TableCell>}
-                              {isColumnVisible("priority") && <TableCell><Badge variant="outline" className={priorityClass(priority)}>{priority}</Badge></TableCell>}
+                              {isColumnVisible("priority") && <TableCell><Badge variant="outline" className={priorityClass(priority)}>{displayPriority(t, priority)}</Badge></TableCell>}
                               {isColumnVisible("confidence") && (
                                 <TableCell>
                                   <div className="min-w-20">
@@ -503,25 +521,25 @@ export default function ReviewPage() {
                                   </div>
                                 </TableCell>
                               )}
-                              {isColumnVisible("reason") && <TableCell className="max-w-[240px]"><div className="line-clamp-2 text-xs leading-5 text-muted-foreground">{attentionReason(d)}</div></TableCell>}
+                              {isColumnVisible("reason") && <TableCell className="max-w-[240px]"><div className="line-clamp-2 text-xs leading-5 text-muted-foreground">{attentionReason(d, t)}</div></TableCell>}
                               {isColumnVisible("age") && (
                                 <TableCell>
-                                  <div className="flex items-center gap-1 text-xs"><Clock3 className="size-3 text-muted-foreground" />{getAgeDays(d.updatedAt)}n</div>
+                                  <div className="flex items-center gap-1 text-xs"><Clock3 className="size-3 text-muted-foreground" />{getAgeDays(d.updatedAt)}{t("review.days").slice(0, 1)}</div>
                                   <div className="text-muted-foreground text-xs">{formatDate(d.updatedAt)}</div>
                                 </TableCell>
                               )}
                               <TableCell>
                                 <Button asChild variant="outline" size="sm" className="cursor-pointer h-7 text-xs">
-                                  <Link to={`/documents/${d.documentId}`}>{actionLabel(d.status)}<ArrowRight className="size-3" /></Link>
+                                  <Link to={`/documents/${d.documentId}`}>{actionLabel(d.status, t)}<ArrowRight className="size-3" /></Link>
                                 </Button>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center justify-end gap-1">
                                   <ReviewPreviewDrawer document={d} />
                                   <ConfirmDeleteDialog
-                                    title="Xóa tài liệu?"
-                                    description={`Bạn sắp xóa ${d.originalFileName} khỏi hàng đợi kiểm duyệt. Thao tác này không thể hoàn tác từ giao diện.`}
-                                    confirmLabel="Xóa"
+                                    title={t("review.deleteTitle")}
+                                    description={t("review.deleteFromQueueDescription", { name: d.originalFileName })}
+                                    confirmLabel={t("review.delete")}
                                     isDeleting={isDeleting}
                                     onConfirm={() => handleDeleteDocument(d)}
                                     trigger={
@@ -532,7 +550,7 @@ export default function ReviewPage() {
                                         disabled={isDeleting}
                                       >
                                         <Trash2 className="size-4" />
-                                        <span className="sr-only">Xóa tài liệu</span>
+                                        <span className="sr-only">{t("review.deleteDocument")}</span>
                                       </Button>
                                     }
                                   />
@@ -548,11 +566,11 @@ export default function ReviewPage() {
                                 <div className="rounded-full border bg-muted/30 p-3">
                                   {alertItems.length ? <Search className="size-5 text-muted-foreground" /> : <CheckCircle2 className="size-5 text-emerald-600" />}
                                 </div>
-                                <div className="font-medium text-sm">{alertItems.length ? "Không có mục nào khớp." : "Hàng đợi trống."}</div>
-                                <p className="text-xs text-muted-foreground">{alertItems.length ? "Xóa bộ lọc để thấy tất cả ngoại lệ." : "Tất cả ngoại lệ đã được giải quyết."}</p>
+                                <div className="font-medium text-sm">{alertItems.length ? t("review.noMatch") : t("review.empty")}</div>
+                                <p className="text-xs text-muted-foreground">{alertItems.length ? t("review.clearHint") : t("review.emptyHint")}</p>
                                 {alertItems.length
-                                  ? <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => { setQuery(""); setQueueFilter("ALL"); resetPage() }}>Xóa bộ lọc</Button>
-                                  : <Button asChild variant="outline" size="sm" className="cursor-pointer"><Link to="/documents">Về danh sách</Link></Button>}
+                                  ? <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => { setQuery(""); setQueueFilter("ALL"); resetPage() }}>{t("documents.clearFilters")}</Button>
+                                  : <Button asChild variant="outline" size="sm" className="cursor-pointer"><Link to="/documents">{t("review.backToList")}</Link></Button>}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -580,24 +598,24 @@ export default function ReviewPage() {
           <div className="grid gap-4 content-start">
             <Card className="rounded-xl shadow-sm transition-shadow hover:shadow-md">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base"><MailWarning className="size-4" />Chuỗi cảnh báo</CardTitle>
-                <CardDescription className="text-xs">Hàng đợi được nạp bởi điểm tin cậy và tín hiệu workflow thất bại.</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base"><MailWarning className="size-4" />{t("review.alertChain")}</CardTitle>
+                <CardDescription className="text-xs">{t("review.alertChainBody")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2.5">
                 <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-3 text-sm">
-                  <span>Ngưỡng tin cậy</span>
+                  <span>{t("review.confidenceThreshold")}</span>
                   <Badge variant="outline" className="font-mono">{Math.round(CONFIDENCE_THRESHOLD * 100)}%</Badge>
                 </div>
                 <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-3 text-sm">
-                  <span>Cảnh báo workflow thất bại</span>
+                  <span>{t("review.workflowFailedAlert")}</span>
                   <Badge variant="outline" className="font-mono">{metrics.failed}</Badge>
                 </div>
                 <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
-                  Cảnh báo SNS/SES sẽ xuất hiện dưới dạng bản ghi REVIEW_REQUIRED hoặc FAILED, sau đó tài chính giải quyết vấn đề trường nguồn.
+                  {t("review.alertChainNote")}
                 </div>
                 {role === "admin" && (
                   <Button asChild variant="outline" size="sm" className="cursor-pointer">
-                    <Link to="/settings/notifications">Cài đặt cảnh báo<ArrowRight className="size-4" /></Link>
+                    <Link to="/settings/notifications">{t("review.notificationSettings")}<ArrowRight className="size-4" /></Link>
                   </Button>
                 )}
               </CardContent>
@@ -605,15 +623,15 @@ export default function ReviewPage() {
 
             <Card className="rounded-xl shadow-sm transition-shadow hover:shadow-md">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base"><ListChecks className="size-4" />Danh sách kiểm tra duyệt</CardTitle>
-                <CardDescription className="text-xs">Xác nhận các trường nghiệp vụ trước khi phê duyệt.</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base"><ListChecks className="size-4" />{t("review.checklist")}</CardTitle>
+                <CardDescription className="text-xs">{t("review.checklistBody")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2.5">
                 {[
-                  "Nhà cung cấp khớp với tài liệu nguồn",
-                  "Ngày hóa đơn và tiền tệ chính xác",
-                  "Tổng tiền và thuế đã đối chiếu",
-                  "Ghi chú duyệt giải thích bất kỳ chỉnh sửa nào",
+                  t("review.checkVendor"),
+                  t("review.checkDateCurrency"),
+                  t("review.checkAmounts"),
+                  t("review.checkNotes"),
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3 text-sm">
                     <div className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/20">

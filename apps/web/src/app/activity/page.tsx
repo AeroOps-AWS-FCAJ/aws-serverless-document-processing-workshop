@@ -39,6 +39,7 @@ import {
 } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type ActivityKind = "UPLOAD" | "PROCESSING" | "REVIEW" | "APPROVAL"
 type ActivityFilter = "ALL" | ActivityKind
@@ -53,21 +54,16 @@ interface ActivityEvent {
   icon: typeof History
 }
 
-const filters: Array<{ label: string; value: ActivityFilter }> = [
-  { label: "Tất cả", value: "ALL" },
-  { label: "Tải lên", value: "UPLOAD" },
-  { label: "Đang xử lý", value: "PROCESSING" },
-  { label: "Chờ duyệt", value: "REVIEW" },
-  { label: "Đã duyệt", value: "APPROVAL" },
-]
-
-function buildEvents(document: DocumentRecord): ActivityEvent[] {
+function buildEvents(
+  document: DocumentRecord,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): ActivityEvent[] {
   const events: ActivityEvent[] = [
     {
       id: `${document.documentId}-created`,
       kind: "UPLOAD",
-      title: "Tài liệu được tải lên",
-      detail: `${document.originalFileName} đã được đưa vào hàng đợi xử lý.`,
+      title: t("activity.eventUploaded"),
+      detail: t("activity.eventUploadedBody", { name: document.originalFileName }),
       timestamp: document.createdAt,
       document,
       icon: UploadCloud,
@@ -78,8 +74,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-processing`,
       kind: "PROCESSING",
-      title: statusMeta[document.status].label,
-      detail: document.errorMessage ?? "Tài liệu đang chờ pipeline xử lý tự động.",
+      title: t(`status.${document.status}` as TranslationKey),
+      detail: document.errorMessage ?? t("activity.eventProcessingBody"),
       timestamp: document.updatedAt,
       document,
       icon: FileClock,
@@ -90,8 +86,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-extracted`,
       kind: "PROCESSING",
-      title: "Trích xuất hoàn tất",
-      detail: `${document.vendorName} được trích xuất với độ tin cậy ${Math.round(document.confidenceScore * 100)}%.`,
+      title: t("activity.eventExtracted"),
+      detail: t("activity.eventExtractedBody", { vendor: document.vendorName, confidence: Math.round(document.confidenceScore * 100) }),
       timestamp: document.updatedAt,
       document,
       icon: CheckCircle2,
@@ -102,8 +98,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-review`,
       kind: "REVIEW",
-      title: document.status === "FAILED" ? "Xử lý thất bại" : "Cần kiểm duyệt",
-      detail: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : document.errorMessage ?? "Cần xác minh thủ công.",
+      title: document.status === "FAILED" ? t("activity.eventFailed") : t("activity.eventReview"),
+      detail: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : document.errorMessage ?? t("activity.eventManualReview"),
       timestamp: document.updatedAt,
       document,
       icon: FileWarning,
@@ -114,8 +110,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-corrected`,
       kind: "REVIEW",
-      title: "Đã chỉnh sửa",
-      detail: document.reviewerNote ?? "Các trường không chắc chắn đã được cập nhật.",
+      title: t("activity.eventCorrected"),
+      detail: document.reviewerNote ?? t("activity.eventCorrectedBody"),
       timestamp: document.reviewedAt ?? document.updatedAt,
       document,
       icon: FileCheck2,
@@ -126,8 +122,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-approved`,
       kind: "APPROVAL",
-      title: "Tài liệu đã được duyệt",
-      detail: document.reviewerNote ?? "Kết quả trích xuất đã được xác nhận.",
+      title: t("activity.eventApproved"),
+      detail: document.reviewerNote ?? t("activity.eventApprovedBody"),
       timestamp: document.reviewedAt ?? document.updatedAt,
       document,
       icon: ShieldCheck,
@@ -138,27 +134,21 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]
   const Icon = meta.icon
   return (
     <Badge variant="outline" className={meta.tone}>
       <Icon className="size-3.5" />
-      {meta.label}
+      {t(`status.${status}` as TranslationKey)}
     </Badge>
   )
-}
-
-// Kind label map
-const kindLabel: Record<ActivityKind, string> = {
-  UPLOAD: "Tải lên",
-  PROCESSING: "Xử lý",
-  REVIEW: "Kiểm duyệt",
-  APPROVAL: "Phê duyệt",
 }
 
 export default function ActivityPage() {
   const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { t } = useLanguage()
   const { isSyncing, refreshDocuments, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<ActivityFilter>("ALL")
@@ -174,9 +164,9 @@ export default function ActivityPage() {
   const events = useMemo(
     () =>
       visibleDocuments
-        .flatMap(buildEvents)
+        .flatMap((document) => buildEvents(document, t))
         .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
-    [visibleDocuments]
+    [t, visibleDocuments]
   )
 
   const filteredEvents = events.filter((event) => {
@@ -192,9 +182,22 @@ export default function ActivityPage() {
   const reviewCount = events.filter((event) => event.kind === "REVIEW").length
   const approvalCount = events.filter((event) => event.kind === "APPROVAL").length
   const latestEvent = events[0]
+  const filterItems = [
+    { label: t("activity.all"), value: "ALL" as ActivityFilter },
+    { label: t("activity.upload"), value: "UPLOAD" as ActivityFilter },
+    { label: t("activity.processing"), value: "PROCESSING" as ActivityFilter },
+    { label: t("activity.review"), value: "REVIEW" as ActivityFilter },
+    { label: t("activity.approval"), value: "APPROVAL" as ActivityFilter },
+  ]
+  const kindLabels: Record<ActivityKind, string> = {
+    UPLOAD: t("activity.upload"),
+    PROCESSING: t("activity.processing"),
+    REVIEW: t("activity.review"),
+    APPROVAL: t("activity.approval"),
+  }
 
   return (
-    <BaseLayout title="Lịch sử hoạt động">
+    <BaseLayout title={t("activity.title")}>
       {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
       <section className="px-4 lg:px-6">
         <div className="overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
@@ -202,33 +205,33 @@ export default function ActivityPage() {
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  Hoạt động
+                  {t("activity.badge")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  {session?.name ?? "Người dùng"}
+                  {session?.name ?? t("profile.fallbackUser")}
                 </Badge>
               </div>
               <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
-                Theo dõi toàn bộ quá trình xử lý tài liệu của bạn.
+                {t("activity.heroTitle")}
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
-                Ghi lại từng bước — từ lúc tải lên, xử lý, chờ duyệt đến khi hoàn tất phê duyệt.
+                {t("activity.heroBody")}
                 {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               <div className="mt-4">
                 <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
                   <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
-                  Làm mới
+                  {t("common.refresh")}
                 </Button>
               </div>
             </div>
             {/* Right: KPI tiles */}
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: "Tổng sự kiện", value: events.length, icon: History },
-                { label: "Đã tải lên", value: uploadedCount, icon: FilePlus2 },
-                { label: "Chờ duyệt", value: reviewCount, icon: FileWarning },
-                { label: "Đã duyệt", value: approvalCount, icon: CheckCircle2 },
+                { label: t("activity.totalEvents"), value: events.length, icon: History },
+                { label: t("activity.uploaded"), value: uploadedCount, icon: FilePlus2 },
+                { label: t("activity.reviewWaiting"), value: reviewCount, icon: FileWarning },
+                { label: t("activity.approved"), value: approvalCount, icon: CheckCircle2 },
               ].map((item) => {
                 const Icon = item.icon
                 return (
@@ -255,14 +258,14 @@ export default function ActivityPage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <Filter className="size-5" />
-                Bộ lọc
+                {t("activity.filters")}
               </CardTitle>
-              <CardDescription>Tìm kiếm và lọc theo loại hoạt động.</CardDescription>
+              <CardDescription>{t("activity.filtersBody")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 pt-5">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} className="pl-9" placeholder="Tìm kiếm tên tài liệu..." />
+                <Input value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} className="pl-9" placeholder={t("activity.searchNamePlaceholder")} />
                 {query && (
                   <Button
                     type="button"
@@ -272,12 +275,12 @@ export default function ActivityPage() {
                     onClick={() => { setQuery(""); setCurrentPage(1) }}
                   >
                     <X className="size-4" />
-                    <span className="sr-only">Xóa tìm kiếm</span>
+                    <span className="sr-only">{t("activity.clearSearch")}</span>
                   </Button>
                 )}
               </div>
               <div className="grid gap-2">
-                {filters.map((item) => (
+                {filterItems.map((item) => (
                   <Button
                     key={item.value}
                     type="button"
@@ -300,7 +303,7 @@ export default function ActivityPage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <Clock3 className="size-5" />
-                Hoạt động mới nhất
+                {t("activity.latest")}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-5">
@@ -311,7 +314,7 @@ export default function ActivityPage() {
                   <div className="mt-3 font-mono text-xs text-muted-foreground">{formatDate(latestEvent.timestamp)}</div>
                 </div>
               ) : (
-                <div className="text-sm text-muted-foreground">Chưa có hoạt động nào.</div>
+                <div className="text-sm text-muted-foreground">{t("activity.noActivity")}</div>
               )}
             </CardContent>
           </Card>
@@ -324,17 +327,17 @@ export default function ActivityPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <ListChecks className="size-5" />
-                  Dòng thời gian
+                  {t("activity.timeline")}
                 </CardTitle>
                 <CardDescription>
-                  Hiển thị {paginatedEvents.length} / {events.length} sự kiện.
+                  {t("activity.showing", { shown: paginatedEvents.length, total: events.length })}
                 </CardDescription>
               </div>
               {/* Mobile-only: search + filter chips */}
               <div className="flex flex-col gap-3 lg:hidden">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} className="pl-9" placeholder="Tìm kiếm..." />
+                  <Input value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} className="pl-9" placeholder={t("activity.searchShortPlaceholder")} />
                   {query && (
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 size-7 -translate-y-1/2" onClick={() => { setQuery(""); setCurrentPage(1) }}>
                       <X className="size-4" />
@@ -342,7 +345,7 @@ export default function ActivityPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {filters.map((item) => (
+                  {filterItems.map((item) => (
                     <button
                       key={item.value}
                       type="button"
@@ -377,7 +380,7 @@ export default function ActivityPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-medium">{event.title}</div>
-                          <Badge variant="secondary" className="text-xs">{kindLabel[event.kind]}</Badge>
+                          <Badge variant="secondary" className="text-xs">{kindLabels[event.kind]}</Badge>
                           <StatusBadge status={event.document.status} />
                         </div>
                         <div className="mt-1 text-sm leading-6 text-muted-foreground">{event.detail}</div>
@@ -388,7 +391,7 @@ export default function ActivityPage() {
                     </div>
                     <Button asChild variant="outline" size="sm" className="shrink-0 w-fit">
                       <Link to={`/documents/${event.document.documentId}`}>
-                        Xem <ArrowRight className="ml-1 size-3.5" />
+                        {t("activity.view")} <ArrowRight className="ml-1 size-3.5" />
                       </Link>
                     </Button>
                   </div>
@@ -397,8 +400,8 @@ export default function ActivityPage() {
             ) : (
               <div className="rounded-xl border border-dashed p-8 text-center">
                 <History className="mx-auto mb-3 size-8 text-muted-foreground" />
-                <div className="font-medium">Không có kết quả phù hợp.</div>
-                <div className="mt-1 text-sm text-muted-foreground">Thử xóa bộ lọc hoặc tìm kiếm lại.</div>
+                <div className="font-medium">{t("activity.noMatch")}</div>
+                <div className="mt-1 text-sm text-muted-foreground">{t("activity.noMatchHint")}</div>
               </div>
             )}
             
@@ -408,8 +411,8 @@ export default function ActivityPage() {
                   <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span>–<span className="font-medium">{Math.min(currentPage * pageSize, totalItems)}</span> / <span className="font-medium">{totalItems}</span>
                 </p>
                 <div className="flex gap-2">
-                  <Button type="button" onClick={() => setCurrentPage((p: number) => Math.max(1, p - 1))} disabled={currentPage === 1} variant="outline" size="sm">Trước</Button>
-                  <Button type="button" onClick={() => setCurrentPage((p: number) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} variant="outline" size="sm">Tiếp</Button>
+                  <Button type="button" onClick={() => setCurrentPage((p: number) => Math.max(1, p - 1))} disabled={currentPage === 1} variant="outline" size="sm">{t("activity.previous")}</Button>
+                  <Button type="button" onClick={() => setCurrentPage((p: number) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} variant="outline" size="sm">{t("activity.next")}</Button>
                 </div>
               </div>
             )}

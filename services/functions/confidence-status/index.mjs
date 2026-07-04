@@ -13,6 +13,10 @@ export const handler = async (event) => {
   const confidence = isRecord(source.confidence) ? source.confidence : {};
   const reviewReasonCodes = [];
 
+  if (!['INVOICE', 'RECEIPT'].includes(source.documentType)) {
+    reviewReasonCodes.push("UNKNOWN_DOCUMENT_TYPE");
+  }
+
   if (!hasText(invoice.vendorName)) {
     reviewReasonCodes.push("MISSING_VENDOR_NAME");
   }

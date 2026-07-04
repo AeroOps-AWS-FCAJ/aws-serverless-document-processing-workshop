@@ -1,11 +1,14 @@
 import { ShieldCheck } from "lucide-react"
 import { Link } from "react-router-dom"
-import { roleLabels, roleHomePaths, type DocuFlowRole } from "@/lib/auth"
+import { roleHomePaths, type DocuFlowRole } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
+import { useLanguage } from "@/lib/i18n"
 
 export function SiteFooter() {
   const { session } = useAuth()
+  const { t } = useLanguage()
   const role = (session?.role ?? "finance") as DocuFlowRole
+  const roleLabel = role === "admin" ? t("role.admin") : t("role.finance")
 
   return (
     <footer className="border-t bg-background/70">
@@ -17,7 +20,7 @@ export function SiteFooter() {
               to={roleHomePaths[role]}
               className="font-medium text-foreground hover:text-primary transition-colors"
             >
-              DocuFlow AI · {roleLabels[role]}
+              DocuFlow AI · {roleLabel}
             </Link>
           </div>
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">

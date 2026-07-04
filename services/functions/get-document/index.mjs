@@ -340,7 +340,7 @@ async function normalizeDocumentResponse(safeItem, fullDocument) {
 
     documentId: pickValue(doc?.documentId, safeItem.documentId),
     userId: pickValue(doc?.userId, safeItem.userId),
-    documentType: pickValue(doc?.documentType, safeItem.documentType, inferDocumentType(doc), "INVOICE"),
+    documentType: pickValue(doc?.documentType, safeItem.documentType, inferDocumentType(doc), "UNKNOWN"),
     status: pickValue(doc?.status, safeItem.status),
 
     originalFileName: pickValue(file.originalFileName, doc?.originalFileName, doc?.fileName, safeItem.originalFileName),

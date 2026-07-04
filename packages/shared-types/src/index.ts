@@ -8,7 +8,7 @@ export type DocumentStatus =
   | "CORRECTED"
   | "APPROVED"
 
-export type DocumentType = "INVOICE" | "RECEIPT"
+export type DocumentType = "INVOICE" | "RECEIPT" | "UNKNOWN"
 export type Currency = string
 
 export interface LineItem {
@@ -22,6 +22,7 @@ export interface LineItem {
 }
 
 export interface CorrectedFields {
+  documentType?: DocumentType
   invoiceNumber?: string
   vendorName?: string
   invoiceDate?: string

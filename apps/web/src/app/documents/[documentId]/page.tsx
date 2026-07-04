@@ -19,13 +19,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatDate, formatMoney, statusMeta, supportedCurrencies, type DocumentRecord, type DocumentStatus } from "@/lib/docuflow-data"
+import { formatDate, formatMoney, statusMeta, supportedCurrencies, type DocumentRecord, type DocumentStatus, type DocumentType } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
-import { deleteDocument, getDocument, isApiConfigured, retryDocument, reviewDocument } from "@/lib/docuflow-api"
+import { deleteDocument, getApiErrorMessage, getDocument, isApiConfigured, retryDocument, reviewDocument } from "@/lib/docuflow-api"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
 import { toast } from "sonner"
 import type { LineItem } from "@docuflow/shared-types"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type LineItemForm = {
   lineItemId: string
@@ -38,6 +39,7 @@ type LineItemForm = {
 }
 
 type ReviewForm = {
+  documentType: DocumentType
   invoiceNumber: string
   vendorName: string
   invoiceDate: string
@@ -51,6 +53,7 @@ type ReviewForm = {
 }
 
 type ReviewFields = {
+  documentType: DocumentType
   invoiceNumber: string
   vendorName: string
   invoiceDate: string
@@ -76,8 +79,9 @@ type ReviewPayload = {
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]; const Icon = meta.icon
-  return <Badge variant="outline" className={meta.tone}><Icon className="size-3.5" />{meta.label}</Badge>
+  return <Badge variant="outline" className={meta.tone}><Icon className="size-3.5" />{t(`status.${status}` as TranslationKey)}</Badge>
 }
 
 function ConfirmDeleteDialog({
@@ -94,6 +98,7 @@ function ConfirmDeleteDialog({
   onConfirm: () => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
+  const { t } = useLanguage()
 
   const handleConfirm = async () => {
     const confirmed = await onConfirm()
@@ -110,11 +115,11 @@ function ConfirmDeleteDialog({
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)} disabled={isDeleting}>
-            Hủy
+            {t("detail.cancel")}
           </Button>
           <Button type="button" variant="destructive" className="cursor-pointer" onClick={handleConfirm} disabled={isDeleting}>
             {isDeleting ? <RefreshCw className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-            Xóa tài liệu
+            {t("detail.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -123,6 +128,7 @@ function ConfirmDeleteDialog({
 }
 
 function ConfidenceBar({ score }: { score: number }) {
+  const { t } = useLanguage()
   const pct = Math.round(score * 100)
   const isLow = score > 0 && score < CONFIDENCE_THRESHOLD
   const isZero = score === 0
@@ -131,9 +137,9 @@ function ConfidenceBar({ score }: { score: number }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className={`font-medium text-sm ${isLow ? "text-amber-800 dark:text-amber-200" : isZero ? "text-muted-foreground" : "text-emerald-800 dark:text-emerald-200"}`}>
-            {isZero ? "Chờ trích xuất" : isLow ? "Độ tin cậy thấp — cần kiểm duyệt" : "Độ tin cậy tốt"}
+            {isZero ? t("detail.waitingExtraction") : isLow ? t("detail.lowConfidence") : t("detail.goodConfidence")}
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">Ngưỡng duyệt: {Math.round(CONFIDENCE_THRESHOLD * 100)}%</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">{t("detail.reviewThreshold", { percent: Math.round(CONFIDENCE_THRESHOLD * 100) })}</div>
         </div>
         <div className={`rounded-lg border px-3 py-1.5 font-mono text-lg font-bold ${isLow ? "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200" : isZero ? "border-border bg-muted text-muted-foreground" : "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>
           {pct}%
@@ -177,17 +183,18 @@ function isLikelyPdf(doc: DocumentRecord) {
 }
 
 function DocumentPreview({ doc }: { doc: DocumentRecord }) {
+  const { t } = useLanguage()
   const hasSourceUrl = Boolean(doc.sourceUrl)
   return (
     <Card className="overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
       <CardHeader className="border-b bg-muted/20 pb-4">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base"><FileText className="size-4" />Xem trước tài liệu nguồn</CardTitle>
-          <Badge variant="outline" className="font-mono text-xs">{doc.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}</Badge>
+          <CardTitle className="flex items-center gap-2 text-base"><FileText className="size-4" />{t("detail.sourcePreview")}</CardTitle>
+          <Badge variant="outline" className="font-mono text-xs">{doc.documentType === "INVOICE" ? t("detail.invoice") : doc.documentType === "RECEIPT" ? t("detail.receipt") : t("detail.unknown")}</Badge>
         </div>
         {!hasSourceUrl && (
           <CardDescription className="text-xs">
-            Backend chưa trả URL xem tài liệu gốc; bên dưới là bản dựng từ dữ liệu đã trích xuất để đối chiếu nhanh.
+            {t("detail.sourceUnavailable")}
           </CardDescription>
         )}
       </CardHeader>
@@ -195,46 +202,46 @@ function DocumentPreview({ doc }: { doc: DocumentRecord }) {
         {doc.sourceUrl ? (
           isLikelyPdf(doc) ? (
             <iframe
-              title={`Tài liệu nguồn ${doc.originalFileName}`}
+              title={t("detail.sourceTitle", { name: doc.originalFileName })}
               src={doc.sourceUrl}
               className="h-[620px] w-full border-0 bg-muted"
             />
           ) : (
             <div className="flex max-h-[680px] justify-center overflow-auto bg-muted/30 p-4">
-              <img src={doc.sourceUrl} alt={`Tài liệu nguồn ${doc.originalFileName}`} className="h-auto max-w-full rounded-lg border bg-white shadow-sm" />
+              <img src={doc.sourceUrl} alt={t("detail.sourceTitle", { name: doc.originalFileName })} className="h-auto max-w-full rounded-lg border bg-white shadow-sm" />
             </div>
           )
         ) : (
         <div className="m-4 rounded-xl border bg-card p-5 shadow-sm">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Nhà cung cấp</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("detail.vendor")}</div>
               <div className="mt-1 text-lg font-bold leading-tight">{doc.vendorName}</div>
             </div>
             <div className="text-right">
-              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Mã chứng từ</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("detail.documentId")}</div>
               <div className="mt-1 font-mono text-xs text-muted-foreground">{doc.documentId}</div>
             </div>
           </div>
           <div className="grid gap-3 border-y py-4 text-sm sm:grid-cols-3">
-            {[["Số hóa đơn", doc.invoiceNumber || "Không phát hiện"], ["Ngày", doc.invoiceDate], ["Hạn thanh toán", doc.dueDate || "Không phát hiện"], ["Tiền tệ",doc.currency],["Độ tin cậy",`${Math.round(doc.confidenceScore*100)}%`]].map(([l,v])=>(
+            {[[t("detail.invoiceNumber"), doc.invoiceNumber || t("detail.notExtracted")], [t("detail.date"), doc.invoiceDate], [t("detail.dueDate"), doc.dueDate || t("detail.notExtracted")], [t("detail.currency"),doc.currency],[t("detail.confidence"),`${Math.round(doc.confidenceScore*100)}%`]].map(([l,v])=>(
               <div key={l}><div className="text-xs text-muted-foreground mb-0.5">{l}</div><div className="font-semibold">{v}</div></div>
             ))}
           </div>
           <div className="mt-5 grid gap-2">
             {doc.lineItems.length ? doc.lineItems.map((item) => (
               <div key={item.description} className="flex items-center justify-between gap-4 rounded-lg bg-muted/40 p-3 text-sm">
-                <div><div className="font-medium">{item.description}</div><div className="text-muted-foreground text-xs mt-0.5">SL {item.quantity}</div></div>
+                <div><div className="font-medium">{item.description}</div><div className="text-muted-foreground text-xs mt-0.5">{t("detail.quantity")} {item.quantity}</div></div>
                 <div className="text-right font-semibold tabular-nums">{formatMoney(item.totalAmount, doc.currency)}</div>
               </div>
             )) : (
               <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-                Các mục hàng sẽ xuất hiện khi xử lý tài liệu hoàn tất.
+                {t("detail.itemsPending")}
               </div>
             )}
           </div>
           <div className="mt-5 flex items-center justify-between border-t pt-4">
-            <div className="text-sm text-muted-foreground">Tổng tiền</div>
+            <div className="text-sm text-muted-foreground">{t("detail.total")}</div>
             <div className="text-2xl font-bold tabular-nums">{formatMoney(doc.totalAmount, doc.currency)}</div>
           </div>
         </div>
@@ -287,19 +294,24 @@ function parseLocalizedNumber(value: string) {
   return Number(cleaned.replaceAll(",", ""))
 }
 
-function parseAmount(label: string, value: string, options: { required?: boolean; nullable?: boolean } = {}) {
+function parseAmount(
+  label: string,
+  value: string,
+  options: { required?: boolean; nullable?: boolean } = {},
+  translate: ReturnType<typeof useLanguage>["t"]
+) {
   const trimmed = value.trim()
   if (!trimmed) {
-    if (options.required) return { ok: false as const, error: `${label} không được để trống.` }
+    if (options.required) return { ok: false as const, error: translate("detail.requiredError", { label }) }
     return { ok: true as const, value: options.nullable ? null : undefined }
   }
 
   const parsed = parseLocalizedNumber(trimmed)
   if (!Number.isFinite(parsed)) {
-    return { ok: false as const, error: `${label} phải là số hợp lệ.` }
+    return { ok: false as const, error: translate("detail.invalidNumberError", { label }) }
   }
   if (parsed < 0) {
-    return { ok: false as const, error: `${label} không được là số âm.` }
+    return { ok: false as const, error: translate("detail.negativeNumberError", { label }) }
   }
 
   return { ok: true as const, value: parsed }
@@ -308,6 +320,7 @@ function parseAmount(label: string, value: string, options: { required?: boolean
 export default function DocumentDetailPage() {
   const { documentId } = useParams()
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const { documents, removeDocument, updateDocument } = useDocuFlowDocuments()
   const { session } = useAuth()
   const role = session?.role ?? "finance"
@@ -330,6 +343,7 @@ export default function DocumentDetailPage() {
   const [copied, setCopied] = useState(false)
   const [pendingApproval, setPendingApproval] = useState<ReviewPayload | null>(null)
   const [form, setForm] = useState<ReviewForm>({
+    documentType: "UNKNOWN",
     invoiceNumber: "",
     vendorName: "",
     invoiceDate: "",
@@ -395,6 +409,7 @@ export default function DocumentDetailPage() {
     if (!doc) return
     if (isDirty) return
     setForm({
+      documentType: doc.documentType,
       invoiceNumber: doc.invoiceNumber ?? "",
       vendorName: doc.vendorName,
       invoiceDate: doc.invoiceDate,
@@ -441,7 +456,7 @@ export default function DocumentDetailPage() {
 
   if (isLoading) {
     return (
-      <BaseLayout title="Đang tải..." description="Vui lòng đợi trong giây lát.">
+      <BaseLayout title={t("detail.loading")} description={t("detail.loadingBody")}>
         <div className="grid gap-5 px-4 lg:grid-cols-[1.2fr_0.8fr] lg:px-6">
           <Card className="rounded-xl shadow-sm">
             <CardHeader>
@@ -473,9 +488,9 @@ export default function DocumentDetailPage() {
 
   if (!doc) {
     return (
-      <BaseLayout title="Không tìm thấy tài liệu" description="Tài liệu yêu cầu không tồn tại hoặc không còn khả dụng.">
+      <BaseLayout title={t("detail.notFound")} description={t("detail.notFoundBody")}>
         <div className="px-4 lg:px-6">
-          <Button asChild variant="outline"><Link to="/documents"><ArrowLeft className="size-4" />Về danh sách tài liệu</Link></Button>
+          <Button asChild variant="outline"><Link to="/documents"><ArrowLeft className="size-4" />{t("detail.back")}</Link></Button>
         </div>
       </BaseLayout>
     )
@@ -513,11 +528,11 @@ export default function DocumentDetailPage() {
   }
 
   const buildReviewPayload = (): ReviewPayload | null => {
-    const subtotalAmount = parseAmount("Tạm tính", form.subtotalAmount)
-    const discountAmount = parseAmount("Giảm giá", form.discountAmount)
-    const shippingAmount = parseAmount("Phí vận chuyển", form.shippingAmount)
-    const totalAmount = parseAmount("Tổng tiền", form.totalAmount, { required: true })
-    const taxAmount = parseAmount("Thuế", form.taxAmount, { nullable: true })
+    const subtotalAmount = parseAmount(t("detail.subtotal"), form.subtotalAmount, {}, t)
+    const discountAmount = parseAmount(t("detail.discount"), form.discountAmount, {}, t)
+    const shippingAmount = parseAmount(t("detail.shipping"), form.shippingAmount, {}, t)
+    const totalAmount = parseAmount(t("detail.total"), form.totalAmount, { required: true }, t)
+    const taxAmount = parseAmount(t("detail.tax"), form.taxAmount, { nullable: true }, t)
 
     for (const result of [subtotalAmount, discountAmount, shippingAmount, totalAmount, taxAmount]) {
       if (!result.ok) {
@@ -528,10 +543,10 @@ export default function DocumentDetailPage() {
 
     const lineItems: LineItem[] = []
     for (const [index, item] of lineItemForms.entries()) {
-      const quantity = parseAmount(`Số lượng mục #${index + 1}`, item.quantity, { required: true })
-      const unitPriceAmount = parseAmount(`Đơn giá mục #${index + 1}`, item.unitPriceAmount, { required: true })
-      const itemTaxAmount = parseAmount(`Thuế mục #${index + 1}`, item.taxAmount)
-      const itemTotalAmount = parseAmount(`Thành tiền mục #${index + 1}`, item.totalAmount)
+      const quantity = parseAmount(t("detail.lineQuantity", { index: index + 1 }), item.quantity, { required: true }, t)
+      const unitPriceAmount = parseAmount(t("detail.lineUnitPrice", { index: index + 1 }), item.unitPriceAmount, { required: true }, t)
+      const itemTaxAmount = parseAmount(t("detail.lineTax", { index: index + 1 }), item.taxAmount, {}, t)
+      const itemTotalAmount = parseAmount(t("detail.lineTotal", { index: index + 1 }), item.totalAmount, {}, t)
 
       for (const result of [quantity, unitPriceAmount, itemTaxAmount, itemTotalAmount]) {
         if (!result.ok) {
@@ -542,7 +557,7 @@ export default function DocumentDetailPage() {
 
       lineItems.push({
         lineItemId: item.lineItemId || `item-${index + 1}`,
-        description: item.description.trim() || `Mục ${index + 1}`,
+        description: item.description.trim() || t("detail.defaultItem", { index: index + 1 }),
         quantity: quantity.value ?? 0,
         unitPriceAmount: unitPriceAmount.value ?? 0,
         taxAmount: itemTaxAmount.value ?? 0,
@@ -555,12 +570,14 @@ export default function DocumentDetailPage() {
     const normalizedTotalAmount = Number(totalAmount.value ?? 0)
 
     if (lineItems.length > 0 && Math.abs(lineItemsTotal - normalizedTotalAmount) > 0.01) {
-      toast.warning(
-        `Tổng dòng hàng (${formatMoney(lineItemsTotal, form.currency)}) lệch với tổng tiền (${formatMoney(normalizedTotalAmount, form.currency)}).`
-      )
+      toast.warning(t("detail.totalMismatch", {
+        itemsTotal: formatMoney(lineItemsTotal, form.currency),
+        documentTotal: formatMoney(normalizedTotalAmount, form.currency),
+      }))
     }
 
     const fields: ReviewFields = {
+      documentType: form.documentType,
       invoiceNumber: form.invoiceNumber.trim(),
       vendorName: form.vendorName.trim() || "Unknown",
       invoiceDate: form.invoiceDate,
@@ -608,21 +625,21 @@ export default function DocumentDetailPage() {
       const refreshed = await getDocument(documentId)
       if (refreshed) {
         applyDocument(refreshed as DocumentRecord)
-        toast.success("Đã làm mới dữ liệu tài liệu.")
+        toast.success(t("detail.refreshSuccess"))
         return
       }
 
       if (localDocument) {
         setDoc(localDocument)
-        toast.info("Backend chưa có metadata mới. Đang dùng bản lưu tạm trên trình duyệt.")
+        toast.info(t("detail.refreshCached"))
         return
       }
 
       setDoc(undefined)
-      toast.error("Không tìm thấy tài liệu trên backend.")
+      toast.error(t("detail.refreshMissing"))
     } catch (error) {
       console.error("Failed to refresh document:", error)
-      toast.error("Không thể làm mới tài liệu. Vui lòng thử lại.")
+      toast.error(t("detail.refreshFailed"))
     } finally {
       setIsRefreshing(false)
     }
@@ -632,7 +649,7 @@ export default function DocumentDetailPage() {
     if (!doc) return
     await navigator.clipboard.writeText(doc.documentId)
     setCopied(true)
-    toast.success("Đã sao chép documentId.")
+    toast.success(t("detail.copySuccess"))
     window.setTimeout(() => setCopied(false), 1400)
   }
 
@@ -655,12 +672,12 @@ export default function DocumentDetailPage() {
     try {
       await deleteDocument(doc.documentId)
       removeDocument(doc.documentId)
-      toast.success("Đã xóa tài liệu.")
+      toast.success(t("detail.deleteSuccess"))
       navigate("/documents")
       return true
     } catch (error) {
       console.error("Failed to delete document:", error)
-      toast.error("Không thể xóa tài liệu. Vui lòng thử lại.")
+      toast.error(t("detail.deleteFailed"))
       return false
     } finally {
       setIsDeleting(false)
@@ -675,15 +692,15 @@ export default function DocumentDetailPage() {
       await retryDocument(doc.documentId)
       const patch: Partial<DocumentRecord> = {
         status: "QUEUED",
-        errorMessage: "Đã yêu cầu chạy lại quy trình xử lý.",
+        errorMessage: t("detail.retryRequested"),
         updatedAt: new Date().toISOString(),
       }
       updateDocument(doc.documentId, patch)
       setDoc((current) => current ? { ...current, ...patch } : current)
-      toast.success("Đã gửi yêu cầu chạy lại xử lý.")
+      toast.success(t("detail.retrySuccess"))
     } catch (error) {
       console.error("Failed to retry document:", error)
-      toast.error("Không thể chạy lại xử lý. Kiểm tra endpoint retry trên backend.")
+      toast.error(t("detail.retryFailed"))
     } finally {
       setIsRetrying(false)
     }
@@ -694,7 +711,7 @@ export default function DocumentDetailPage() {
     if (!payload) return
 
     if (payload.corrections.length === 0) {
-      toast.info("Không có thay đổi nào để lưu.");
+      toast.info(t("detail.noChanges"));
       return;
     }
 
@@ -704,8 +721,11 @@ export default function DocumentDetailPage() {
       const patch = { ...payload.fields, status:res.status, reviewStatus:res.reviewStatus, reviewReasonCodes:[], updatedAt:res.updatedAt, reviewerNote:reviewNote.trim()||null, errorMessage:null }
       await refreshAfterReview(patch)
       setIsDirty(false)
-      toast.success("Đã lưu chỉnh sửa. Tài liệu sẵn sàng để phê duyệt.")
-    } catch { toast.error("Không thể lưu chỉnh sửa. Vui lòng thử lại.") }
+      toast.success(t("detail.saveSuccess"))
+    } catch (error) {
+      console.error("Failed to save document corrections:", error)
+      toast.error(getApiErrorMessage(error, t("detail.saveFailed")))
+    }
     finally { setIsReviewing(false) }
   }
 
@@ -713,8 +733,8 @@ export default function DocumentDetailPage() {
     const payload = buildReviewPayload()
     if (!payload) return
 
-    if (!payload.fields.vendorName || !payload.fields.invoiceDate || payload.fields.totalAmount <= 0 || !payload.fields.currency) {
-      toast.error("Cần có nhà cung cấp, ngày hóa đơn, tiền tệ và tổng tiền lớn hơn 0 trước khi phê duyệt.")
+    if (payload.fields.documentType === "UNKNOWN" || !payload.fields.vendorName || !payload.fields.invoiceDate || payload.fields.totalAmount <= 0 || !payload.fields.currency) {
+      toast.error(t("detail.approvalRequired"))
       return
     }
 
@@ -742,28 +762,31 @@ export default function DocumentDetailPage() {
       await refreshAfterReview(patch)
       setIsDirty(false)
       setPendingApproval(null)
-      toast.success("Tài liệu đã được phê duyệt.")
-    } catch { toast.error("Không thể phê duyệt. Vui lòng thử lại.") }
+      toast.success(t("detail.approveSuccess"))
+    } catch (error) {
+      console.error("Failed to approve document:", error)
+      toast.error(getApiErrorMessage(error, t("detail.approveFailed")))
+    }
     finally { setIsReviewing(false) }
   }
 
   return (
-    <BaseLayout title={doc.originalFileName} description={`${doc.documentId} · ${doc.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"} · ${statusMeta[doc.status].label}`}>
+    <BaseLayout title={doc.originalFileName} description={`${doc.documentId} · ${doc.documentType === "INVOICE" ? t("detail.invoice") : doc.documentType === "RECEIPT" ? t("detail.receipt") : t("detail.unknown")} · ${t(`status.${doc.status}` as TranslationKey)}`}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm" className="cursor-pointer">
-            <Link to="/documents"><ArrowLeft className="size-4" />Danh sách</Link>
+            <Link to="/documents"><ArrowLeft className="size-4" />{t("detail.list")}</Link>
           </Button>
           <StatusBadge status={doc.status} />
           {isPolling && (
             <Badge variant="outline" className="gap-1.5 text-primary">
               <span className="size-2 rounded-full bg-current animate-pulse" />
-              Đang đồng bộ
+              {t("detail.syncing")}
             </Badge>
           )}
           {isDirty && (
             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-              Có thay đổi chưa lưu
+              {t("detail.unsaved")}
             </Badge>
           )}
         </div>
@@ -771,11 +794,11 @@ export default function DocumentDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleRefreshDocument} disabled={isRefreshing}>
             <RefreshCw className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
-            Làm mới
+            {t("detail.refresh")}
           </Button>
           <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleCopyDocumentId}>
             <Copy className="size-4" />
-            {copied ? "Đã sao chép" : "Sao chép ID"}
+            {copied ? t("detail.copied") : t("detail.copyId")}
           </Button>
           <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleDownloadJson}>
             <Download className="size-4" />
@@ -785,25 +808,25 @@ export default function DocumentDetailPage() {
             <Button asChild variant="outline" size="sm" className="cursor-pointer">
               <a href={doc.sourceUrl} target="_blank" rel="noreferrer">
                 <FileText className="size-4" />
-                File gốc
+                {t("detail.download")}
               </a>
             </Button>
           )}
           {["FAILED", "REVIEW_REQUIRED"].includes(doc.status) && (
             <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleRetryDocument} disabled={isRetrying}>
               <RefreshCw className={isRetrying ? "size-4 animate-spin" : "size-4"} />
-              Chạy lại
+              {t("detail.retry")}
             </Button>
           )}
           <ConfirmDeleteDialog
-            title="Xóa tài liệu này?"
-            description={`Tài liệu ${doc.originalFileName} sẽ bị xóa khỏi hệ thống. Hành động này không thể hoàn tác từ giao diện.`}
+            title={t("detail.delete")}
+            description={t("detail.deleteDescription", { name: doc.originalFileName })}
             isDeleting={isDeleting}
             onConfirm={handleDeleteDocument}
             trigger={
               <Button type="button" variant="destructive" size="sm" className="cursor-pointer">
                 <Trash2 className="size-4" />
-                Xóa
+                {t("detail.deleteShort")}
               </Button>
             }
           />
@@ -819,9 +842,9 @@ export default function DocumentDetailPage() {
               <CardContent className="flex items-start gap-3 p-4">
                 <RefreshCw className="mt-0.5 size-4 shrink-0 animate-spin text-cyan-700 dark:text-cyan-300" />
                 <div>
-                  <div className="text-sm font-semibold text-cyan-900 dark:text-cyan-100">Tài liệu đang được xử lý</div>
+                  <div className="text-sm font-semibold text-cyan-900 dark:text-cyan-100">{t("detail.processingTitle")}</div>
                   <p className="mt-1 text-xs leading-5 text-cyan-800/80 dark:text-cyan-200/80">
-                    Backend đang ghi metadata hoặc trích xuất dữ liệu. Bạn có thể giữ trang này mở; hệ thống sẽ tự làm mới mỗi 5 giây.
+                    {t("detail.autoRefreshMessage")}
                   </p>
                 </div>
               </CardContent>
@@ -835,7 +858,7 @@ export default function DocumentDetailPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">{doc.originalFileName}</CardTitle>
-                  <CardDescription className="text-xs">Các trường có cấu trúc được trích xuất từ tài liệu đã tải lên.</CardDescription>
+                  <CardDescription className="text-xs">{t("detail.extractedBody")}</CardDescription>
                 </div>
                 <StatusBadge status={doc.status} />
               </div>
@@ -846,15 +869,15 @@ export default function DocumentDetailPage() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {[
-                    ["Số hóa đơn", doc.invoiceNumber || "Không phát hiện"],
-                    ["Nhà cung cấp", doc.vendorName],
-                    ["Ngày hóa đơn", doc.invoiceDate],
-                    ["Hạn thanh toán", doc.dueDate || "Không phát hiện"],
-                    ["Tạm tính", doc.subtotalAmount == null ? "Không phát hiện" : formatMoney(doc.subtotalAmount, doc.currency)],
-                    ["Giảm giá", doc.discountAmount == null ? "Không phát hiện" : formatMoney(doc.discountAmount, doc.currency)],
-                    ["Phí vận chuyển", doc.shippingAmount == null ? "Không phát hiện" : formatMoney(doc.shippingAmount, doc.currency)],
-                    ["Tổng tiền", formatMoney(doc.totalAmount, doc.currency)],
-                    ["Thuế", doc.taxAmount == null ? "Không phát hiện" : formatMoney(doc.taxAmount, doc.currency)],
+                    [t("detail.invoiceNumber"), doc.invoiceNumber || t("detail.notExtracted")],
+                    [t("detail.vendor"), doc.vendorName],
+                    [t("detail.invoiceDate"), doc.invoiceDate],
+                    [t("detail.dueDate"), doc.dueDate || t("detail.notExtracted")],
+                    [t("detail.subtotal"), doc.subtotalAmount == null ? t("detail.notExtracted") : formatMoney(doc.subtotalAmount, doc.currency)],
+                    [t("detail.discount"), doc.discountAmount == null ? t("detail.notExtracted") : formatMoney(doc.discountAmount, doc.currency)],
+                    [t("detail.shipping"), doc.shippingAmount == null ? t("detail.notExtracted") : formatMoney(doc.shippingAmount, doc.currency)],
+                    [t("detail.total"), formatMoney(doc.totalAmount, doc.currency)],
+                    [t("detail.tax"), doc.taxAmount == null ? t("detail.notExtracted") : formatMoney(doc.taxAmount, doc.currency)],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-xl border bg-muted/20 p-3">
                       <div className="text-xs text-muted-foreground">{label}</div>
@@ -867,11 +890,11 @@ export default function DocumentDetailPage() {
               {role === "admin" && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border bg-muted/20 p-3">
-                    <div className="text-xs text-muted-foreground">Nhà cung cấp AI</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.aiProvider")}</div>
                     <div className="mt-1 font-mono text-xs font-medium">{doc.aiProvider}</div>
                   </div>
                   <div className="rounded-xl border bg-muted/20 p-3">
-                    <div className="text-xs text-muted-foreground">Phương pháp</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.method")}</div>
                     <div className="mt-1 break-all font-mono text-xs">{doc.normalizationMethod}</div>
                   </div>
                 </div>
@@ -882,7 +905,7 @@ export default function DocumentDetailPage() {
               {doc.reviewReasonCodes.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                   <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    <FileWarning className="size-4" />Lý do cần duyệt
+                    <FileWarning className="size-4" />{t("documents.reviewReasons")}
                   </div>
                   <ul className="mt-2.5 grid gap-1.5 text-xs text-amber-800 dark:text-amber-300">
                     {doc.reviewReasonCodes.map((r) => <li key={r} className="flex gap-2"><span aria-hidden>·</span><span>{r}</span></li>)}
@@ -893,20 +916,20 @@ export default function DocumentDetailPage() {
               {doc.reviewedAt && (
                 <div className="grid gap-3 rounded-xl border bg-muted/20 p-4">
                   <div className="grid grid-cols-2 gap-3">
-                    <div><div className="mb-1 text-xs text-muted-foreground">Raw object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.rawS3Key}</div></div>
-                    <div><div className="mb-1 text-xs text-muted-foreground">Processed object</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.processedS3Key}</div></div>
+                    <div><div className="mb-1 text-xs text-muted-foreground">{t("documents.rawObject")}</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.rawS3Key}</div></div>
+                    <div><div className="mb-1 text-xs text-muted-foreground">{t("documents.processedObject")}</div><div className="break-all font-mono text-[10px] bg-muted/40 rounded p-2">{doc.processedS3Key}</div></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                    <div><div className="text-xs text-muted-foreground">Ngày duyệt</div><div className="mt-1 text-sm font-medium">{formatDate(doc.reviewedAt)}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Người duyệt</div><div className="mt-1 text-sm font-medium">{doc.reviewedBy ?? "Không xác định"}</div></div>
+                    <div><div className="text-xs text-muted-foreground">{t("detail.reviewedAt")}</div><div className="mt-1 text-sm font-medium">{formatDate(doc.reviewedAt)}</div></div>
+                    <div><div className="text-xs text-muted-foreground">{t("detail.reviewedBy")}</div><div className="mt-1 text-sm font-medium">{doc.reviewedBy ?? t("detail.unknown")}</div></div>
                   </div>
-                  {doc.reviewerNote && <div className="pt-2 border-t"><div className="text-xs text-muted-foreground">Ghi chú</div><div className="mt-1 text-sm leading-6">{doc.reviewerNote}</div></div>}
+                  {doc.reviewerNote && <div className="pt-2 border-t"><div className="text-xs text-muted-foreground">{t("detail.note")}</div><div className="mt-1 text-sm leading-6">{doc.reviewerNote}</div></div>}
                 </div>
               )}
 
               <div className="overflow-x-auto rounded-xl border">
                 <Table className="min-w-[480px]">
-                  <TableHeader><TableRow className="bg-muted/30"><TableHead>Mô tả</TableHead><TableHead className="text-right">SL</TableHead><TableHead className="text-right">Đơn giá</TableHead><TableHead className="text-right">Thành tiền</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-muted/30"><TableHead>{t("detail.description")}</TableHead><TableHead className="text-right">{t("detail.quantity")}</TableHead><TableHead className="text-right">{t("detail.unitPrice")}</TableHead><TableHead className="text-right">{t("detail.amount")}</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {doc.lineItems.length ? doc.lineItems.map((item, index) => (
                       <TableRow key={item.lineItemId || `${item.description}-${index}`}>
@@ -916,7 +939,7 @@ export default function DocumentDetailPage() {
                         <TableCell className="text-right font-semibold tabular-nums">{formatMoney(item.totalAmount, doc.currency)}</TableCell>
                       </TableRow>
                     )) : (
-                      <TableRow><TableCell colSpan={4} className="h-16 text-center text-sm text-muted-foreground">Không có mục hàng nào được trích xuất.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="h-16 text-center text-sm text-muted-foreground">{t("detail.noItems")}</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -930,78 +953,89 @@ export default function DocumentDetailPage() {
           {(canCorrect || canApprove) && (
             <Card className="rounded-xl shadow-sm transition-shadow hover:shadow-md ring-1 ring-primary/10">
               <CardHeader className="border-b bg-muted/20 pb-4">
-                <CardTitle className="text-base">Duyệt và phê duyệt</CardTitle>
-                <CardDescription className="text-xs">Chỉnh sửa trường không chắc chắn, thêm ghi chú và phê duyệt kết quả đã xác minh.</CardDescription>
+                <CardTitle className="text-base">{t("detail.reviewTitle")}</CardTitle>
+                <CardDescription className="text-xs">{t("detail.reviewBody")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 p-4">
                 <div className="grid gap-3">
                   <div className="grid gap-1.5">
-                    <Label htmlFor="invoiceNumber" className="text-xs font-semibold">Số hóa đơn</Label>
+                    <Label className="text-xs font-semibold">{t("upload.documentType")}</Label>
+                    <Select value={form.documentType} onValueChange={(value) => updateFormField("documentType", value as DocumentType)}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="UNKNOWN">{t("detail.unknown")}</SelectItem>
+                        <SelectItem value="INVOICE">{t("detail.invoice")}</SelectItem>
+                        <SelectItem value="RECEIPT">{t("detail.receipt")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="invoiceNumber" className="text-xs font-semibold">{t("detail.invoiceNumber")}</Label>
                     <Input id="invoiceNumber" value={form.invoiceNumber} onChange={(e)=>updateFormField("invoiceNumber", e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div className="grid gap-1.5">
-                    <Label htmlFor="vendorName" className="text-xs font-semibold">Nhà cung cấp</Label>
+                    <Label htmlFor="vendorName" className="text-xs font-semibold">{t("detail.vendor")}</Label>
                     <Input id="vendorName" value={form.vendorName} onChange={(e)=>updateFormField("vendorName", e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                      <Label htmlFor="invoiceDate" className="text-xs font-semibold">Ngày hóa đơn</Label>
+                      <Label htmlFor="invoiceDate" className="text-xs font-semibold">{t("detail.invoiceDate")}</Label>
                       <Input id="invoiceDate" type="date" value={form.invoiceDate} onChange={(e)=>updateFormField("invoiceDate", e.target.value)} className="h-9 text-sm" />
                     </div>
                     <div className="grid gap-1.5">
-                      <Label htmlFor="dueDate" className="text-xs font-semibold">Hạn thanh toán</Label>
+                      <Label htmlFor="dueDate" className="text-xs font-semibold">{t("detail.dueDate")}</Label>
                       <Input id="dueDate" type="date" value={form.dueDate} onChange={(e)=>updateFormField("dueDate", e.target.value)} className="h-9 text-sm" />
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                      <Label className="text-xs font-semibold">Tiền tệ</Label>
+                      <Label className="text-xs font-semibold">{t("detail.currency")}</Label>
                       <Select value={form.currency} onValueChange={(v)=>updateFormField("currency", v)}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="max-h-72">
                           {supportedCurrencies.map((currency) => (
                             <SelectItem key={currency.code} value={currency.code}>
                               <span className="font-mono">{currency.code}</span>
-                              <span className="ml-2 text-muted-foreground">{currency.label}</span>
+                              <span className="ml-2 text-muted-foreground">{t(`currency.${currency.code}` as TranslationKey)}</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-1.5">
-                      <Label htmlFor="subtotalAmount" className="text-xs font-semibold">Tạm tính</Label>
+                      <Label htmlFor="subtotalAmount" className="text-xs font-semibold">{t("detail.subtotal")}</Label>
                       <Input id="subtotalAmount" inputMode="decimal" value={form.subtotalAmount} onChange={(e)=>updateFormField("subtotalAmount", e.target.value)} className="h-9 text-sm" />
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                      <Label htmlFor="discountAmount" className="text-xs font-semibold">Giảm giá</Label>
+                      <Label htmlFor="discountAmount" className="text-xs font-semibold">{t("detail.discount")}</Label>
                       <Input id="discountAmount" inputMode="decimal" value={form.discountAmount} onChange={(e)=>updateFormField("discountAmount", e.target.value)} className="h-9 text-sm" />
                     </div>
                     <div className="grid gap-1.5">
-                      <Label htmlFor="shippingAmount" className="text-xs font-semibold">Phí vận chuyển</Label>
+                      <Label htmlFor="shippingAmount" className="text-xs font-semibold">{t("detail.shipping")}</Label>
                       <Input id="shippingAmount" inputMode="decimal" value={form.shippingAmount} onChange={(e)=>updateFormField("shippingAmount", e.target.value)} className="h-9 text-sm" />
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                      <Label htmlFor="totalAmount" className="text-xs font-semibold">Tổng tiền</Label>
+                      <Label htmlFor="totalAmount" className="text-xs font-semibold">{t("detail.total")}</Label>
                       <Input id="totalAmount" inputMode="decimal" value={form.totalAmount} onChange={(e)=>updateFormField("totalAmount", e.target.value)} className="h-9 text-sm" />
                     </div>
                     <div className="grid gap-1.5">
-                      <Label htmlFor="taxAmount" className="text-xs font-semibold">Thuế</Label>
-                      <Input id="taxAmount" inputMode="decimal" placeholder="Không phát hiện" value={form.taxAmount} onChange={(e)=>updateFormField("taxAmount", e.target.value)} className="h-9 text-sm" />
+                      <Label htmlFor="taxAmount" className="text-xs font-semibold">{t("detail.tax")}</Label>
+                      <Input id="taxAmount" inputMode="decimal" placeholder={t("detail.notExtracted")} value={form.taxAmount} onChange={(e)=>updateFormField("taxAmount", e.target.value)} className="h-9 text-sm" />
                     </div>
                   </div>
 
                   <div className="grid gap-2 rounded-xl border bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <Label className="text-xs font-semibold">Mục hàng</Label>
-                        <div className="mt-0.5 text-xs text-muted-foreground">Sửa mô tả, số lượng, đơn giá và thành tiền trước khi lưu.</div>
+                        <Label className="text-xs font-semibold">{t("detail.lineItems")}</Label>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{t("detail.lineItemsBody")}</div>
                       </div>
                       <Button type="button" variant="outline" size="sm" className="h-8 cursor-pointer" onClick={addLineItem}>
-                        <Plus className="size-3.5" />Thêm
+                        <Plus className="size-3.5" />{t("detail.add")}
                       </Button>
                     </div>
                     <div className="grid gap-2">
@@ -1011,28 +1045,28 @@ export default function DocumentDetailPage() {
                             <span className="font-mono text-[10px] text-muted-foreground">#{index + 1}</span>
                             <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer text-muted-foreground hover:text-destructive" onClick={() => removeLineItem(index)}>
                               <Trash2 className="size-3.5" />
-                              <span className="sr-only">Xóa mục hàng</span>
+                              <span className="sr-only">{t("detail.removeItem")}</span>
                             </Button>
                           </div>
                           <div className="grid gap-1.5">
-                            <Label className="text-[11px]">Mô tả</Label>
+                            <Label className="text-[11px]">{t("detail.description")}</Label>
                             <Input value={item.description} onChange={(e)=>updateLineItemForm(index,{description:e.target.value})} className="h-8 text-xs" />
                           </div>
                           <div className="grid gap-2 sm:grid-cols-4">
                             <div className="grid gap-1.5">
-                              <Label className="text-[11px]">SL</Label>
+                              <Label className="text-[11px]">{t("detail.quantity")}</Label>
                               <Input inputMode="decimal" value={item.quantity} onChange={(e)=>updateLineItemForm(index,{quantity:e.target.value})} className="h-8 text-xs" />
                             </div>
                             <div className="grid gap-1.5">
-                              <Label className="text-[11px]">Đơn giá</Label>
+                              <Label className="text-[11px]">{t("detail.unitPrice")}</Label>
                               <Input inputMode="decimal" value={item.unitPriceAmount} onChange={(e)=>updateLineItemForm(index,{unitPriceAmount:e.target.value})} className="h-8 text-xs" />
                             </div>
                             <div className="grid gap-1.5">
-                              <Label className="text-[11px]">Thuế</Label>
+                              <Label className="text-[11px]">{t("detail.tax")}</Label>
                               <Input inputMode="decimal" value={item.taxAmount} onChange={(e)=>updateLineItemForm(index,{taxAmount:e.target.value})} className="h-8 text-xs" />
                             </div>
                             <div className="grid gap-1.5">
-                              <Label className="text-[11px]">Thành tiền</Label>
+                              <Label className="text-[11px]">{t("detail.amount")}</Label>
                               <Input inputMode="decimal" value={item.totalAmount} onChange={(e)=>updateLineItemForm(index,{totalAmount:e.target.value})} className="h-8 text-xs" />
                             </div>
                           </div>
@@ -1040,23 +1074,23 @@ export default function DocumentDetailPage() {
                       ))}
                       {!lineItemForms.length && (
                         <div className="rounded-lg border border-dashed bg-background p-3 text-center text-xs text-muted-foreground">
-                          Chưa có mục hàng. Thêm thủ công nếu tài liệu có bảng dịch vụ/sản phẩm.
+                          {t("detail.noEditableItems")}
                         </div>
                       )}
                     </div>
                   </div>
 
                   <div className="grid gap-1.5">
-                    <Label htmlFor="reviewNote" className="text-xs font-semibold">Ghi chú duyệt</Label>
-                    <Textarea id="reviewNote" value={reviewNote} onChange={(e)=>{ setIsDirty(true); setReviewNote(e.target.value) }} placeholder="Giải thích lý do chỉnh sửa hoặc phê duyệt" className="text-sm min-h-20 resize-none" />
+                    <Label htmlFor="reviewNote" className="text-xs font-semibold">{t("detail.reviewNote")}</Label>
+                    <Textarea id="reviewNote" value={reviewNote} onChange={(e)=>{ setIsDirty(true); setReviewNote(e.target.value) }} placeholder={t("detail.reviewNotePlaceholder")} className="text-sm min-h-20 resize-none" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button className="cursor-pointer" onClick={handleSaveCorrection} disabled={!canCorrect||isReviewing}>
-                    <Save className="size-4" />Lưu chỉnh sửa
+                    <Save className="size-4" />{t("detail.save")}
                   </Button>
                   <Button variant="secondary" className="cursor-pointer" onClick={handleApprove} disabled={!canApprove||isReviewing}>
-                    <BadgeCheck className="size-4" />Phê duyệt
+                    <BadgeCheck className="size-4" />{t("detail.approve")}
                   </Button>
                 </div>
               </CardContent>
@@ -1068,21 +1102,21 @@ export default function DocumentDetailPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base text-red-800 dark:text-red-200">
                   <ShieldAlert className="size-4" />
-                  Tài liệu cần tải lên lại
+                  {t("detail.failedTitle")}
                 </CardTitle>
                 <CardDescription className="text-xs text-red-700/75 dark:text-red-300/75">
-                  Workflow không tạo được kết quả có thể kiểm duyệt. Hãy tải bản scan rõ hơn hoặc đúng định dạng để tạo lượt xử lý mới.
+                  {t("detail.failedBody")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 <Button asChild className="cursor-pointer">
                   <Link to="/upload">
                     <UploadCloud className="size-4" />
-                    Tải bản thay thế
+                    {t("detail.uploadReplacement")}
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="cursor-pointer border-red-200 bg-white/70 text-red-900 hover:bg-white dark:border-red-900 dark:bg-transparent dark:text-red-100">
-                  <Link to="/documents">Quay lại danh sách</Link>
+                  <Link to="/documents">{t("detail.back")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -1091,8 +1125,8 @@ export default function DocumentDetailPage() {
           {doc.errorMessage && (
             <Card className="rounded-xl border-amber-200 shadow-sm dark:border-amber-900">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-300"><ShieldAlert className="size-4" />Ghi chú xử lý</CardTitle>
-                <CardDescription className="text-xs">Dùng ghi chú này để quyết định tài liệu cần chỉnh sửa hay tải lên lại.</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-300"><ShieldAlert className="size-4" />{t("detail.processingNote")}</CardTitle>
+                <CardDescription className="text-xs">{t("detail.processingNoteBody")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm leading-6 text-amber-800 dark:text-amber-300">
                 <p>{doc.errorMessage}</p>
@@ -1100,7 +1134,7 @@ export default function DocumentDetailPage() {
                   <Button asChild variant="outline" size="sm" className="w-fit cursor-pointer">
                     <Link to="/upload">
                       <UploadCloud className="size-4" />
-                      Tải lại tài liệu
+                      {t("detail.uploadAgain")}
                     </Link>
                   </Button>
                 )}
@@ -1110,15 +1144,14 @@ export default function DocumentDetailPage() {
 
           <Card className="rounded-xl shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="border-b bg-muted/20 pb-4">
-              <CardTitle className="text-base">Dòng thời gian trạng thái</CardTitle>
+              <CardTitle className="text-base">{t("detail.timeline")}</CardTitle>
               <CardDescription className="text-xs">
-                Tiến trình từ tải lên đến kết quả sử dụng được.
-                {isPolling && <span className="ml-2 inline-flex items-center gap-1 text-primary"><span className="pulse-indicator bg-current" />Làm mới mỗi 5 giây</span>}
+                {t("detail.timelineBody")}
+                {isPolling && <span className="ml-2 inline-flex items-center gap-1 text-primary"><span className="pulse-indicator bg-current" />{t("detail.polling")}</span>}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-0 p-4">
               {timeline.map((item, i) => {
-                const meta = statusMeta[item.status]
                 const Icon = item.done ? CheckCircle2 : Clock3
                 return (
                   <div key={item.status} className="flex gap-3">
@@ -1129,8 +1162,8 @@ export default function DocumentDetailPage() {
                       {i < timeline.length - 1 && <div className={`w-px flex-1 my-1 ${item.done ? "bg-emerald-200 dark:bg-emerald-900" : "bg-border"}`} />}
                     </div>
                     <div className={`pb-4 pt-0.5 ${i === timeline.length - 1 ? "pb-0" : ""}`}>
-                      <div className={`text-sm font-medium ${item.done ? "" : "text-muted-foreground/60"}`}>{meta.label}</div>
-                      <div className="text-xs text-muted-foreground/50">{item.done ? "Hoàn tất hoặc trạng thái hiện tại" : "Chờ chuyển đổi workflow"}</div>
+                      <div className={`text-sm font-medium ${item.done ? "" : "text-muted-foreground/60"}`}>{t(`status.${item.status}` as TranslationKey)}</div>
+                      <div className="text-xs text-muted-foreground/50">{item.done ? t("detail.timelineDone") : t("detail.timelineWaiting")}</div>
                     </div>
                   </div>
                 )
@@ -1141,21 +1174,21 @@ export default function DocumentDetailPage() {
           {role === "admin" && (
             <Card className="rounded-xl shadow-sm transition-shadow hover:shadow-md">
               <CardHeader className="border-b bg-muted/20 pb-4">
-                <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="size-4" />Artifacts lưu trữ</CardTitle>
-                <CardDescription className="text-xs">Khóa dự kiến trong raw và processed buckets.</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="size-4" />{t("detail.artifacts")}</CardTitle>
+                <CardDescription className="text-xs">{t("detail.artifactsBody")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 p-4 text-sm">
                 <div>
-                  <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><Database className="size-3.5" />Raw S3 object</div>
+                  <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><Database className="size-3.5" />{t("documents.rawS3Object")}</div>
                   <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.rawS3Key}</div>
                 </div>
                 <div>
-                  <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><FileJson className="size-3.5" />Processed artifact</div>
+                  <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><FileJson className="size-3.5" />{t("documents.processedArtifact")}</div>
                   <div className="break-all rounded-xl bg-muted/50 p-3 font-mono text-[10px] leading-5">{doc.processedS3Key}</div>
                 </div>
                 <Separator />
                 <Button asChild variant="outline" size="sm" className="cursor-pointer">
-                  <Link to="/documents"><ArrowLeft className="size-4" />Về danh sách</Link>
+                  <Link to="/documents"><ArrowLeft className="size-4" />{t("detail.back")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -1176,9 +1209,9 @@ export default function DocumentDetailPage() {
                 <BadgeCheck className="size-5" />
               </div>
               <div>
-                <DialogTitle className="text-base">Xác nhận phê duyệt tài liệu</DialogTitle>
+                <DialogTitle className="text-base">{t("detail.confirmTitle")}</DialogTitle>
                 <DialogDescription className="mt-1 text-xs leading-5">
-                  Kiểm tra nhanh dữ liệu cuối cùng trước khi chuyển tài liệu sang trạng thái đã duyệt.
+                  {t("detail.confirmBody")}
                 </DialogDescription>
               </div>
             </div>
@@ -1189,24 +1222,24 @@ export default function DocumentDetailPage() {
               <div className="rounded-xl border bg-muted/20 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="text-xs text-muted-foreground">Nhà cung cấp</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.vendor")}</div>
                     <div className="mt-1 truncate text-sm font-semibold">{pendingApproval.fields.vendorName}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Ngày hóa đơn</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.invoiceDate")}</div>
                     <div className="mt-1 text-sm font-semibold">{pendingApproval.fields.invoiceDate}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Số dòng hàng</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.itemCount")}</div>
                     <div className="mt-1 text-sm font-semibold">{pendingApproval.fields.lineItems.length}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Thay đổi sẽ lưu</div>
+                    <div className="text-xs text-muted-foreground">{t("detail.pendingChanges")}</div>
                     <div className="mt-1 text-sm font-semibold">{pendingApproval.corrections.length}</div>
                   </div>
                 </div>
                 <div className="mt-4 rounded-lg border bg-background px-4 py-3">
-                  <div className="text-xs text-muted-foreground">Tổng tiền phê duyệt</div>
+                  <div className="text-xs text-muted-foreground">{t("detail.approvedTotal")}</div>
                   <div className="mt-1 text-2xl font-bold tabular-nums">
                     {formatMoney(pendingApproval.fields.totalAmount, pendingApproval.fields.currency)}
                   </div>
@@ -1214,18 +1247,18 @@ export default function DocumentDetailPage() {
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200">
-                Sau khi phê duyệt, tài liệu sẽ được xem là dữ liệu tài chính đã xác minh. Nếu cần chỉnh sửa thêm, hãy hủy và lưu lại form trước.
+                {t("detail.confirmWarning")}
               </div>
             </div>
           )}
 
           <DialogFooter className="border-t bg-muted/10 px-5 py-4">
             <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setPendingApproval(null)} disabled={isReviewing}>
-              Hủy
+              {t("detail.cancel")}
             </Button>
             <Button type="button" className="cursor-pointer" onClick={handleConfirmApprove} disabled={isReviewing}>
               {isReviewing ? <RefreshCw className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
-              Xác nhận phê duyệt
+              {t("detail.confirmApprove")}
             </Button>
           </DialogFooter>
         </DialogContent>

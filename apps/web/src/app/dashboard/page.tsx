@@ -33,7 +33,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { roleLabels } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
 import {
   convertToDemoVnd,
@@ -47,32 +46,19 @@ import {
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { SpotlightCard } from "@/components/spotlight-card"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type TrendWindow = "30d" | "90d" | "6m"
 
-const trendConfig = {
-  extracted: { label: "Đã trích xuất", color: "#153f30" },
-  review:    { label: "Cần duyệt",     color: "#d97706" },
-  failed:    { label: "Thất bại",       color: "#dc2626" },
-} satisfies ChartConfig
-
-// ─── Pipeline steps ───────────────────────────────────────────────────────────
-const pipeline = [
-  { label: "Tiếp nhận",  detail: "S3 Raw",    icon: UploadCloud },
-  { label: "Trích xuất", detail: "Textract",  icon: ScanText    },
-  { label: "Chuẩn hóa",  detail: "AI Proxy",  icon: Sparkles    },
-  { label: "Xác thực",   detail: "Schema",    icon: FileCheck2  },
-  { label: "Lưu trữ",    detail: "DynamoDB",  icon: Check       },
-]
-
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]
   const Icon = meta.icon
   return (
     <Badge variant="outline" className={meta.tone}>
       <Icon className={status === "PROCESSING" ? "size-3 animate-spin" : "size-3"} />
-      {meta.label}
+      {t(`status.${status}` as TranslationKey)}
     </Badge>
   )
 }
@@ -111,11 +97,26 @@ function csvCell(v: string | number | null) {
 export default function DashboardPage() {
   const { documents: allDocuments, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { language, t } = useLanguage()
   const role        = session?.role ?? "finance"
+  const locale      = language === "vi" ? "vi-VN" : "en-US"
+  const roleLabel   = role === "admin" ? t("role.admin") : t("role.finance")
   const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
 
   const [trendWindow, setTrendWindow] = useState<TrendWindow>("6m")
   const [lastSync,    setLastSync]    = useState(() => new Date())
+  const trendConfig = {
+    extracted: { label: t("header.extracted"), color: "#153f30" },
+    review:    { label: t("header.reviewRequired"), color: "#d97706" },
+    failed:    { label: t("header.syncFailed"), color: "#dc2626" },
+  } satisfies ChartConfig
+  const pipeline = [
+    { label: t("workflow.upload"), detail: "S3 Raw", icon: UploadCloud },
+    { label: t("workflow.extract"), detail: "Textract", icon: ScanText },
+    { label: t("workflow.normalize"), detail: "AI Proxy", icon: Sparkles },
+    { label: t("workflow.review"), detail: "Schema", icon: FileCheck2 },
+    { label: t("workflow.store"), detail: "DynamoDB", icon: Check },
+  ]
 
   const documents = useMemo(
     () => role === "finance"
@@ -150,6 +151,9 @@ export default function DashboardPage() {
   const avgConf         = confDocs.length
     ? Math.round((confDocs.reduce((s, d) => s + d.confidenceScore, 0) / confDocs.length) * 100) : 0
   const totalVnd        = documents.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
+  const attentionVnd    = documents
+    .filter((d) => ["REVIEW_REQUIRED","CORRECTED"].includes(d.status))
+    .reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
 
   const attentionQueue = [...documents]
     .filter((d) => ["REVIEW_REQUIRED","FAILED","CORRECTED"].includes(d.status))
@@ -161,6 +165,10 @@ export default function DashboardPage() {
     .slice(0, 6)
 
   const activeDocs = recentDocs.filter((d) => ["UPLOADED","QUEUED","PROCESSING"].includes(d.status))
+  const latestDocument = recentDocs[0] ?? null
+  const heroFocusDocument = attentionQueue[0] ?? activeDocs[0] ?? recentDocs[0] ?? null
+  const heroFocusStatus = heroFocusDocument ? statusMeta[heroFocusDocument.status] : null
+  const HeroFocusIcon = heroFocusStatus?.icon ?? Files
 
   const visibleTrend   = monthlyVolume.slice(trendWindow === "30d" ? -1 : trendWindow === "90d" ? -3 : -6)
   const trendTotal     = visibleTrend.reduce((s, i) => s + i.extracted + i.review + i.failed, 0)
@@ -179,17 +187,33 @@ export default function DashboardPage() {
   const maxVendor = vendorSpend[0]?.amount ?? 1
 
   const confDist = [
-    { band: "Cao",       range: "90–100%",   count: documents.filter((d) => d.confidenceScore >= 0.9).length },
-    { band: "TB",        range: "80–89%",    count: documents.filter((d) => d.confidenceScore >= 0.8 && d.confidenceScore < 0.9).length },
-    { band: "Cần duyệt", range: "< 80%",     count: documents.filter((d) => d.confidenceScore > 0 && d.confidenceScore < 0.8).length },
+    { band: t("dashboard.highConfidence"),       range: "90–100%",   count: documents.filter((d) => d.confidenceScore >= 0.9).length },
+    { band: t("dashboard.mediumConfidence"),     range: "80–89%",    count: documents.filter((d) => d.confidenceScore >= 0.8 && d.confidenceScore < 0.9).length },
+    { band: t("dashboard.lowConfidence"),        range: "< 80%",     count: documents.filter((d) => d.confidenceScore > 0 && d.confidenceScore < 0.8).length },
   ]
 
   const primaryAction = role === "admin"
-    ? { label: "Vận hành hệ thống",   url: "/operations", icon: Activity }
+    ? { label: t("dashboard.systemOperations"),   url: "/operations", icon: Activity }
     : attentionQueue.length
-      ? { label: "Tiếp tục kiểm duyệt", url: "/review",    icon: CheckCircle2 }
-      : { label: "Tải tài liệu lên",    url: "/upload",    icon: UploadCloud }
+      ? { label: t("dashboard.continueReview"), url: "/review",    icon: CheckCircle2 }
+      : { label: t("dashboard.uploadDocument"),    url: "/upload",    icon: UploadCloud }
   const PrimaryIcon = primaryAction.icon
+  const PipelineHealthIcon = syncError ? WifiOff : apiMode ? Wifi : Activity
+  const pipelineHealthLabel = syncError
+    ? t("dashboard.syncCheck")
+    : activeDocs.length
+      ? t("dashboard.pipelineProcessing")
+      : t("dashboard.pipelineReady")
+  const nextActionTitle = role === "admin"
+    ? t("dashboard.nextAdminTitle")
+    : attentionQueue.length
+      ? t("dashboard.nextReviewTitle")
+      : t("dashboard.nextUploadTitle")
+  const nextActionDetail = role === "admin"
+    ? t("dashboard.nextAdminDetail")
+    : attentionQueue.length
+      ? t("dashboard.nextReviewDetail", { count: attentionQueue.length })
+      : t("dashboard.nextUploadDetail")
 
   const exportCsv = () => {
     const hdr  = ["documentId","originalFileName","type","status","vendor","currency","totalAmount","confidence","updatedAt"]
@@ -203,8 +227,8 @@ export default function DashboardPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <BaseLayout
-      title="Trung tâm kiểm soát"
-      description="Theo dõi toàn bộ tài liệu đang di chuyển qua luồng xử lý bất đồng bộ."
+      title={t("dashboard.title")}
+      description={t("dashboard.description")}
     >
       <div className="grid min-w-0 gap-5 px-4 lg:px-6">
 
@@ -224,10 +248,10 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <Badge className="border-[#d8ff72]/30 bg-[#d8ff72] font-semibold text-[11px] text-[#10261d]">
-                    {roleLabels[role]}
+                    {roleLabel}
                   </Badge>
                   <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/40">
-                    Xử lý bất đồng bộ
+                    {t("dashboard.async")}
                   </span>
                 </div>
                 {/* Sync pill — small, unobtrusive */}
@@ -236,14 +260,14 @@ export default function DashboardPage() {
                     ? <Wifi className="size-3 text-emerald-400" />
                     : <WifiOff className="size-3 text-amber-400" />}
                   <span className={`font-mono text-[9px] ${syncError ? "text-red-300" : "text-white/50"}`} title={syncError ?? syncMessage}>
-                    {syncError ? "Lỗi đồng bộ" : lastSync.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                    {syncError ? t("dashboard.syncError") : lastSync.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
                   </span>
                   <button
                     type="button"
                     onClick={handleRefresh}
                     disabled={isSyncing}
                     className="ml-0.5 rounded text-white/40 transition hover:text-white/80 disabled:opacity-30"
-                    aria-label="Làm mới"
+                    aria-label={t("common.refresh")}
                   >
                     <RefreshCw className={isSyncing ? "size-3 animate-spin" : "size-3"} />
                   </button>
@@ -254,16 +278,56 @@ export default function DashboardPage() {
               <div>
                 <h2 className="font-display text-lg font-semibold leading-snug tracking-[-0.04em] md:text-xl">
                   {attentionCount
-                    ? "Các trường chưa chắc chắn cần được xử lý."
-                    : "Từ tài liệu thô đến dữ liệu tài chính đáng tin cậy."}
+                    ? t("dashboard.heroAttention")
+                    : t("dashboard.heroReady")}
                 </h2>
                 <p className="mt-1.5 max-w-md text-xs leading-6 text-white/55">
                   {role === "admin"
-                    ? "Giám sát quy trình, bằng chứng, cảnh báo và kiểm soát chi phí."
+                    ? t("dashboard.adminBody")
                     : attentionCount
-                      ? `${attentionCount} tài liệu cần chú ý — pipeline vẫn tiếp tục chạy nền.`
-                      : "Pipeline đang hoạt động bình thường. Tải tài liệu mới bất kỳ lúc nào."}
+                      ? t("dashboard.attentionBody", { count: attentionCount })
+                      : t("dashboard.readyBody")}
                 </p>
+              </div>
+
+              <div className="grid gap-2.5 rounded-xl border border-white/10 bg-black/10 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:grid-cols-[1.25fr_0.85fr_0.85fr]">
+                <div className="min-w-0">
+                  <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">
+                    <HeroFocusIcon className="size-3 text-[#d8ff72]" />
+                    {t("dashboard.priorityCase")}
+                  </div>
+                  {heroFocusDocument ? (
+                    <Link to={`/documents/${heroFocusDocument.documentId}`} className="group block min-w-0">
+                      <div className="truncate text-sm font-semibold text-white group-hover:underline" title={heroFocusDocument.originalFileName}>
+                        {heroFocusDocument.originalFileName}
+                      </div>
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-white/45">
+                        <span className="truncate">{heroFocusDocument.vendorName}</span>
+                        <span className="text-white/20">·</span>
+                        <span>{formatDate(heroFocusDocument.updatedAt)}</span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="text-sm font-medium text-white/70">{t("dashboard.noDocuments")}</div>
+                  )}
+                </div>
+
+                <div className="border-t border-white/10 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">{t("dashboard.valueToConfirm")}</div>
+                  <div className="mt-1 truncate text-base font-semibold tracking-[-0.03em] text-white">
+                    {formatMoney(attentionVnd, "VND")}
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/40">{t("dashboard.waitingDecision", { count: reviewCount + correctedCount })}</div>
+                </div>
+
+                <div className="border-t border-white/10 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">{t("dashboard.avgConfidence")}</div>
+                  <div className="mt-1 flex items-end gap-2">
+                    <span className="text-base font-semibold tracking-[-0.03em] text-white">{avgConf}%</span>
+                    <span className="pb-0.5 text-[11px] text-white/40">{t("dashboard.scoredDocs", { count: confDocs.length })}</span>
+                  </div>
+                  <Progress value={avgConf} className="mt-2 h-1.5 bg-white/10 [&>div]:bg-[#d8ff72]" />
+                </div>
               </div>
 
               {/* CTAs */}
@@ -276,9 +340,9 @@ export default function DashboardPage() {
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/8 hover:text-white">
-                  <Link to="/documents">Xem tài liệu</Link>
+                  <Link to="/documents">{t("dashboard.viewDocuments")}</Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="ml-auto text-white/40 hover:text-white/80" onClick={exportCsv} title="Xuất CSV" disabled={!documents.length}>
+                <Button variant="ghost" size="icon" className="ml-auto text-white/40 hover:text-white/80" onClick={exportCsv} title={t("common.exportCsv")} disabled={!documents.length}>
                   <Download className="size-4" />
                 </Button>
               </div>
@@ -289,12 +353,12 @@ export default function DashboardPage() {
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white/40">
                   <Zap className="size-3 text-[#d8ff72]" />
-                  Pipeline sống
+                  {t("dashboard.livePipeline")}
                 </span>
                 {activeDocs.length > 0 && (
                   <span className="flex items-center gap-1 rounded-full border border-[#d8ff72]/25 bg-[#d8ff72]/10 px-2 py-0.5 font-mono text-[9px] text-[#d8ff72]">
                     <span className="pulse-indicator bg-[#d8ff72]" />
-                    {activeDocs.length} đang chạy
+                    {t("dashboard.running", { count: activeDocs.length })}
                   </span>
                 )}
               </div>
@@ -337,52 +401,145 @@ export default function DashboardPage() {
             visible above the fold without scrolling.
         ──────────────────────────────────────────────────────────────────── */}
         <section
-          aria-label="Chỉ số tổng quan"
+          aria-label={t("dashboard.todayWork")}
           className="grid overflow-hidden rounded-xl border bg-card shadow-sm sm:grid-cols-2 lg:grid-cols-4"
         >
           <KpiTile
-            label="Tổng tài liệu"
+            label={t("dashboard.totalDocuments")}
             value={documents.length}
-            detail={`${processingCount} đang trong tiến trình`}
+            detail={t("dashboard.processingInProgress", { count: processingCount })}
             icon={Files}
           />
           <KpiTile
-            label="Giá trị xử lý"
+            label={t("dashboard.processedValue")}
             value={formatMoney(totalVnd, "VND")}
             detail={demoCurrencyRateDetail()}
             icon={Banknote}
           />
           <KpiTile
-            label="Cần xử lý"
+            label={t("dashboard.needsHandling")}
             value={attentionCount}
-            detail={`${reviewCount} duyệt · ${failedCount} lỗi · ${correctedCount} đã sửa`}
+            detail={t("dashboard.reviewErrorCorrected", { review: reviewCount, failed: failedCount, corrected: correctedCount })}
             icon={AlertTriangle}
             alert={attentionCount > 0}
           />
           <KpiTile
-            label="Độ tin cậy TB"
+            label={t("dashboard.avgConfidenceShort")}
             value={`${avgConf}%`}
-            detail={`${completionRate}% bản ghi sẵn sàng sử dụng`}
+            detail={t("dashboard.readyForUse", { percent: completionRate })}
             icon={Gauge}
             alert={avgConf > 0 && avgConf < 80}
           />
         </section>
+
+        <section aria-label={t("dashboard.todayWork")} className="grid gap-4 lg:grid-cols-[1.15fr_.9fr_.95fr]">
+          <article className="flex min-w-0 flex-col justify-between rounded-xl border bg-card p-4 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                <PrimaryIcon className="size-3.5 text-primary" />
+                {t("dashboard.nextWork")}
+              </div>
+              <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">{nextActionTitle}</h3>
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{nextActionDetail}</p>
+            </div>
+            <Button asChild size="sm" className="mt-4 w-fit">
+              <Link to={primaryAction.url}>
+                {primaryAction.label}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </article>
+
+          <article className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                <PipelineHealthIcon className={isSyncing ? "size-3.5 animate-spin text-primary" : "size-3.5 text-primary"} />
+                {t("dashboard.pipelineHealth")}
+              </div>
+              <Badge variant="outline" className={syncError ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>
+                {syncError ? t("dashboard.warning") : t("dashboard.stable")}
+              </Badge>
+            </div>
+            <div className="mt-4 text-base font-semibold tracking-[-0.02em]">{pipelineHealthLabel}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {t("dashboard.syncedAt", { count: activeDocs.length, time: lastSync.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) })}
+            </div>
+            <Progress value={completionRate} className="mt-4 h-2" />
+            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+              <span>{t("dashboard.readyLabel")}</span>
+              <span>{completionRate}%</span>
+            </div>
+          </article>
+
+          <article className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+              <Files className="size-3.5 text-primary" />
+              {t("dashboard.latestDocument")}
+            </div>
+            {latestDocument ? (
+              <Link to={`/documents/${latestDocument.documentId}`} className="group mt-4 block min-w-0">
+                <div className="truncate text-base font-semibold tracking-[-0.02em] group-hover:underline" title={latestDocument.originalFileName}>
+                  {latestDocument.originalFileName}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={latestDocument.status} />
+                  <span className="text-xs text-muted-foreground">{formatMoney(latestDocument.totalAmount, latestDocument.currency)}</span>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {latestDocument.vendorName} · {formatDate(latestDocument.updatedAt)}
+                </div>
+              </Link>
+            ) : (
+              <div className="mt-4">
+                <div className="text-base font-semibold tracking-[-0.02em]">{t("dashboard.noLatestTitle")}</div>
+                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{t("dashboard.noLatestBody")}</p>
+              </div>
+            )}
+          </article>
+        </section>
+
+        {(failedCount > 0 || reviewCount > 0) && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-200/80 bg-amber-50/55 p-3 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                <AlertTriangle className="size-3.5 text-amber-700 dark:text-amber-300" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">{t("dashboard.alertTitle")}</div>
+                <p className="mt-0.5 text-xs opacity-70">
+                  {failedCount > 0 && t("dashboard.failedCount", { count: failedCount })}
+                  {failedCount > 0 && reviewCount > 0 && " / "}
+                  {reviewCount > 0 && t("dashboard.reviewCount", { count: reviewCount })}
+                  {" "}{t("dashboard.alertQueue")}
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 border-amber-300 bg-white/70 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-transparent dark:text-amber-100"
+            >
+              <Link to="/review">{t("dashboard.openQueue")} <ArrowRight className="size-3.5" /></Link>
+            </Button>
+          </div>
+        )}
 
         {/* ── SECTION 3: Action area (attention queue + confidence ring) ────
             Widest card on the left = things to do NOW.
             Narrow card on the right = quick data quality snapshot.
             Together they answer: "What needs my attention?" immediately.
         ──────────────────────────────────────────────────────────────────── */}
-        <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[1fr_300px]">
+        <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
 
           {/* Attention queue */}
           <Card className="min-w-0 overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Hành động cần làm</div>
-                  <CardTitle className="mt-0.5 text-base">
-                    Tài liệu cần xử lý
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.actions")}</div>
+                <CardTitle className="mt-0.5 text-base">
+                    {t("dashboard.docsToProcess")}
                     {attentionCount > 0 && (
                       <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 font-mono text-[10px] font-bold text-white">
                         {attentionCount}
@@ -391,7 +548,7 @@ export default function DashboardPage() {
                   </CardTitle>
                 </div>
                 <Button asChild variant="outline" size="sm" className="shrink-0 text-xs">
-                  <Link to="/review">Xem tất cả <ArrowRight className="size-3" /></Link>
+                  <Link to="/review">{t("common.viewAll")} <ArrowRight className="size-3" /></Link>
                 </Button>
               </div>
             </CardHeader>
@@ -422,7 +579,7 @@ export default function DashboardPage() {
                             <span className="text-xs text-muted-foreground">{d.vendorName}</span>
                             {d.reviewReasonCodes.length > 0 && (
                               <span className="text-xs text-amber-600 dark:text-amber-400">
-                                · {d.reviewReasonCodes.length} lý do
+                                · {t("dashboard.reasonCount", { count: d.reviewReasonCodes.length })}
                               </span>
                             )}
                           </div>
@@ -450,11 +607,11 @@ export default function DashboardPage() {
                     <CheckCircle2 className="size-6 text-emerald-600" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold">Hàng đợi trống</div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Mọi tài liệu đã được xử lý xong.</p>
+                    <div className="text-sm font-semibold">{t("dashboard.emptyQueue")}</div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t("dashboard.emptyQueueBody")}</p>
                   </div>
                   <Button asChild variant="outline" size="sm">
-                    <Link to="/upload"><UploadCloud className="size-3.5" />Tải tài liệu mới</Link>
+                    <Link to="/upload"><UploadCloud className="size-3.5" />{t("dashboard.uploadNew")}</Link>
                   </Button>
                 </div>
               )}
@@ -464,8 +621,8 @@ export default function DashboardPage() {
           {/* Data quality snapshot */}
           <Card className="min-w-0 overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="border-b bg-muted/20 pb-4">
-              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Chất lượng dữ liệu</div>
-              <CardTitle className="mt-0.5 text-base">Độ tin cậy</CardTitle>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.dataQuality")}</div>
+              <CardTitle className="mt-0.5 text-base">{t("dashboard.confidence")}</CardTitle>
             </CardHeader>
             <CardContent className="p-5">
               {/* Big confidence number */}
@@ -473,7 +630,7 @@ export default function DashboardPage() {
                 <div className={`font-display text-5xl font-bold tracking-[-0.06em] ${avgConf >= 80 ? "text-emerald-700 dark:text-emerald-400" : avgConf > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
                   {avgConf}%
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">Trung bình toàn bộ tài liệu</div>
+                <div className="mt-1 text-xs text-muted-foreground">{t("dashboard.allDocsAverage")}</div>
                 <Progress
                   value={avgConf}
                   className={`mt-3 h-2 ${avgConf >= 80 ? "[&>div]:bg-emerald-500" : "[&>div]:bg-amber-500"}`}
@@ -483,9 +640,9 @@ export default function DashboardPage() {
               {/* Distribution breakdown */}
               <div className="grid gap-2">
                 {[
-                  { label: "Cao (≥90%)",      value: confDist[0].count, color: "bg-emerald-500" },
-                  { label: "Trung bình (80–89%)", value: confDist[1].count, color: "bg-emerald-300 dark:bg-emerald-700" },
-                  { label: "Cần duyệt (<80%)", value: confDist[2].count, color: "bg-amber-500" },
+                  { label: t("dashboard.highConfidence"), value: confDist[0].count, color: "bg-emerald-500" },
+                  { label: t("dashboard.mediumConfidence"), value: confDist[1].count, color: "bg-emerald-300 dark:bg-emerald-700" },
+                  { label: t("dashboard.lowConfidence"), value: confDist[2].count, color: "bg-amber-500" },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2">
@@ -499,7 +656,7 @@ export default function DashboardPage() {
 
               <div className="mt-3 border-t pt-3 text-center">
                 <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
-                  {completionRate}% bản ghi sẵn sàng
+                  {t("dashboard.readyRecords", { percent: completionRate })}
                 </span>
               </div>
             </CardContent>
@@ -517,14 +674,14 @@ export default function DashboardPage() {
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Phân tích xử lý</div>
-                  <CardTitle className="mt-0.5 text-base">Khối lượng tài liệu theo thời gian</CardTitle>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.analytics")}</div>
+                  <CardTitle className="mt-0.5 text-base">{t("dashboard.volume")}</CardTitle>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {trendTotal} tài liệu · <span className="text-emerald-700 dark:text-emerald-400 font-medium">{trendSuccRate}%</span> trích xuất thành công
+                    {trendTotal} {t("dashboard.document").toLowerCase()} · <span className="text-emerald-700 dark:text-emerald-400 font-medium">{trendSuccRate}%</span> {t("dashboard.successExtracted")}
                   </p>
                 </div>
                 {/* Time window toggle */}
-                <div className="flex overflow-hidden rounded-lg border self-start" aria-label="Khoảng thời gian">
+                <div className="flex overflow-hidden rounded-lg border self-start" aria-label={t("dashboard.timeWindow")}>
                   {(["30d","90d","6m"] as TrendWindow[]).map((w) => (
                     <button
                       key={w}
@@ -564,8 +721,8 @@ export default function DashboardPage() {
           {/* Vendor spend */}
           <Card className="min-w-0 overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="border-b bg-muted/20 pb-4">
-              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Chi tiêu theo nhà cung cấp</div>
-              <CardTitle className="mt-0.5 text-base">Top nhà cung cấp</CardTitle>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.vendorSpend")}</div>
+              <CardTitle className="mt-0.5 text-base">{t("dashboard.topVendors")}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3.5 p-5">
               {vendorSpend.length ? vendorSpend.map((item, i) => (
@@ -585,7 +742,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )) : (
-                <div className="py-6 text-center text-xs text-muted-foreground">Chưa có dữ liệu chi tiêu.</div>
+                <div className="py-6 text-center text-xs text-muted-foreground">{t("dashboard.noSpend")}</div>
               )}
             </CardContent>
           </Card>
@@ -598,12 +755,12 @@ export default function DashboardPage() {
           <CardHeader className="border-b bg-muted/20 pb-4">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Nhật ký hoạt động</div>
-                <CardTitle className="mt-0.5 text-base">Tín hiệu tài liệu gần đây nhất</CardTitle>
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.activity")}</div>
+                <CardTitle className="mt-0.5 text-base">{t("dashboard.recentSignals")}</CardTitle>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-display text-2xl font-bold tracking-[-0.04em]">{documents.length}</span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">bản ghi</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.records")}</span>
               </div>
             </div>
           </CardHeader>
@@ -612,10 +769,10 @@ export default function DashboardPage() {
               <div className="min-w-[560px]">
                 {/* Table header */}
                 <div className="grid grid-cols-[1.6fr_.75fr_.7fr_.65fr] gap-4 border-b bg-muted/20 px-5 py-2.5 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-                  <span>Tài liệu</span>
-                  <span>Trạng thái</span>
-                  <span className="text-right">Số tiền</span>
-                  <span className="text-right">Cập nhật</span>
+                  <span>{t("dashboard.document")}</span>
+                  <span>{t("dashboard.status")}</span>
+                  <span className="text-right">{t("dashboard.amount")}</span>
+                  <span className="text-right">{t("dashboard.updated")}</span>
                 </div>
                 {recentDocs.map((d) => (
                   <Link
@@ -634,45 +791,14 @@ export default function DashboardPage() {
                 ))}
                 {!recentDocs.length && (
                   <div className="py-10 text-center text-sm text-muted-foreground">
-                    Chưa có tài liệu nào.{" "}
-                    <Link to="/upload" className="text-primary underline underline-offset-2">Tải lên ngay</Link>
+                    {t("dashboard.noRecent")}{" "}
+                    <Link to="/upload" className="text-primary underline underline-offset-2">{t("dashboard.uploadFirst")}</Link>
                   </div>
                 )}
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* ── SECTION 6: Alert banner (conditional) ────────────────────────
-            Only rendered when there's something urgent.
-            Placed last so it doesn't visually interrupt the normal flow.
-        ──────────────────────────────────────────────────────────────────── */}
-        {(failedCount > 0 || reviewCount > 0) && (
-          <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-                <AlertTriangle className="size-4 text-amber-700 dark:text-amber-300" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold">Xác minh thủ công bảo vệ tính chính xác của dữ liệu tài chính.</div>
-                <p className="mt-0.5 text-xs opacity-70">
-                  {failedCount > 0 && `${failedCount} tài liệu thất bại`}
-                  {failedCount > 0 && reviewCount > 0 && " và "}
-                  {reviewCount > 0 && `${reviewCount} tài liệu cần duyệt`}
-                  {" "}vẫn hiển thị cho đến khi được giải quyết.
-                </p>
-              </div>
-            </div>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-amber-300 bg-white/80 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-transparent dark:text-amber-100"
-            >
-              <Link to="/review">Giải quyết ngoại lệ <ArrowRight className="size-3.5" /></Link>
-            </Button>
-          </div>
-        )}
 
       </div>
     </BaseLayout>

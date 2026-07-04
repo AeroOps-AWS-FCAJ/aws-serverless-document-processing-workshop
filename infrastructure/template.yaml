@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   DocuFlow AI - Serverless intelligent invoice and receipt processing platform.
-  Single SAM stack provisioning Cognito, API Gateway, Lambda, S3, DynamoDB,
-  EventBridge, SQS, Step Functions, SNS, and Amplify Hosting integration in ap-southeast-1.
+  Provisions Cognito, HTTP API, Lambda, S3, DynamoDB, EventBridge, SQS,
+  Step Functions, Textract access, and External AI secret access in ap-southeast-1.
 
 Parameters:
   Env:
@@ -14,21 +14,51 @@ Parameters:
   BedrockModelId:
     Type: String
     Default: amazon.nova-lite-v1:0
-    Description: Bedrock model invoked by the validateExtraction Lambda.
+    Description: Reserved for workshop modules that use Bedrock.
   BedrockRegion:
     Type: String
     Default: ap-southeast-1
-    Description: Region used for Bedrock InvokeModel; falls back to us-east-1 if the chosen model is not GA in ap-southeast-1.
+    Description: Reserved region value for workshop modules that use Bedrock.
   ConfidenceThreshold:
     Type: Number
     Default: 0.9
     MinValue: 0
     MaxValue: 1
     Description: Documents below this confidence are flagged REVIEW_REQUIRED.
+  ExternalAISecretId:
+    Type: String
+    Default: ''
+    Description: >
+      Secrets Manager secret id/arn containing the OpenAI API key. If blank,
+      Lambda uses the environment-specific docuflow-<Env>-external-ai-api-key name.
+  OpenAIModel:
+    Type: String
+    Default: gpt-4o
+    Description: OpenAI model used by the AI proxy Lambda.
+  MaxFileSizeBytes:
+    Type: Number
+    Default: 10485760
+    Description: Maximum upload size accepted by upload and workflow validation.
+  PresignedExpiresSeconds:
+    Type: Number
+    Default: 300
+    Description: Expiration for S3 presigned upload URLs.
+  SourceUrlExpiresSeconds:
+    Type: Number
+    Default: 900
+    Description: Expiration for presigned source document URLs returned by get-document.
+
+Conditions:
+  HasExternalAISecretId:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref ExternalAISecretId
+          - ''
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
+    Handler: index.handler
     MemorySize: 256
     Timeout: 30
     Architectures: [arm64]
@@ -39,12 +69,99 @@ Globals:
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         BEDROCK_REGION: !Ref BedrockRegion
         CONFIDENCE_THRESHOLD: !Ref ConfidenceThreshold
+        DOCUFLOW_DEV_TABLE_NAME: !Ref DocumentsTable
+        DOCUFLOW_DEV_RAW_BUCKET: !Ref RawBucket
+        DOCUFLOW_DEV_RAW_BUCKET_NAME: !Ref RawBucket
+        DOCUFLOW_DEV_PROCESSED_BUCKET: !Ref ProcessedBucket
+        RAW_BUCKET: !Ref RawBucket
+        MAX_FILE_SIZE_BYTES: !Ref MaxFileSizeBytes
 
 Resources:
-  # Resources are added per workshop module:
-  #   5.3  Amplify Hosting, Cognito User Pool, presignUpload Lambda
-  #   5.4  docuflow-raw + docuflow-processed buckets, EventBridge rule, SQS + DLQ, startProcessing Lambda
-  
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub docuflow-${Env}-user-pool
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+      UserPoolTags:
+        Project: DocuFlowAI
+        Environment: !Ref Env
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub docuflow-${Env}-web-client
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  FinanceGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Finance
+      Description: Finance users who upload and review their documents.
+      UserPoolId: !Ref UserPool
+
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admin
+      Description: Administrators with elevated DocuFlow access.
+      UserPoolId: !Ref UserPool
+
+  DocuFlowApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Env
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - OPTIONS
+        MaxAge: 300
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+              audience:
+                - !Ref UserPoolClient
+
   RawBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -60,6 +177,8 @@ Resources:
               - HEAD
             AllowedOrigins:
               - '*'
+            ExposedHeaders:
+              - ETag
             MaxAge: 3000
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -76,10 +195,6 @@ Resources:
           Value: !Ref Env
         - Key: ManagedBy
           Value: SAM
-        - Key: Owner
-          Value: Team
-        - Key: CostCenter
-          Value: Workshop
         - Key: Module
           Value: ingestion
 
@@ -99,16 +214,437 @@ Resources:
           Value: !Ref Env
         - Key: ManagedBy
           Value: SAM
-        - Key: Owner
-          Value: Team
-        - Key: CostCenter
-          Value: Workshop
         - Key: Module
           Value: data
 
-  #   5.5  Step Functions state machine (8 states), Bedrock IAM, validateExtraction Lambda
-  #   5.6  DynamoDB Documents table, API Gateway, updateStatus + reviewUpdate Lambdas
-  #   5.7  CloudWatch alarms, SNS docuflow-alerts topic, AWS Budgets, KMS hardening
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub docuflow-${Env}-documents-table
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: DocuFlowAI
+        - Key: Environment
+          Value: !Ref Env
+
+  IngestionDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub docuflow-${Env}-ingestion-dlq
+      MessageRetentionPeriod: 1209600
+
+  IngestionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub docuflow-${Env}-ingestion-queue
+      VisibilityTimeout: 120
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestionDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  IngestionQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref IngestionQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEventBridgeToSendRawObjectCreatedEvents
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt IngestionQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt RawObjectCreatedRule.Arn
+
+  RawObjectCreatedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub docuflow-${Env}-raw-object-created
+      Description: Queue raw S3 uploads for DocuFlow processing.
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref RawBucket
+          object:
+            key:
+              - prefix: raw/
+      State: ENABLED
+      Targets:
+        - Id: IngestionQueue
+          Arn: !GetAtt IngestionQueue.Arn
+
+  WorkflowValidateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-workflow-validate-lambda
+      CodeUri: ../services/functions/workflow-validate/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectTagging
+              Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/*
+  TextractFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-ai-textract-lambda
+      CodeUri: ../services/functions/textract/
+      Timeout: 60
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - textract:AnalyzeExpense
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/*
+
+  AiProxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-ai-proxy-lambda
+      CodeUri: ../services/functions/ai-proxy/
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          EXTERNAL_AI_SECRET_ID: !If
+            - HasExternalAISecretId
+            - !Ref ExternalAISecretId
+            - !Sub docuflow-${Env}-external-ai-api-key
+          OPENAI_MODEL: !Ref OpenAIModel
+          EXTERNAL_AI_TIMEOUT_MS: 30000
+          MAX_AI_RESPONSE_BYTES: 1048576
+          MAX_TEXTRACT_PAYLOAD_BYTES: 512000
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If
+                - HasExternalAISecretId
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:docuflow-${Env}-external-ai-api-key*
+
+  ConfidenceStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-ai-confidence-status-lambda
+      CodeUri: ../services/functions/confidence-status/
+
+  GenerateUploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-generate-upload-url-lambda
+      CodeUri: ../services/functions/generate-upload-url/
+      Environment:
+        Variables:
+          PRESIGNED_EXPIRES_SECONDS: !Ref PresignedExpiresSeconds
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:PutObjectTagging
+              Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/raw/*
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DocumentsTable.Arn
+      Events:
+        UploadUrl:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/upload-url
+            Method: POST
+
+  ListDocumentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-list-documents-lambda
+      CodeUri: ../services/functions/list-documents/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource:
+                - !GetAtt DocumentsTable.Arn
+                - !Sub ${DocumentsTable.Arn}/index/*
+      Events:
+        ListDocuments:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents
+            Method: GET
+
+  GetDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-get-document-lambda
+      CodeUri: ../services/functions/get-document/
+      Environment:
+        Variables:
+          SOURCE_URL_EXPIRES_SECONDS: !Ref SourceUrlExpiresSeconds
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt DocumentsTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${RawBucket}/raw/*
+                - !Sub arn:${AWS::Partition}:s3:::${ProcessedBucket}/processed/*
+      Events:
+        GetDocument:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/{documentId}
+            Method: GET
+
+  DeleteDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-delete-document-lambda
+      CodeUri: ../services/functions/delete-document/
+      Timeout: 60
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt DocumentsTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${RawBucket}
+                - !Sub arn:${AWS::Partition}:s3:::${ProcessedBucket}
+            - Effect: Allow
+              Action:
+                - s3:DeleteObject
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${RawBucket}/raw/*
+                - !Sub arn:${AWS::Partition}:s3:::${ProcessedBucket}/processed/*
+      Events:
+        DeleteOneDocument:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/{documentId}
+            Method: DELETE
+        DeleteManyDocuments:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents
+            Method: DELETE
+
+  ReviewUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-review-update-lambda
+      CodeUri: ../services/functions/review-update/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DocumentsTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub arn:${AWS::Partition}:s3:::${ProcessedBucket}/processed/*
+      Events:
+        ReviewDocument:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/{documentId}/review
+            Method: PATCH
+
+  ProcessControlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-process-control-lambda
+      CodeUri: ../services/functions/process-control/
+      Environment:
+        Variables:
+          DOCUFLOW_DEV_STATE_MACHINE_ARN: !Ref ProcessingStateMachine
+          STATE_MACHINE_ARN: !Ref ProcessingStateMachine
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DocumentsTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/raw/*
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !Ref ProcessingStateMachine
+      Events:
+        ProcessDocument:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/{documentId}/process
+            Method: POST
+        RetryDocument:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /documents/{documentId}/retry
+            Method: POST
+
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-dashboard-lambda
+      CodeUri: ../services/functions/dashboard/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DocumentsTable.Arn
+      Events:
+        ListNotifications:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /notifications
+            Method: GET
+        AcknowledgeNotification:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /notifications/{notificationId}
+            Method: PATCH
+        ListActivity:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /activity
+            Method: GET
+        ReportsSummary:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuFlowApi
+            Path: /reports/summary
+            Method: GET
+
+  IngestionJobStarterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub docuflow-${Env}-ingestion-job-starter-lambda
+      CodeUri: ../services/functions/ingestion-job-starter/
+      Environment:
+        Variables:
+          DOCUFLOW_DEV_STATE_MACHINE_ARN: !Ref ProcessingStateMachine
+          STATE_MACHINE_ARN: !Ref ProcessingStateMachine
+          EXECUTION_NAME_PREFIX: !Sub docuflow-${Env}
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub arn:${AWS::Partition}:s3:::${RawBucket}/raw/*
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !Ref ProcessingStateMachine
+      Events:
+        IngestionQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt IngestionQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  ProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub docuflow-${Env}-processing-workflow
+      Type: STANDARD
+      DefinitionUri: ../services/statemachines/processing.asl.json
+      DefinitionSubstitutions:
+        DocumentsTableName: !Ref DocumentsTable
+        ProcessedBucketName: !Ref ProcessedBucket
+        WorkflowValidateFunctionArn: !GetAtt WorkflowValidateFunction.Arn
+        TextractFunctionArn: !GetAtt TextractFunction.Arn
+        AiProxyFunctionArn: !GetAtt AiProxyFunction.Arn
+        ConfidenceStatusFunctionArn: !GetAtt ConfidenceStatusFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref WorkflowValidateFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref TextractFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref AiProxyFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ConfidenceStatusFunction
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ProcessedBucket
+
   Bootstrap:
     Type: AWS::SSM::Parameter
     Properties:
@@ -127,3 +663,27 @@ Outputs:
   Env:
     Description: Environment label.
     Value: !Ref Env
+  ApiBaseUrl:
+    Description: Base URL for VITE_API_BASE_URL.
+    Value: !Sub https://${DocuFlowApi}.execute-api.${AWS::Region}.amazonaws.com/${Env}
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID.
+    Value: !Ref UserPool
+  CognitoUserPoolClientId:
+    Description: Cognito app client ID.
+    Value: !Ref UserPoolClient
+  RawBucketName:
+    Description: Raw upload bucket.
+    Value: !Ref RawBucket
+  ProcessedBucketName:
+    Description: Processed JSON bucket.
+    Value: !Ref ProcessedBucket
+  DocumentsTableName:
+    Description: DynamoDB documents table.
+    Value: !Ref DocumentsTable
+  ProcessingStateMachineArn:
+    Description: Step Functions state machine ARN.
+    Value: !Ref ProcessingStateMachine
+  IngestionQueueUrl:
+    Description: SQS queue URL for raw S3 object ingestion.
+    Value: !Ref IngestionQueue

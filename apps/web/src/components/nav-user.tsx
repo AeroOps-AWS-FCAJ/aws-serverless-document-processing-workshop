@@ -18,7 +18,6 @@ import { Link, useNavigate } from "react-router-dom"
 import { Logo } from "@/components/logo"
 import {
   clearDocuFlowSession,
-  roleLabels,
   type DocuFlowRole,
 } from "@/lib/auth"
 import {
@@ -36,6 +35,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { LanguageToggle } from "@/components/language-toggle"
+import { useLanguage } from "@/lib/i18n"
 
 export function NavUser({
   user,
@@ -50,6 +51,8 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const { t } = useLanguage()
+  const roleLabel = role === "admin" ? t("role.admin") : t("role.finance")
 
   const handleLogout = async () => {
     await clearDocuFlowSession()
@@ -71,7 +74,7 @@ export function NavUser({
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {roleLabels[role]}
+                  {roleLabel}
                 </span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
@@ -94,7 +97,7 @@ export function NavUser({
                     {user.email}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {roleLabels[role]}
+                    {roleLabel}
                   </span>
                 </div>
               </div>
@@ -106,25 +109,25 @@ export function NavUser({
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/documents">
                       <FileSearch />
-                      Tài liệu
+                      {t("nav.documents")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/review">
                       <BellDot />
-                      Hàng đợi duyệt
+                      {t("nav.review")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/reports">
                       <BadgeDollarSign />
-                      Báo cáo
+                      {t("nav.reports")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/settings">
                       <UserRound />
-                      Settings
+                      {t("nav.settings")}
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -134,31 +137,31 @@ export function NavUser({
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/operations">
                       <Activity />
-                      Vận hành
+                      {t("nav.operations")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/ingestion">
                       <Route />
-                      Tiếp nhận
+                      {t("nav.ingestion")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/workflow">
                       <GitBranch />
-                      Quy trình
+                      {t("nav.workflow")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/observability">
                       <BarChart3 />
-                      Quan sát
+                      {t("nav.observability")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to="/admin/governance">
                       <ShieldCheck />
-                      Quản trị
+                      {t("nav.governance")}
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -167,23 +170,27 @@ export function NavUser({
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <Link to="/settings/notifications">
                     <BellDot />
-                    Cài đặt cảnh báo
+                    {t("nav.notifications")}
                   </Link>
                 </DropdownMenuItem>
               )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <div className="px-2 py-1.5">
+              <LanguageToggle className="w-full justify-center" />
+            </div>
+            <DropdownMenuSeparator />
             {role === "admin" && (
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to="/settings">
                   <UserRound />
-                  Settings
+                  {t("nav.settings")}
                 </Link>
               </DropdownMenuItem>
             )}
             <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
               <LogOut />
-              Đăng xuất
+              {t("common.signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
