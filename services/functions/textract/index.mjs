@@ -9,7 +9,12 @@ const textractClient = new TextractClient({
 
 const summaryFieldMap = {
   VENDOR_NAME: "vendorName",
+  INVOICE_DATE: "invoiceDate",
   INVOICE_RECEIPT_DATE: "invoiceDate",
+  ORDER_DATE: "invoiceDate",
+  PURCHASE_DATE: "invoiceDate",
+  RECEIPT_DATE: "invoiceDate",
+  TRANSACTION_DATE: "invoiceDate",
   INVOICE_RECEIPT_ID: "invoiceNumber",
   DUE_DATE: "dueDate",
   SUBTOTAL: "subtotalAmount",
@@ -96,6 +101,7 @@ export const handler = async (event) => {
         },
         summaryFields: parsed.summaryFields,
         summaryFieldCandidates: parsed.summaryFieldCandidates,
+        rawSummaryFields: parsed.rawSummaryFields,
         lineItems: parsed.lineItems,
         expenseDocuments: parsed.expenseDocuments,
       },
@@ -122,6 +128,7 @@ export function parseExpenseDocuments(documents) {
     primaryExpenseIndex: primaryExpense?.expenseIndex ?? null,
     summaryFields: primaryExpense?.summaryFields || {},
     summaryFieldCandidates: collectSummaryFieldCandidates(expenseDocuments),
+    rawSummaryFields: primaryExpense?.rawSummaryFields || [],
     lineItems: primaryExpense?.lineItems || [],
     expenseDocuments,
   };
@@ -129,22 +136,34 @@ export function parseExpenseDocuments(documents) {
 
 function parseExpenseDocument(document, fallbackExpenseIndex) {
   const summaryFieldCandidates = {};
+  const rawSummaryFields = [];
   const lineItems = [];
 
   for (const field of document?.SummaryFields || []) {
     const type = normalizeType(field?.Type?.Text);
-    const docuflowKey = summaryFieldMap[type];
+    const label = field?.LabelDetection?.Text || null;
+    const value = field?.ValueDetection?.Text;
+    const confidenceScore = normalizeConfidence(field?.ValueDetection?.Confidence);
+    const sourceField = {
+      value: value ?? null,
+      confidenceScore,
+      type,
+      label,
+      pageNumber: field?.PageNumber || null,
+      groupProperties: normalizeGroupProperties(field?.GroupProperties),
+    };
+    rawSummaryFields.push(sourceField);
 
-    if (docuflowKey && field?.ValueDetection?.Text !== undefined) {
+    const docuflowKey = summaryFieldMap[type] || inferSummaryFieldKey(field);
+
+    if (docuflowKey && value !== undefined) {
       addCandidate(summaryFieldCandidates, docuflowKey, {
-        value: field.ValueDetection.Text,
-        confidenceScore: normalizeConfidence(
-          field.ValueDetection.Confidence
-        ),
+        value,
+        confidenceScore,
         type,
-        label: field?.LabelDetection?.Text || null,
-        pageNumber: field?.PageNumber || null,
-        groupProperties: normalizeGroupProperties(field?.GroupProperties),
+        label,
+        pageNumber: sourceField.pageNumber,
+        groupProperties: sourceField.groupProperties,
       });
     }
 
@@ -172,9 +191,42 @@ function parseExpenseDocument(document, fallbackExpenseIndex) {
     expenseIndex: document?.ExpenseIndex ?? fallbackExpenseIndex,
     summaryFields: selectBestCandidates(summaryFieldCandidates),
     summaryFieldCandidates,
+    rawSummaryFields,
     lineItems: lineItems.map((item) => item.fields),
     lineItemDetails: lineItems,
   };
+}
+
+function inferSummaryFieldKey(field) {
+  const label = normalizeLabel(field?.LabelDetection?.Text);
+  const type = normalizeType(field?.Type?.Text);
+  const value = field?.ValueDetection?.Text;
+
+  if (!looksLikeDateText(value)) return null;
+  if (/\b(DUE|PAYMENT DUE|BALANCE DUE)\b/.test(label) || type === "DUE_DATE") {
+    return "dueDate";
+  }
+  if (
+    [
+      "DATE",
+      "INVOICE_DATE",
+      "ORDER_DATE",
+      "PURCHASE_DATE",
+      "RECEIPT_DATE",
+      "SALE_DATE",
+      "TRANSACTION_DATE",
+    ].includes(type)
+  ) {
+    return "invoiceDate";
+  }
+  if (
+    /\b(INVOICE|RECEIPT|ORDER|PURCHASE|SALE|TRANSACTION)?\s*DATE\b/.test(label) &&
+    !/\b(DUE|EXPIR|SHIP|DELIVERY)\b/.test(label)
+  ) {
+    return "invoiceDate";
+  }
+
+  return null;
 }
 
 function parseLineItem(lineItem, lineItemGroupIndex) {
@@ -305,6 +357,26 @@ function assertSynchronousDocumentSupported(event, rawS3Key) {
 
 function normalizeType(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function normalizeLabel(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function looksLikeDateText(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/\b\d{4}-\d{1,2}-\d{1,2}\b/.test(text)) return true;
+  if (/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/.test(text)) return true;
+  if (
+    /\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*\.?\s+\d{1,2},?\s+\d{4}\b/i.test(text)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function normalizeConfidence(value) {
