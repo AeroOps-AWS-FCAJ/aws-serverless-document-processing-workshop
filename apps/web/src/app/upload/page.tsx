@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { getDocument, isApiConfigured, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
+import { getDocument, isApiConfigured, processDocument, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
 import { createQueuedDocument, nextUploadStatus, useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { statusMeta, type DocumentStatus } from "@/lib/docuflow-data"
 import { useAuth } from "@/contexts/auth-context"
@@ -39,6 +39,17 @@ const terminalProcessingStatuses = new Set<DocumentStatus>([
   "APPROVED",
   "CORRECTED",
   "FAILED",
+])
+
+const knownDocumentStatuses = new Set<DocumentStatus>([
+  "UPLOADED",
+  "QUEUED",
+  "PROCESSING",
+  "EXTRACTED",
+  "REVIEW_REQUIRED",
+  "FAILED",
+  "CORRECTED",
+  "APPROVED",
 ])
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,6 +83,10 @@ function throwIfAborted(signal: AbortSignal) {
 
 function isTerminalProcessingStatus(status: DocumentStatus) {
   return terminalProcessingStatuses.has(status)
+}
+
+function isKnownDocumentStatus(status: string): status is DocumentStatus {
+  return knownDocumentStatuses.has(status as DocumentStatus)
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -176,12 +191,13 @@ export default function UploadPage() {
       setState("REQUESTING_URL"); setProgress(15)
       setMessage(t("upload.preparing"))
       const contentType = getAcceptedMimeType(file) ?? file.type
+      const requestedDocumentType = hint === "AUTO" ? undefined : hint
       const req = {
         originalFileName: file.name,
         mimeType: contentType,
         fileSizeBytes: file.size,
         pageCount: pages || 1,
-        ...(hint === "AUTO" ? {} : { documentType: hint }),
+        ...(requestedDocumentType ? { documentType: requestedDocumentType } : {}),
       }
       const res = await requestUploadUrl(req)
       throwIfAborted(ctrl.signal)
@@ -204,15 +220,35 @@ export default function UploadPage() {
       setMessage(apiMode ? t("upload.queuedAws") : t("upload.queuedDemo"))
       const uid    = session?.userId ?? "user-123"
       const base   = createQueuedDocument(req, res, uid)
-      const queued = { ...base, documentType: hint === "AUTO" ? base.documentType : hint, status: nextUploadStatus("UPLOADED") }
+      const documentType = requestedDocumentType ?? base.documentType
+      const queued = { ...base, documentType, status: nextUploadStatus("UPLOADED") }
       upsertDocument(queued); setCreatedDocId(queued.documentId)
 
       let syncedStatus = ""
       if (apiMode) {
-        setProgress(96)
+        setProgress(94)
         setMessage(t("upload.waitingWorkflow"))
+        const started = await processDocument(res.documentId, res.rawS3Key, {
+          originalFileName: req.originalFileName,
+          mimeType: req.mimeType,
+          documentType,
+          pageCount: req.pageCount,
+        })
+        throwIfAborted(ctrl.signal)
+        if (started.status && isKnownDocumentStatus(started.status)) {
+          syncedStatus = started.status
+          upsertDocument({
+            ...queued,
+            status: started.status,
+            updatedAt: new Date().toISOString(),
+          })
+        } else {
+          syncedStatus = "QUEUED"
+        }
+
+        setProgress(96)
         const refreshed = await pollDocumentResult(res.documentId, ctrl.signal)
-        syncedStatus = refreshed?.status ?? ""
+        syncedStatus = refreshed?.status ?? syncedStatus
       }
 
       setProgress(100); setState("COMPLETE")

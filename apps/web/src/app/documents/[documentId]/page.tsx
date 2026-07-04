@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate, formatMoney, statusMeta, supportedCurrencies, type DocumentRecord, type DocumentStatus, type DocumentType } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
-import { deleteDocument, getApiErrorMessage, getDocument, isApiConfigured, retryDocument, reviewDocument } from "@/lib/docuflow-api"
+import { deleteDocument, getApiErrorMessage, getDocument, isApiConfigured, processDocument, retryDocument, reviewDocument } from "@/lib/docuflow-api"
 import { CONFIDENCE_THRESHOLD } from "@docuflow/shared-config"
 import { toast } from "sonner"
 import type { LineItem } from "@docuflow/shared-types"
@@ -689,7 +689,14 @@ export default function DocumentDetailPage() {
 
     setIsRetrying(true)
     try {
-      await retryDocument(doc.documentId)
+      if (doc.status === "UPLOADED") {
+        await processDocument(doc.documentId, doc.rawS3Key, {
+          originalFileName: doc.originalFileName,
+          documentType: doc.documentType,
+        })
+      } else {
+        await retryDocument(doc.documentId)
+      }
       const patch: Partial<DocumentRecord> = {
         status: "QUEUED",
         errorMessage: t("detail.retryRequested"),
@@ -812,7 +819,7 @@ export default function DocumentDetailPage() {
               </a>
             </Button>
           )}
-          {["FAILED", "REVIEW_REQUIRED"].includes(doc.status) && (
+          {["UPLOADED", "FAILED", "REVIEW_REQUIRED"].includes(doc.status) && (
             <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={handleRetryDocument} disabled={isRetrying}>
               <RefreshCw className={isRetrying ? "size-4 animate-spin" : "size-4"} />
               {t("detail.retry")}
