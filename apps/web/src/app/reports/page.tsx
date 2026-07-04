@@ -63,8 +63,9 @@ import {
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { getReportsSummary, type ReportsSummaryResponse } from "@/lib/docuflow-api"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
-type DocumentTypeFilter = "ALL" | "INVOICE" | "RECEIPT"
+type DocumentTypeFilter = "ALL" | "INVOICE" | "RECEIPT" | "UNKNOWN"
 type StatusFilter = "ALL" | DocumentStatus
 
 const defaultColumnVisibility: TableColumnVisibility = {
@@ -78,15 +79,15 @@ const defaultColumnVisibility: TableColumnVisibility = {
   detail: true,
 }
 
-const reportColumns: BulkTableColumn[] = [
-  { key: "document", label: "Tài liệu", locked: true },
-  { key: "vendor", label: "Nhà cung cấp" },
-  { key: "invoice", label: "Số/Ngày hóa đơn" },
-  { key: "amount", label: "Số tiền" },
-  { key: "status", label: "Trạng thái" },
-  { key: "confidence", label: "Độ tin cậy" },
-  { key: "updated", label: "Cập nhật" },
-  { key: "detail", label: "Chi tiết", locked: true },
+const reportColumnDefinitions: Array<Omit<BulkTableColumn, "label"> & { labelKey: TranslationKey }> = [
+  { key: "document", labelKey: "reports.fileName", locked: true },
+  { key: "vendor", labelKey: "reports.vendor" },
+  { key: "invoice", labelKey: "reports.invoiceNumberDate" },
+  { key: "amount", labelKey: "dashboard.amount" },
+  { key: "status", labelKey: "reports.status" },
+  { key: "confidence", labelKey: "reports.avgConfidence" },
+  { key: "updated", labelKey: "dashboard.updated" },
+  { key: "detail", labelKey: "reports.detail", locked: true },
 ]
 
 function toVnd(document: DocumentRecord) {
@@ -97,11 +98,11 @@ function escapeCsv(value: string | number | null | undefined) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`
 }
 
-function formatReportDate(value?: string | null) {
+function formatReportDate(value?: string | null, locale = "vi-VN") {
   if (!value) return "—"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("vi-VN")
+  return date.toLocaleDateString(locale)
 }
 
 function getDateSortValue(value?: string | null) {
@@ -179,12 +180,13 @@ function exportCsv(documents: DocumentRecord[], suffix = "bao-cao") {
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]
   const Icon = meta.icon
   return (
     <Badge variant="outline" className={meta.tone}>
       <Icon className="size-3.5" />
-      {meta.label}
+      {t(`status.${status}` as TranslationKey)}
     </Badge>
   )
 }
@@ -196,7 +198,13 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
 export default function ReportsPage() {
   const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { session } = useAuth()
+  const { language, t } = useLanguage()
+  const locale = language === "vi" ? "vi-VN" : "en-US"
   const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
+  const reportColumns = useMemo<BulkTableColumn[]>(
+    () => reportColumnDefinitions.map(({ labelKey, ...column }) => ({ ...column, label: t(labelKey) })),
+    [t],
+  )
 
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL")
@@ -323,8 +331,8 @@ export default function ReportsPage() {
       const date = new Date(document.invoiceDate)
       const isInvalid = Number.isNaN(date.getTime())
       const month = isInvalid
-        ? "Không xác định"
-        : date.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })
+        ? t("reports.unknownMonth")
+        : date.toLocaleDateString(locale, { month: "long", year: "numeric" })
       const sortKey = isInvalid ? "9999-99" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
       const current = grouped.get(month) ?? { month, sortKey, amount: 0, documents: 0 }
       current.amount += toVnd(document)
@@ -332,7 +340,7 @@ export default function ReportsPage() {
       grouped.set(month, current)
     })
     return [...grouped.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey)).slice(-6)
-  }, [reportableDocuments])
+  }, [locale, reportableDocuments, t])
 
   const statusRows = (Object.keys(statusMeta) as DocumentStatus[]).map((status) => ({
     status,
@@ -380,10 +388,10 @@ export default function ReportsPage() {
   }, [filteredDocuments])
 
   useEffect(() => {
-    if (syncMessage.startsWith("Đã đồng bộ")) {
+    if (syncMessage && !syncError && !isSyncing) {
       setLastSyncedAt(new Date().toISOString())
     }
-  }, [syncMessage])
+  }, [isSyncing, syncError, syncMessage])
 
   useEffect(() => {
     if (!apiMode) {
@@ -403,7 +411,7 @@ export default function ReportsPage() {
       } catch {
         if (!cancelled) {
           setApiSummary(null)
-          setSummaryWarning("Backend chưa trả được /reports/summary, KPI đang tính từ danh sách tài liệu.")
+          setSummaryWarning(t("reports.apiSummaryWarning"))
         }
       } finally {
         if (!cancelled) setIsLoadingSummary(false)
@@ -415,7 +423,7 @@ export default function ReportsPage() {
     return () => {
       cancelled = true
     }
-  }, [apiMode])
+  }, [apiMode, t])
 
   const isColumnVisible = (key: string) => columnVisibility[key] !== false
 
@@ -440,7 +448,7 @@ export default function ReportsPage() {
       setApiSummary(await getReportsSummary())
     } catch {
       setApiSummary(null)
-      setSummaryWarning("Backend chưa trả được /reports/summary, KPI đang tính từ danh sách tài liệu.")
+      setSummaryWarning(t("reports.apiSummaryWarning"))
     } finally {
       setIsLoadingSummary(false)
     }
@@ -456,27 +464,27 @@ export default function ReportsPage() {
   }
 
   return (
-    <BaseLayout title="Báo cáo tài chính">
+    <BaseLayout title={t("reports.title")}>
       <section className="px-4 lg:px-6">
         <div className="overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_420px]">
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  Báo cáo
+                  {t("reports.badge")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  {session?.role === "admin" ? "Toàn hệ thống" : "Không gian của tôi"}
+                  {session?.role === "admin" ? t("reports.systemScope") : t("reports.myScope")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  {approvedOnly ? "Chỉ đã duyệt" : "Bao gồm chưa duyệt"}
+                  {approvedOnly ? t("reports.approvedOnly") : t("reports.includeUnapproved")}
                 </Badge>
               </div>
               <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
-                Chi tiêu, nhà cung cấp và rủi ro xử lý tài liệu.
+                {t("reports.heroTitle")}
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
-                Tổng hợp từ tập tài liệu đang lọc. {demoCurrencyRateDetail()}.
+                {t("reports.heroBody", { rate: demoCurrencyRateDetail() })}
                 {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               {(syncError || summaryWarning) && (
@@ -488,30 +496,30 @@ export default function ReportsPage() {
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={refreshReportData} disabled={isSyncing || isLoadingSummary}>
                   <RefreshCw className={isSyncing || isLoadingSummary ? "size-4 animate-spin" : "size-4"} />
-                  Làm mới
+                  {t("reports.refresh")}
                 </Button>
                 <Button className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]" onClick={() => exportCsv(selectedDocuments.length ? selectedDocuments : filteredDocuments, selectedDocuments.length ? "da-chon" : "da-loc")}>
                   <Download className="size-4" />
-                  {selectedDocuments.length ? `Xuất ${selectedDocuments.length} đã chọn` : "Xuất báo cáo CSV"}
+                  {selectedDocuments.length ? t("reports.exportSelectedCount", { count: selectedDocuments.length }) : t("reports.exportCsv")}
                 </Button>
                 <Button asChild variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
                   <Link to="/documents">
-                    Xem danh sách tài liệu
+                    {t("reports.viewDocuments")}
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
               </div>
               <div className="mt-3 text-[11px] text-white/45">
-                {lastSyncedAt ? `Đồng bộ lần cuối ${formatDate(lastSyncedAt)}` : apiMode ? "Chưa đồng bộ phiên này" : "Đang dùng dữ liệu demo cục bộ"}
+                {lastSyncedAt ? t("reports.lastSynced", { time: formatDate(lastSyncedAt) }) : apiMode ? t("reports.notSynced") : t("reports.localDemo")}
               </div>
             </div>
 
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: canUseApiSummary ? "Tổng API summary" : approvedOnly ? "Đã duyệt trong bộ lọc" : "Tổng trong bộ lọc", value: formatMoney(summaryTotalVnd, "VND"), icon: BadgeDollarSign },
-                { label: "Đã duyệt", value: formatMoney(summaryApprovedVnd, "VND"), icon: CheckCircle2 },
-                { label: "Chờ xác minh", value: formatMoney(summaryPendingVnd, "VND"), icon: FileWarning },
-                { label: "Độ tin cậy TB", value: `${summaryAverageConfidence}%`, icon: TrendingUp },
+                { label: canUseApiSummary ? t("reports.apiSummaryTotal") : approvedOnly ? t("reports.approvedInFilter") : t("reports.totalInFilter"), value: formatMoney(summaryTotalVnd, "VND"), icon: BadgeDollarSign },
+                { label: t("reports.approved"), value: formatMoney(summaryApprovedVnd, "VND"), icon: CheckCircle2 },
+                { label: t("reports.pendingVerification"), value: formatMoney(summaryPendingVnd, "VND"), icon: FileWarning },
+                { label: t("reports.avgConfidence"), value: `${summaryAverageConfidence}%`, icon: TrendingUp },
               ].map((item) => {
                 const Icon = item.icon
                 return (
@@ -536,79 +544,80 @@ export default function ReportsPage() {
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Search className="size-4" />
-                  Bộ lọc báo cáo
+                  {t("reports.filters")}
                 </CardTitle>
-                <CardDescription>Áp dụng cho KPI, biểu đồ, bảng và file CSV xuất ra.</CardDescription>
+                <CardDescription>{t("reports.filtersBody")}</CardDescription>
               </div>
               <Button variant="outline" size="sm" className="cursor-pointer" onClick={resetFilters}>
                 <RotateCcw className="size-3.5" />
-                Đặt lại
+                {t("reports.reset")}
               </Button>
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 p-4">
             <div className="grid gap-3 lg:grid-cols-[1.3fr_repeat(4,minmax(150px,1fr))]">
               <div className="grid gap-1.5">
-                <FilterLabel>Tìm kiếm</FilterLabel>
-                <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên file, vendor, mã hóa đơn..." />
+                <FilterLabel>{t("reports.search")}</FilterLabel>
+                <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("reports.searchPlaceholder")} />
               </div>
               <div className="grid gap-1.5">
-                <FilterLabel>Trạng thái</FilterLabel>
+                <FilterLabel>{t("reports.status")}</FilterLabel>
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("reports.all")}</SelectItem>
                     {(Object.keys(statusMeta) as DocumentStatus[]).map((status) => (
-                      <SelectItem key={status} value={status}>{statusMeta[status].label}</SelectItem>
+                      <SelectItem key={status} value={status}>{t(`status.${status}` as TranslationKey)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <FilterLabel>Nhà cung cấp</FilterLabel>
+                <FilterLabel>{t("reports.vendor")}</FilterLabel>
                 <Select value={vendorFilter} onValueChange={setVendorFilter}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("reports.all")}</SelectItem>
                     {vendors.map((vendor) => <SelectItem key={vendor} value={vendor}>{vendor}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <FilterLabel>Tiền tệ</FilterLabel>
+                <FilterLabel>{t("reports.currency")}</FilterLabel>
                 <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("reports.all")}</SelectItem>
                     {currencies.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <FilterLabel>Loại tài liệu</FilterLabel>
+                <FilterLabel>{t("reports.documentType")}</FilterLabel>
                 <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as DocumentTypeFilter)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
-                    <SelectItem value="INVOICE">Hóa đơn</SelectItem>
-                    <SelectItem value="RECEIPT">Biên nhận</SelectItem>
+                    <SelectItem value="ALL">{t("reports.all")}</SelectItem>
+                    <SelectItem value="INVOICE">{t("reports.invoice")}</SelectItem>
+                    <SelectItem value="RECEIPT">{t("reports.receipt")}</SelectItem>
+                    <SelectItem value="UNKNOWN">{t("detail.unknown")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-[repeat(2,minmax(160px,220px))_1fr]">
               <div className="grid gap-1.5">
-                <FilterLabel>Từ ngày hóa đơn</FilterLabel>
+                <FilterLabel>{t("reports.fromDate")}</FilterLabel>
                 <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
               </div>
               <div className="grid gap-1.5">
-                <FilterLabel>Đến ngày hóa đơn</FilterLabel>
+                <FilterLabel>{t("reports.toDate")}</FilterLabel>
                 <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
               </div>
               <label className="flex min-h-10 cursor-pointer items-center gap-2 self-end rounded-xl border bg-muted/15 px-3 text-sm">
                 <Checkbox checked={approvedOnly} onCheckedChange={(value) => setApprovedOnly(value === true)} />
-                <span className="font-medium">Chỉ tính dữ liệu đã phê duyệt</span>
-                <span className="text-xs text-muted-foreground">Khuyến nghị cho báo cáo tài chính</span>
+                <span className="font-medium">{t("reports.onlyApprovedToggle")}</span>
+                <span className="text-xs text-muted-foreground">{t("reports.recommended")}</span>
               </label>
             </div>
           </CardContent>
@@ -620,9 +629,9 @@ export default function ReportsPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="size-5" />
-              Chi tiêu theo nhà cung cấp
+              {t("reports.vendorSpend")}
             </CardTitle>
-            <CardDescription>Top nhà cung cấp theo giá trị quy đổi VNĐ trong bộ lọc hiện tại.</CardDescription>
+            <CardDescription>{t("reports.vendorSpendBody")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             {vendorRows.length ? (
@@ -632,7 +641,7 @@ export default function ReportsPage() {
                     <div>
                       <div className="font-medium">{row.vendor}</div>
                       <div className="text-xs text-muted-foreground">
-                        {row.documents} tài liệu · Độ tin cậy TB {row.confidence}%
+                        {t("reports.documentsCount", { count: row.documents })} · {t("reports.avgConfidenceInline", { percent: row.confidence })}
                       </div>
                     </div>
                     <div className="font-mono text-sm font-semibold">{formatMoney(row.amount, "VND")}</div>
@@ -644,7 +653,7 @@ export default function ReportsPage() {
               ))
             ) : (
               <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Không có chi tiêu phù hợp bộ lọc hiện tại.
+                {t("reports.noSpendFilter")}
               </div>
             )}
           </CardContent>
@@ -655,9 +664,9 @@ export default function ReportsPage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <CalendarDays className="size-5" />
-                Chi tiêu theo tháng
+                {t("reports.monthlySpend")}
               </CardTitle>
-              <CardDescription>6 tháng gần nhất trong tập báo cáo.</CardDescription>
+              <CardDescription>{t("reports.monthlySpendBody")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 pt-5">
               {monthlyRows.length ? (
@@ -671,7 +680,7 @@ export default function ReportsPage() {
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">Không có dữ liệu theo tháng.</div>
+                <div className="text-sm text-muted-foreground">{t("reports.noMonthlyData")}</div>
               )}
             </CardContent>
           </Card>
@@ -680,9 +689,9 @@ export default function ReportsPage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <PieChart className="size-5" />
-                Phân bổ trạng thái
+                {t("reports.statusDistribution")}
               </CardTitle>
-              <CardDescription>Trạng thái trước khi áp dụng chế độ chỉ đã duyệt.</CardDescription>
+              <CardDescription>{t("reports.statusDistributionBody")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5">
               {statusRows.filter((row) => row.count > 0).length ? (
@@ -693,7 +702,7 @@ export default function ReportsPage() {
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">Không có tài liệu trong bộ lọc.</div>
+                <div className="text-sm text-muted-foreground">{t("reports.noDocumentsInFilter")}</div>
               )}
             </CardContent>
           </Card>
@@ -702,21 +711,21 @@ export default function ReportsPage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="size-5" />
-                Cần chú ý
+                {t("reports.needsAttention")}
               </CardTitle>
-              <CardDescription>{reviewExposure} tài liệu đang có rủi ro kiểm duyệt hoặc xử lý.</CardDescription>
+              <CardDescription>{t("reports.attentionBody", { count: reviewExposure })}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 pt-5">
               {anomalyDocuments.length ? anomalyDocuments.map((document) => (
                 <Link key={document.documentId} to={`/documents/${document.documentId}`} className="flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/30">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{document.originalFileName}</div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{document.vendorName || "Thiếu nhà cung cấp"} · {formatMoney(document.totalAmount, document.currency)}</div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{document.vendorName || t("reports.missingVendor")} · {formatMoney(document.totalAmount, document.currency)}</div>
                   </div>
                   <StatusBadge status={document.status} />
                 </Link>
               )) : (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Không có bất thường trong bộ lọc hiện tại.</div>
+                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">{t("reports.noAnomalies")}</div>
               )}
             </CardContent>
           </Card>
@@ -728,9 +737,9 @@ export default function ReportsPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <FileBarChart2 className="size-5" />
-              Danh sách tài liệu
+              {t("reports.documentList")}
             </CardTitle>
-            <CardDescription>{filteredDocuments.length} tài liệu phù hợp bộ lọc, {reportableDocuments.length} tài liệu có giá trị báo cáo.</CardDescription>
+            <CardDescription>{t("reports.documentListBody", { filtered: filteredDocuments.length, reportable: reportableDocuments.length })}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 p-4">
             <TableBulkControls
@@ -746,7 +755,7 @@ export default function ReportsPage() {
             >
               <Button size="sm" className="h-8 cursor-pointer" onClick={() => exportCsv(selectedDocuments, "da-chon")}>
                 <Download className="size-3.5" />
-                Xuất đã chọn
+                {t("reports.exportSelected")}
               </Button>
             </TableBulkControls>
           </CardContent>
@@ -756,14 +765,14 @@ export default function ReportsPage() {
                 <TableHeader className="bg-muted">
                   <TableRow>
                     <TableHead className="w-10" />
-                    {isColumnVisible("document") && <TableHead>Tên tài liệu</TableHead>}
-                    {isColumnVisible("vendor") && <TableHead>Nhà cung cấp</TableHead>}
-                    {isColumnVisible("invoice") && <TableHead>Số/Ngày hóa đơn</TableHead>}
-                    {isColumnVisible("amount") && <TableHead>Số tiền</TableHead>}
-                    {isColumnVisible("status") && <TableHead>Trạng thái</TableHead>}
-                    {isColumnVisible("confidence") && <TableHead>Độ tin cậy</TableHead>}
-                    {isColumnVisible("updated") && <TableHead>Cập nhật</TableHead>}
-                    {isColumnVisible("detail") && <TableHead className="w-[100px]">Chi tiết</TableHead>}
+                    {isColumnVisible("document") && <TableHead>{t("reports.fileName")}</TableHead>}
+                    {isColumnVisible("vendor") && <TableHead>{t("reports.vendor")}</TableHead>}
+                    {isColumnVisible("invoice") && <TableHead>{t("reports.invoiceNumberDate")}</TableHead>}
+                    {isColumnVisible("amount") && <TableHead>{t("dashboard.amount")}</TableHead>}
+                    {isColumnVisible("status") && <TableHead>{t("reports.status")}</TableHead>}
+                    {isColumnVisible("confidence") && <TableHead>{t("reports.avgConfidence")}</TableHead>}
+                    {isColumnVisible("updated") && <TableHead>{t("dashboard.updated")}</TableHead>}
+                    {isColumnVisible("detail") && <TableHead className="w-[100px]">{t("reports.detail")}</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -775,14 +784,14 @@ export default function ReportsPage() {
                       return (
                         <TableRow key={document.documentId} className={isSelected ? "bg-primary/5" : undefined}>
                           <TableCell>
-                            <Checkbox checked={isSelected} onCheckedChange={(value) => toggleSelected(document.documentId, value === true)} aria-label={`Chọn ${document.originalFileName}`} />
+                            <Checkbox checked={isSelected} onCheckedChange={(value) => toggleSelected(document.documentId, value === true)} aria-label={t("reports.selectDocument", { name: document.originalFileName })} />
                           </TableCell>
                           {isColumnVisible("document") && (
                             <TableCell className="max-w-[220px]">
                               <div className="truncate font-medium" title={document.originalFileName}>{document.originalFileName}</div>
                               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <ReceiptText className="size-3" />
-                                {document.documentType === "INVOICE" ? "Hóa đơn" : "Biên nhận"}
+                                {document.documentType === "INVOICE" ? t("reports.invoice") : document.documentType === "RECEIPT" ? t("reports.receipt") : t("detail.unknown")}
                               </div>
                             </TableCell>
                           )}
@@ -790,7 +799,7 @@ export default function ReportsPage() {
                           {isColumnVisible("invoice") && (
                             <TableCell className="text-sm">
                               <div className="font-mono text-xs">{document.invoiceNumber || "—"}</div>
-                              <div className="mt-1 text-xs text-muted-foreground">{formatReportDate(document.invoiceDate)}</div>
+                              <div className="mt-1 text-xs text-muted-foreground">{formatReportDate(document.invoiceDate, locale)}</div>
                             </TableCell>
                           )}
                           {isColumnVisible("amount") && (
@@ -812,7 +821,7 @@ export default function ReportsPage() {
                             <TableCell>
                               <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                                 <Link to={`/documents/${document.documentId}`}>
-                                  Xem <ArrowRight className="ml-1 size-3" />
+                                  {t("reports.view")} <ArrowRight className="ml-1 size-3" />
                                 </Link>
                               </Button>
                             </TableCell>
@@ -823,8 +832,8 @@ export default function ReportsPage() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={visibleColumnCount} className="h-32 text-center text-sm text-muted-foreground">
-                        Không có tài liệu phù hợp bộ lọc.{" "}
-                        <button type="button" className="text-primary underline underline-offset-2" onClick={resetFilters}>Đặt lại bộ lọc</button>
+                        {t("reports.noMatch")}{" "}
+                        <button type="button" className="text-primary underline underline-offset-2" onClick={resetFilters}>{t("reports.resetFilters")}</button>
                       </TableCell>
                     </TableRow>
                   )}

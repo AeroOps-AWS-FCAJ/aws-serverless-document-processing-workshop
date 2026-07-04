@@ -1,12 +1,8 @@
 import type { ReactNode } from "react"
 import { Check, Cloud, FileCheck2, ScanText } from "lucide-react"
+import { LanguageToggle } from "@/components/language-toggle"
 import { Logo } from "@/components/logo"
-
-const stages = [
-  { label: "Secure intake", detail: "Cognito + presigned S3 upload", icon: Cloud },
-  { label: "Intelligent extraction", detail: "Textract AnalyzeExpense", icon: ScanText },
-  { label: "Trusted result", detail: "AI normalization + human review", icon: FileCheck2 },
-]
+import { useLanguage } from "@/lib/i18n"
 
 interface AuthShellProps {
   eyebrow: string
@@ -16,6 +12,13 @@ interface AuthShellProps {
 }
 
 export function AuthShell({ eyebrow, title, description, children }: AuthShellProps) {
+  const { t } = useLanguage()
+  const stages = [
+    { label: t("auth.stageIntake"), detail: "Cognito + presigned S3 upload", icon: Cloud },
+    { label: t("auth.stageExtract"), detail: "Textract AnalyzeExpense", icon: ScanText },
+    { label: t("auth.stageResult"), detail: "AI normalization + human review", icon: FileCheck2 },
+  ]
+
   return (
     <main className="grid min-h-svh bg-[#f3f1e9] text-[#11251d] lg:grid-cols-[1.08fr_0.92fr]">
       <section className="paper-noise relative hidden min-h-svh overflow-hidden bg-[#10261d] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
@@ -27,20 +30,20 @@ export function AuthShell({ eyebrow, title, description, children }: AuthShellPr
           </div>
           <div>
             <div className="font-display text-lg font-semibold tracking-[-0.035em]">DocuFlow AI</div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">Financial document operations</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/45">{t("brand.tagline")}</div>
           </div>
         </a>
 
         <div className="relative max-w-2xl py-16">
           <div className="mb-6 inline-flex items-center gap-2 border border-white/15 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#d8ff72]">
             <span className="size-1.5 bg-[#d8ff72]" />
-            Admin-approved architecture
+            {t("auth.architecture")}
           </div>
           <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-[-0.065em] xl:text-7xl">
-            Turn invoices into trusted data, without the manual chase.
+            {t("auth.heroTitle")}
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-white/60">
-            Secure, traceable processing for invoices and receipts, built on an asynchronous AWS serverless workflow.
+            {t("auth.heroDescription")}
           </p>
         </div>
 
@@ -71,8 +74,11 @@ export function AuthShell({ eyebrow, title, description, children }: AuthShellPr
           </a>
           <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#647069]">
             <Check className="size-3" />
-            Secure access
+            {t("auth.secureAccess")}
           </span>
+        </div>
+        <div className="absolute right-5 top-20 lg:right-8 lg:top-8">
+          <LanguageToggle />
         </div>
         <div className="w-full max-w-md pt-16 lg:pt-0">
           <div className="mb-8">

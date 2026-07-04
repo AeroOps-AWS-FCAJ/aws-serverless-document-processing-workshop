@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useAdminText } from "@/lib/admin-i18n"
 
 type AlarmState = "OK" | "ALARM" | "INSUFFICIENT_DATA"
 type LogLevel = "INFO" | "WARN" | "ERROR"
@@ -142,6 +143,7 @@ function signalClass(tone: string) {
 }
 
 export default function AdminObservabilityPage() {
+  const a = useAdminText()
   const { documents } = useDocuFlowDocuments()
   const alarmCount = alarms.filter((alarm) => alarm.state === "ALARM").length
   const okCount = alarms.filter((alarm) => alarm.state === "OK").length
@@ -165,26 +167,25 @@ export default function AdminObservabilityPage() {
                   CloudWatch + X-Ray
                 </Badge>
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
-                  Alert evidence
+                  {a("Alert evidence")}
                 </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
-                Logs, traces, alarms, and delivery status in one admin view.
+                {a("Logs, traces, alarms, and delivery status in one admin view.")}
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-                Use this page to prove observability for happy path, low-confidence path,
-                failed workflow path, DLQ depth, and SNS/SES alert routing.
+                {a("Use this page to prove observability for happy path, low-confidence path, failed workflow path, DLQ depth, and SNS/SES alert routing.")}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="bg-[#d8ff72] font-semibold text-[#10261d] hover:bg-[#c7ee5f] transition-colors duration-200">
                   <Link to="/settings/notifications">
-                    Alert settings
+                    {a("Alert settings")}
                     <BellRing className="size-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10">
                   <Link to="/evidence">
-                    Evidence packet
+                    {a("Evidence packet")}
                     <Route className="size-4" />
                   </Link>
                 </Button>
@@ -205,7 +206,7 @@ export default function AdminObservabilityPage() {
                       <span className="font-mono text-[10px] text-white/35">OBS</span>
                     </div>
                     <div className="text-3xl font-semibold text-white">{item.value}</div>
-                    <div className="mt-1 text-xs text-white/50">{item.label}</div>
+                    <div className="mt-1 text-xs text-white/50">{a(item.label)}</div>
                   </div>
                 )
               })}
@@ -221,14 +222,14 @@ export default function AdminObservabilityPage() {
             <div key={signal.label} className={`border p-4 ${signalClass(signal.tone)}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-60">{signal.label}</div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.16em] opacity-60">{a(signal.label)}</div>
                   <div className="mt-2 text-3xl font-semibold">{signal.value}</div>
                 </div>
                 <div className="border bg-background/70 p-2">
                   <Icon className="size-4" />
                 </div>
               </div>
-              <div className="mt-3 text-xs opacity-70">{signal.detail}</div>
+              <div className="mt-3 text-xs opacity-70">{a(signal.detail)}</div>
             </div>
           )
         })}
@@ -239,10 +240,10 @@ export default function AdminObservabilityPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <BellRing className="size-5" />
-              CloudWatch alarm board
+              {a("CloudWatch alarm board")}
             </CardTitle>
             <CardDescription>
-              Alarm definitions mapped to reviewer evidence and first response action.
+              {a("Alarm definitions mapped to reviewer evidence and first response action.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -250,10 +251,10 @@ export default function AdminObservabilityPage() {
               <Table className="min-w-[860px]">
                 <TableHeader className="bg-muted">
                   <TableRow>
-                    <TableHead>Alarm</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Threshold</TableHead>
-                    <TableHead>Action</TableHead>
+                    <TableHead>{a("Alarm")}</TableHead>
+                    <TableHead>{a("State")}</TableHead>
+                    <TableHead>{a("Threshold")}</TableHead>
+                    <TableHead>{a("Action")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -265,8 +266,8 @@ export default function AdminObservabilityPage() {
                           {alarm.state}
                         </Badge>
                       </TableCell>
-                      <TableCell>{alarm.threshold}</TableCell>
-                      <TableCell className="text-muted-foreground">{alarm.action}</TableCell>
+                      <TableCell>{a(alarm.threshold)}</TableCell>
+                      <TableCell className="text-muted-foreground">{a(alarm.action)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -279,14 +280,14 @@ export default function AdminObservabilityPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Gauge className="size-5" />
-              Monitoring readiness
+              {a("Monitoring readiness")}
             </CardTitle>
-            <CardDescription>OK alarms divided by expected alarms.</CardDescription>
+            <CardDescription>{a("OK alarms divided by expected alarms.")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 pt-5">
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium">Alarm readiness</span>
+                <span className="font-medium">{a("Alarm readiness")}</span>
                 <span className="font-mono text-muted-foreground">{health}%</span>
               </div>
               <Progress value={health} />
@@ -298,15 +299,15 @@ export default function AdminObservabilityPage() {
               </div>
               <div className="border-r p-3">
                 <div className="text-2xl font-semibold">{alarmCount}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Alarm</div>
+                <div className="mt-1 text-xs text-muted-foreground">{a("Alarm")}</div>
               </div>
               <div className="p-3">
                 <div className="text-2xl font-semibold">1</div>
-                <div className="mt-1 text-xs text-muted-foreground">Pending</div>
+                <div className="mt-1 text-xs text-muted-foreground">{a("Pending")}</div>
               </div>
             </div>
             <div className="border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-              Keep one failed workflow alarm visible for the demo, then show the matching log event and review queue item.
+              {a("Keep one failed workflow alarm visible for the demo, then show the matching log event and review queue item.")}
             </div>
           </CardContent>
         </Card>
@@ -317,10 +318,10 @@ export default function AdminObservabilityPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <ServerCog className="size-5" />
-              Structured log stream
+              {a("Structured log stream")}
             </CardTitle>
             <CardDescription>
-              Logs must include documentId, component/state name, status, and error context.
+              {a("Logs must include documentId, component/state name, status, and error context.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5">
@@ -334,7 +335,7 @@ export default function AdminObservabilityPage() {
                     <span className="font-medium">{log.component}</span>
                     <Badge variant="secondary">{log.documentId}</Badge>
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-muted-foreground">{log.message}</div>
+                  <div className="mt-2 text-sm leading-6 text-muted-foreground">{a(log.message)}</div>
                 </div>
                 <div className="font-mono text-xs text-muted-foreground">{formatDate(log.time)}</div>
               </div>
@@ -346,10 +347,10 @@ export default function AdminObservabilityPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="size-5" />
-              X-Ray trace summary
+              {a("X-Ray trace summary")}
             </CardTitle>
             <CardDescription>
-              Trace latency and error hints for API, Lambda, workflow starter, and AI proxy.
+              {a("Trace latency and error hints for API, Lambda, workflow starter, and AI proxy.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5">
@@ -361,7 +362,7 @@ export default function AdminObservabilityPage() {
                     <div className="mt-1 text-xs text-muted-foreground">p50 {trace.p50} ms - p95 {trace.p95} ms</div>
                   </div>
                   <Badge variant="outline" className={trace.errors ? alarmClass("ALARM") : alarmClass("OK")}>
-                    {trace.errors} error{trace.errors === 1 ? "" : "s"}
+                    {trace.errors} {a(trace.errors === 1 ? "error" : "errors")}
                   </Badge>
                 </div>
                 <Progress value={Math.min(100, Math.round((trace.p95 / 3200) * 100))} />
@@ -369,7 +370,7 @@ export default function AdminObservabilityPage() {
             ))}
             <div className="flex items-start gap-3 border bg-muted/25 p-4 text-sm leading-6">
               <Timer className="mt-0.5 size-4 shrink-0" />
-              AI Proxy is the expected slowest segment; timeout and rate-limit evidence belongs in Workflow and Evidence.
+              {a("AI Proxy is the expected slowest segment; timeout and rate-limit evidence belongs in Workflow and Evidence.")}
             </div>
           </CardContent>
         </Card>

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate, workflowSteps, type DocumentRecord } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useAdminText } from "@/lib/admin-i18n"
 
 type ExecutionState = "Succeeded" | "Running" | "Failed" | "NeedsReview"
 type StepState = "Succeeded" | "Running" | "Skipped" | "Failed" | "Waiting"
@@ -135,6 +136,7 @@ function confidenceBreakdown(document?: DocumentRecord) {
 }
 
 export default function AdminWorkflowPage() {
+  const a = useAdminText()
   const { documents } = useDocuFlowDocuments()
   const [selectedId, setSelectedId] = useState("")
   const activeId = selectedId || documents[0]?.documentId || ""
@@ -165,13 +167,13 @@ export default function AdminWorkflowPage() {
       <div className="grid gap-5 px-4 py-6 lg:px-6">
         <section>
           <div className="relative overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg p-8">
-            <h2 className="font-display text-2xl font-semibold leading-tight">Chưa có quy trình xử lý nào</h2>
+            <h2 className="font-display text-2xl font-semibold leading-tight">{a("No workflow executions yet")}</h2>
             <p className="mt-2 text-sm text-white/70">
-              Vui lòng tải tài liệu lên tại Không gian tài liệu trước để kích hoạt quy trình xử lý AWS Step Functions.
+              {a("Upload a document from the document workspace to start an AWS Step Functions execution.")}
             </p>
             <div className="mt-4">
               <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f] font-semibold">
-                <Link to="/upload">Tải tài liệu lên</Link>
+                <Link to="/upload">{a("Upload document")}</Link>
               </Button>
             </div>
           </div>
@@ -193,29 +195,28 @@ export default function AdminWorkflowPage() {
               <div className="absolute inset-y-0 right-0 hidden w-px bg-white/12 lg:block" />
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/30 bg-[#d8ff72] font-semibold text-[11px] text-[#10261d]">
-                  State machine
+                  {a("State machine")}
                 </Badge>
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
                   AWS Step Functions
                 </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
-                Execution history with AI and persistence diagnostics.
+                {a("Execution history with AI and persistence diagnostics.")}
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-                Track every document through validation, Textract extraction, AI normalization,
-                confidence scoring, DynamoDB metadata, S3 result JSON, and notification catch paths.
+                {a("Track every document through validation, Textract extraction, AI normalization, confidence scoring, DynamoDB metadata, S3 result JSON, and notification catch paths.")}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="bg-[#d8ff72] font-semibold text-[#10261d] hover:bg-[#c7ee5f] transition-colors duration-200">
                   <Link to="/admin/observability">
-                    Metrics & logs
+                    {a("Metrics & logs")}
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10">
                   <Link to="/admin/observability">
-                    Open logs and traces
+                    {a("Open logs and traces")}
                     <Route className="size-4" />
                   </Link>
                 </Button>
@@ -236,7 +237,7 @@ export default function AdminWorkflowPage() {
                       <span className="font-mono text-[10px] text-white/35">SFN</span>
                     </div>
                     <div className="text-3xl font-semibold text-white">{item.value}</div>
-                    <div className="mt-1 text-xs text-white/50">{item.label}</div>
+                    <div className="mt-1 text-xs text-white/50">{a(item.label)}</div>
                   </div>
                 )
               })}
@@ -250,10 +251,10 @@ export default function AdminWorkflowPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <GitBranch className="size-5" />
-              Execution list
+              {a("Execution list")}
             </CardTitle>
             <CardDescription>
-              Select an execution to inspect state progress and data artifacts.
+              {a("Select an execution to inspect state progress and data artifacts.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -261,10 +262,10 @@ export default function AdminWorkflowPage() {
               <Table className="min-w-[780px]">
                 <TableHeader className="bg-muted">
                   <TableRow>
-                    <TableHead>Execution</TableHead>
-                    <TableHead>Document</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Updated</TableHead>
+                    <TableHead>{a("Execution")}</TableHead>
+                    <TableHead>{a("Document")}</TableHead>
+                    <TableHead>{a("State")}</TableHead>
+                    <TableHead>{a("Updated")}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -273,7 +274,7 @@ export default function AdminWorkflowPage() {
                     <TableRow key={`${execution.document.documentId}-${index}`} className={selected?.documentId === execution.document.documentId ? "bg-muted/35" : undefined}>
                       <TableCell>
                         <div className="font-mono text-xs">{execution.name}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">Standard workflow</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{a("Standard workflow")}</div>
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{execution.document.originalFileName}</div>
@@ -281,13 +282,13 @@ export default function AdminWorkflowPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={stateClass(execution.state)}>
-                          {execution.state}
+                          {a(execution.state)}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(execution.document.updatedAt)}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" onClick={() => setSelectedId(execution.document.documentId)}>
-                          Inspect
+                          {a("Inspect")}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -304,19 +305,19 @@ export default function AdminWorkflowPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <ListChecks className="size-5" />
-                  State history
+                  {a("State history")}
                 </CardTitle>
                 <CardDescription>{selected.documentId} - {executionName(selected)}</CardDescription>
               </div>
               <Badge variant="outline" className={stateClass(selectedState)}>
-                {selectedState}
+                {a(selectedState)}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium">Completed states</span>
+                <span className="font-medium">{a("Completed states")}</span>
                 <span className="font-mono text-muted-foreground">{progress}%</span>
               </div>
               <Progress value={progress} />
@@ -333,14 +334,14 @@ export default function AdminWorkflowPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-[10px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
                         <span className="font-medium [overflow-wrap:anywhere]">{item.step}</span>
-                        <Badge variant="secondary">{stepOwners[item.step]}</Badge>
+                        <Badge variant="secondary">{a(stepOwners[item.step])}</Badge>
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
-                        Duration target: {stateDurations[item.step]}
+                        {a("Duration target:")} {stateDurations[item.step]}
                       </div>
                     </div>
                     <Badge variant="outline" className={stateClass(item.state)}>
-                      {item.state}
+                      {a(item.state)}
                     </Badge>
                   </div>
                 )
@@ -355,17 +356,17 @@ export default function AdminWorkflowPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="size-5" />
-              AI extraction diagnostics
+              {a("AI extraction diagnostics")}
             </CardTitle>
             <CardDescription>
-              Textract and AI Proxy evidence for the selected document.
+              {a("Textract and AI Proxy evidence for the selected document.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5 md:grid-cols-3">
             {confidenceBreakdown(selected).map((item) => (
               <div key={item.label} className="border p-4">
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{a(item.label)}</span>
                   <span className="font-mono text-muted-foreground">{item.value}%</span>
                 </div>
                 <Progress value={item.value} />
@@ -374,20 +375,20 @@ export default function AdminWorkflowPage() {
             <div className="border p-4 md:col-span-3">
               <div className="mb-3 flex items-center gap-2 font-medium">
                 <Braces className="size-4" />
-                Normalized response contract
+                {a("Normalized response contract")}
               </div>
               <div className="grid gap-3 text-sm md:grid-cols-3">
                 <div>
-                  <div className="text-muted-foreground">AI provider</div>
+                  <div className="text-muted-foreground">{a("AI provider")}</div>
                   <div className="mt-1 font-medium">{selected.aiProvider}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground">Normalization</div>
+                  <div className="text-muted-foreground">{a("Normalization")}</div>
                   <div className="mt-1 break-all font-medium">{selected.normalizationMethod}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground">Review reasons</div>
-                  <div className="mt-1 font-medium">{selected.reviewReasonCodes.length || "None"}</div>
+                  <div className="text-muted-foreground">{a("Review reasons")}</div>
+                  <div className="mt-1 font-medium">{selected.reviewReasonCodes.length || a("None")}</div>
                 </div>
               </div>
               {selected.reviewReasonCodes.length > 0 && (
@@ -407,28 +408,28 @@ export default function AdminWorkflowPage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Database className="size-5" />
-              Persistence outputs
+              {a("Persistence outputs")}
             </CardTitle>
             <CardDescription>
-              DynamoDB metadata and processed result object targets.
+              {a("DynamoDB metadata and processed result object targets.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5 text-sm">
             <div>
-              <div className="mb-1 text-muted-foreground">DynamoDB key</div>
+              <div className="mb-1 text-muted-foreground">{a("DynamoDB key")}</div>
               <div className="break-all border bg-muted/25 p-3 font-mono">
                 PK=USER#{selected.userId} / SK=DOC#{selected.documentId}
               </div>
             </div>
             <div>
-              <div className="mb-1 text-muted-foreground">S3 processed result</div>
+              <div className="mb-1 text-muted-foreground">{a("S3 processed result")}</div>
               <div className="break-all border bg-muted/25 p-3 font-mono">{selected.processedS3Key}</div>
             </div>
             <div>
-              <div className="mb-1 text-muted-foreground">Result status</div>
+              <div className="mb-1 text-muted-foreground">{a("Result status")}</div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className={stateClass(selectedState)}>
-                  {selectedState}
+                  {a(selectedState)}
                 </Badge>
                 <Badge variant="secondary">{selected.documentType}</Badge>
                 <Badge variant="secondary">{selected.currency}</Badge>
@@ -436,7 +437,7 @@ export default function AdminWorkflowPage() {
             </div>
             <Button asChild variant="outline">
               <Link to={`/documents/${selected.documentId}`}>
-                Open document detail
+                {a("Open document detail")}
                 <FileJson2 className="size-4" />
               </Link>
             </Button>

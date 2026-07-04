@@ -26,28 +26,30 @@ import { clearDocuFlowSession, roleLabels } from "@/lib/auth"
 import { roleCapabilities } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useAuth } from "@/contexts/auth-context"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
-const financeWorkspaceLinks = [
-  { label: "Tải tài liệu lên", to: "/upload", icon: UploadCloud },
-  { label: "Danh sách tài liệu", to: "/documents", icon: FileSearch },
-  { label: "Hàng đợi kiểm duyệt", to: "/review", icon: BellDot },
-  { label: "Báo cáo", to: "/reports", icon: BadgeCheck },
-  { label: "Thông báo", to: "/notifications", icon: BellDot },
-  { label: "Lịch sử hoạt động", to: "/activity", icon: Workflow },
+const financeWorkspaceLinks: { labelKey: TranslationKey; to: string; icon: any }[] = [
+  { labelKey: "nav.upload", to: "/upload", icon: UploadCloud },
+  { labelKey: "nav.documents", to: "/documents", icon: FileSearch },
+  { labelKey: "nav.review", to: "/review", icon: BellDot },
+  { labelKey: "nav.reports", to: "/reports", icon: BadgeCheck },
+  { labelKey: "nav.notifications", to: "/notifications", icon: BellDot },
+  { labelKey: "nav.activity", to: "/activity", icon: Workflow },
 ]
 
-const adminWorkspaceLinks = [
-  { label: "Vận hành hệ thống", to: "/operations", icon: Workflow },
-  { label: "Hàng đợi kiểm duyệt", to: "/review", icon: BellDot },
-  { label: "Ingestion", to: "/admin/ingestion", icon: UploadCloud },
-  { label: "Workflow", to: "/admin/workflow", icon: Workflow },
-  { label: "Observability", to: "/admin/observability", icon: ShieldCheck },
-  { label: "Governance", to: "/admin/governance", icon: BadgeCheck },
+const adminWorkspaceLinks: { labelKey: TranslationKey; to: string; icon: any }[] = [
+  { labelKey: "nav.operations", to: "/operations", icon: Workflow },
+  { labelKey: "nav.review", to: "/review", icon: BellDot },
+  { labelKey: "nav.ingestion", to: "/admin/ingestion", icon: UploadCloud },
+  { labelKey: "nav.workflow", to: "/admin/workflow", icon: Workflow },
+  { labelKey: "nav.observability", to: "/admin/observability", icon: ShieldCheck },
+  { labelKey: "nav.governance", to: "/admin/governance", icon: BadgeCheck },
 ]
 
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { session } = useAuth()
+  const { t } = useLanguage()
   const { documents } = useDocuFlowDocuments()
   const role = session?.role ?? "finance"
   const capability = roleCapabilities.find((item) => item.role === role)
@@ -63,7 +65,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <BaseLayout title="Hồ sơ của tôi">
+    <BaseLayout title={t("profile.title")}>
       {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
       <section className="px-4 lg:px-6">
         <div className="overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
@@ -71,47 +73,47 @@ export default function ProfilePage() {
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  Tài khoản
+                  {t("profile.account")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
                   {roleLabels[role]}
                 </Badge>
               </div>
               <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
-                {session?.name ?? "Người dùng"}
+                {session?.name ?? t("profile.fallbackUser")}
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
-                Thông tin tài khoản, vai trò trong hệ thống và quyền truy cập tính năng.
+                {t("profile.body")}
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]">
                   <Link to="/documents">
-                    Tài liệu của tôi
+                    {t("profile.myDocuments")}
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button type="button" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={handleLogout}>
                   <LogOut className="size-4" />
-                  Đăng xuất
+                  {t("common.signOut")}
                 </Button>
               </div>
             </div>
             {/* Right: KPI tiles */}
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: "Vai trò", value: roleLabels[role], icon: UserRound },
-                { label: "Tài liệu", value: visibleDocuments.length, icon: FileSearch },
-                { label: "Cần xử lý", value: reviewCount, icon: BellDot },
-                { label: "Trạng thái", value: "Đang hoạt động", icon: ShieldCheck },
+                { labelKey: "profile.role", value: roleLabels[role], icon: UserRound },
+                { labelKey: "profile.documents", value: visibleDocuments.length, icon: FileSearch },
+                { labelKey: "profile.needsAction", value: reviewCount, icon: BellDot },
+                { labelKey: "profile.status", value: t("profile.active"), icon: ShieldCheck },
               ].map((item) => {
                 const Icon = item.icon
                 return (
-                  <div key={item.label} className="border-b border-r border-white/12 p-3 last:border-r-0 sm:p-4">
+                  <div key={t(item.labelKey as TranslationKey)} className="border-b border-r border-white/12 p-3 last:border-r-0 sm:p-4">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <Icon className="size-3.5 text-[#d8ff72]" />
                     </div>
                     <div className="truncate text-lg font-semibold text-white">{item.value}</div>
-                    <div className="mt-0.5 text-xs text-white/50">{item.label}</div>
+                    <div className="mt-0.5 text-xs text-white/50">{t(item.labelKey as TranslationKey)}</div>
                   </div>
                 )
               })}
@@ -127,18 +129,18 @@ export default function ProfilePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <UserRound className="size-5" />
-              Thông tin tài khoản
+              {t("profile.accountInfo")}
             </CardTitle>
-            <CardDescription>Thông tin cơ bản của phiên làm việc hiện tại.</CardDescription>
+            <CardDescription>{t("profile.accountInfoBody")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5">
             {[
-              ["Họ và tên", session?.name ?? "Không xác định"],
-              ["Email", session?.email ?? "Không xác định"],
-              ["Vai trò", roleLabels[role]],
-              ["Mã người dùng", session?.userId ?? "Không xác định"],
+              [t("profile.fullName"), session?.name ?? t("profile.unknown")],
+              ["Email", session?.email ?? t("profile.unknown")],
+              [t("profile.role"), roleLabels[role]],
+              [t("profile.userId"), session?.userId ?? t("profile.unknown")],
             ].map(([label, value]) => (
-              <div key={label} className="grid gap-1 rounded-xl border p-3">
+              <div key={labelKey} className="grid gap-1 rounded-xl border p-3">
                 <div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div>
                 <div className="break-all text-sm font-medium">{value}</div>
               </div>
@@ -152,25 +154,25 @@ export default function ProfilePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="size-5" />
-                Quyền truy cập
+                {t("profile.access")}
               </CardTitle>
               <CardDescription>{capability?.description}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 md:grid-cols-3">
               {[
-                { label: "Tải tài liệu", enabled: capability?.canUpload },
-                { label: "Kiểm duyệt", enabled: capability?.canReview },
-                { label: "Quản trị hệ thống", enabled: capability?.canOperate },
+                { labelKey: "profile.uploadAccess", enabled: capability?.canUpload },
+                { labelKey: "profile.reviewAccess", enabled: capability?.canReview },
+                { labelKey: "profile.adminAccess", enabled: capability?.canOperate },
               ].map(({ label, enabled }) => (
-                <div key={label} className="rounded-xl border p-4">
+                <div key={labelKey} className="rounded-xl border p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="font-medium text-sm">{label}</span>
+                    <span className="font-medium text-sm">{t(labelKey as TranslationKey)}</span>
                     <Badge variant="outline" className={enabled ? "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300" : "border-muted-foreground/30 text-muted-foreground"}>
-                      {enabled ? "Được phép" : "Hạn chế"}
+                      {enabled ? t("profile.allowed") : t("profile.restricted")}
                     </Badge>
                   </div>
                   <div className="text-xs leading-5 text-muted-foreground">
-                    {enabled ? "Tính năng này có thể sử dụng." : "Chỉ dành cho quản trị viên."}
+                    {enabled ? t("profile.enabledDetail") : t("profile.adminOnly")}
                   </div>
                 </div>
               ))}
@@ -182,19 +184,32 @@ export default function ProfilePage() {
             <CardHeader className="border-b border-white/10 pb-4">
               <CardTitle className="flex items-center gap-2 text-white">
                 <Workflow className="size-5" />
-                Truy cập nhanh
+                {t("profile.quickAccess")}
               </CardTitle>
-              <CardDescription className="text-white/60">Các tính năng thường dùng trong hệ thống.</CardDescription>
+              <CardDescription className="text-white/60">{t("profile.quickAccessBody")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3">
               {workspaceLinks.map((link) => {
                 const Icon = link.icon
+                const label = ({
+                  "/upload": t("nav.upload"),
+                  "/documents": t("nav.documents"),
+                  "/review": t("nav.review"),
+                  "/reports": t("nav.reports"),
+                  "/notifications": t("notifications.title"),
+                  "/activity": t("activity.title"),
+                  "/operations": t("nav.operations"),
+                  "/admin/ingestion": t("nav.ingestion"),
+                  "/admin/workflow": t("nav.workflow"),
+                  "/admin/observability": t("nav.observability"),
+                  "/admin/governance": t("nav.governance"),
+                } as Record<string, string>)[link.to] ?? t(link.labelKey as TranslationKey)
                 return (
                   <Button key={link.to} asChild variant="outline" className="h-auto w-full min-w-0 cursor-pointer justify-between border-white/10 bg-white/5 p-4 text-white transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white">
                     <Link to={link.to} className="flex w-full items-center justify-between overflow-hidden">
                       <span className="flex min-w-0 items-center gap-3 text-sm font-medium">
                         <Icon className="size-4 shrink-0 opacity-80" />
-                        <span className="truncate">{link.label}</span>
+                        <span className="truncate">{label}</span>
                       </span>
                       <ArrowRight className="ml-2 size-4 shrink-0 opacity-80" />
                     </Link>

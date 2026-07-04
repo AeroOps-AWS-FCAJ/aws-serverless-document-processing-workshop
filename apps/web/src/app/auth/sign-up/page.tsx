@@ -1,12 +1,15 @@
 import { SignupForm1 } from "./components/signup-form-1"
 import { AuthShell } from "@/app/auth/components/auth-shell"
+import { useLanguage } from "@/lib/i18n"
 
 export default function SignUpPage() {
+  const { t } = useLanguage()
+
   return (
     <AuthShell
-      eyebrow="Workspace onboarding"
-      title="Create access."
-      description="Create a finance workspace account, then confirm the Cognito code sent to your email."
+      eyebrow={t("auth.signUpEyebrow")}
+      title={t("auth.signUpTitle")}
+      description={t("auth.signUpDescription")}
     >
       <SignupForm1 />
     </AuthShell>

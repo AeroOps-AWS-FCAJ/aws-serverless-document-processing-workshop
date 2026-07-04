@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { toast } from "sonner"
+import { useLanguage } from "@/lib/i18n"
 
 type ResetStep = "request" | "confirm" | "complete"
 
@@ -29,6 +30,7 @@ export function ForgotPasswordForm1({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const { t } = useLanguage()
   const [step, setStep] = useState<ResetStep>("request")
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
@@ -39,7 +41,7 @@ export function ForgotPasswordForm1({
   const handleRequestCode = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!email.trim()) {
-      toast.error("Vui lòng nhập email Cognito.")
+      toast.error(t("auth.emailRequired"))
       return
     }
 
@@ -47,9 +49,9 @@ export function ForgotPasswordForm1({
     try {
       await resetPassword({ username: email.trim() })
       setStep("confirm")
-      toast.success("Mã xác nhận đã được gửi tới email của bạn.")
+      toast.success(t("auth.resetCodeSent"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể gửi mã đặt lại mật khẩu.")
+      toast.error(error instanceof Error ? error.message : t("auth.resetCodeFailed"))
     } finally {
       setIsLoading(false)
     }
@@ -58,15 +60,15 @@ export function ForgotPasswordForm1({
   const handleConfirmReset = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!code.trim()) {
-      toast.error("Vui lòng nhập mã xác nhận.")
+      toast.error(t("auth.confirmCodeRequired"))
       return
     }
     if (newPassword.length < 6) {
-      toast.error("Mật khẩu mới cần tối thiểu 6 ký tự.")
+      toast.error(t("auth.resetPasswordMin"))
       return
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Mật khẩu xác nhận không khớp.")
+      toast.error(t("auth.passwordMismatch"))
       return
     }
 
@@ -78,9 +80,9 @@ export function ForgotPasswordForm1({
         newPassword,
       })
       setStep("complete")
-      toast.success("Mật khẩu đã được cập nhật.")
+      toast.success(t("auth.passwordUpdated"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể xác nhận mật khẩu mới.")
+      toast.error(error instanceof Error ? error.message : t("auth.resetConfirmFailed"))
     } finally {
       setIsLoading(false)
     }
@@ -91,14 +93,14 @@ export function ForgotPasswordForm1({
       <Card className={authCardClass}>
         <CardHeader className="border-b border-[#e2e3db] text-left">
           <CardTitle className="text-lg text-[#11251d]">
-            {step === "complete" ? "Mật khẩu đã được cập nhật" : "Đặt lại mật khẩu"}
+            {step === "complete" ? t("auth.resetCompleteTitle") : t("auth.resetTitle")}
           </CardTitle>
           <CardDescription className="text-[#647069]">
             {step === "request"
-              ? "Nhập email Cognito để nhận mã xác nhận."
+              ? t("auth.resetRequestDescription")
               : step === "confirm"
-                ? `Nhập mã xác nhận đã gửi tới ${email}.`
-                : "Bạn có thể đăng nhập bằng mật khẩu mới."}
+                ? t("auth.resetConfirmDescription", { email })
+                : t("auth.resetCompleteDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -107,7 +109,7 @@ export function ForgotPasswordForm1({
             <div className="grid gap-6 mt-4">
               <div className="grid gap-6">
                 <div className="grid gap-3">
-                  <Label htmlFor="email" className={authLabelClass}>Email</Label>
+                  <Label htmlFor="email" className={authLabelClass}>{t("auth.email")}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -120,13 +122,13 @@ export function ForgotPasswordForm1({
                   />
                 </div>
                 <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
-                  {isLoading ? <LoadingSpinner /> : "Gửi mã xác nhận"}
+                  {isLoading ? <LoadingSpinner /> : t("auth.sendCode")}
                 </Button>
               </div>
               <div className="text-center text-sm text-[#647069]">
-                Đã nhớ mật khẩu?{" "}
+                {t("auth.rememberedPassword")}{" "}
                 <Link to="/auth/sign-in" className="font-medium text-[#153f30] underline underline-offset-4">
-                  Quay lại đăng nhập
+                  {t("auth.backToLogin")}
                 </Link>
               </div>
             </div>
@@ -138,22 +140,22 @@ export function ForgotPasswordForm1({
             <div className="grid gap-6 mt-4">
               <div className="grid gap-4">
                 <div className="grid gap-3">
-                  <Label htmlFor="code" className={authLabelClass}>Mã xác nhận</Label>
+                  <Label htmlFor="code" className={authLabelClass}>{t("auth.confirmCode")}</Label>
                   <Input id="code" placeholder="123456" value={code} onChange={(event) => setCode(event.target.value)} className={authInputClass} disabled={isLoading} required />
                 </div>
                 <div className="grid gap-3">
-                  <Label htmlFor="newPassword" className={authLabelClass}>Mật khẩu mới</Label>
+                  <Label htmlFor="newPassword" className={authLabelClass}>{t("auth.newPassword")}</Label>
                   <Input id="newPassword" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className={authInputClass} disabled={isLoading} required />
                 </div>
                 <div className="grid gap-3">
-                  <Label htmlFor="confirmPassword" className={authLabelClass}>Xác nhận mật khẩu</Label>
+                  <Label htmlFor="confirmPassword" className={authLabelClass}>{t("auth.confirmPassword")}</Label>
                   <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className={authInputClass} disabled={isLoading} required />
                 </div>
                 <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
-                  {isLoading ? <LoadingSpinner /> : "Cập nhật mật khẩu"}
+                  {isLoading ? <LoadingSpinner /> : t("auth.updatePassword")}
                 </Button>
                 <Button type="button" variant="outline" className={authOutlineButtonClass} onClick={handleRequestCode} disabled={isLoading}>
-                  Gửi lại mã
+                  {t("auth.resend")}
                 </Button>
               </div>
             </div>
@@ -163,7 +165,7 @@ export function ForgotPasswordForm1({
           {step === "complete" && (
             <div className="grid gap-4 mt-4">
               <Button asChild className={authPrimaryButtonClass}>
-                <Link to="/auth/sign-in">Đăng nhập</Link>
+                <Link to="/auth/sign-in">{t("common.signIn")}</Link>
               </Button>
             </div>
           )}

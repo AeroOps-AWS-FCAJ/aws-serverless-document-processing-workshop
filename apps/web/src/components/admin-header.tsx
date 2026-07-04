@@ -8,21 +8,26 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Shield } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { LanguageToggle } from "@/components/language-toggle"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
-const adminRouteLabels: Record<string, string> = {
-  "/operations": "Vận hành",
-  "/admin/ingestion": "Tiếp nhận",
-  "/admin/workflow": "Quy trình xử lý",
-  "/admin/observability": "Quan sát hệ thống",
-  "/admin/governance": "Quản trị & Bảo mật",
-  "/evidence": "Bằng chứng dự án",
-  "/settings/notifications": "Cài đặt cảnh báo",
+const adminRouteLabels: Record<string, TranslationKey> = {
+  "/operations": "nav.operations",
+  "/admin/ingestion": "nav.ingestion",
+  "/admin/workflow": "nav.workflow",
+  "/admin/observability": "nav.observability",
+  "/admin/governance": "nav.governance",
+  "/evidence": "nav.evidence",
+  "/settings/notifications": "nav.notifications",
 }
 
 export function AdminHeader() {
   const { session } = useAuth()
+  const { t } = useLanguage()
   const location = useLocation()
-  const pageLabel = adminRouteLabels[location.pathname] ?? "Admin"
+  const pageLabel = adminRouteLabels[location.pathname]
+    ? t(adminRouteLabels[location.pathname])
+    : t("role.admin")
 
   return (
     <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-[width,height] ease-linear shadow-sm">
@@ -59,6 +64,7 @@ export function AdminHeader() {
             <Shield className="size-3" />
             {session?.name ?? "Admin"}
           </Badge>
+          <LanguageToggle className="hidden sm:inline-flex" />
           <ModeToggle />
         </div>
       </div>

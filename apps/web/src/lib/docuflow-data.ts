@@ -20,49 +20,40 @@ export type { DocumentStatus, DocumentType, LineItem }
 export type DocumentRecord = DocumentResult
 
 export interface StatusMeta {
-  label: string
   tone: string
   icon: LucideIcon
 }
 
 export const statusMeta: Record<DocumentStatus, StatusMeta> = {
   UPLOADED: {
-    label: "Đã tải lên",
     tone: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
     icon: Clock3,
   },
   QUEUED: {
-    label: "Đang xếp hàng",
     tone: "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-900/30 dark:text-cyan-300",
     icon: Clock3,
   },
   PROCESSING: {
-    label: "Đang xử lý",
     tone: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300",
     icon: Loader2,
   },
   EXTRACTED: {
-    label: "Đã trích xuất",
     tone: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300",
     icon: CheckCircle2,
   },
   REVIEW_REQUIRED: {
-    label: "Cần kiểm duyệt",
     tone: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-300",
     icon: FileWarning,
   },
   FAILED: {
-    label: "Thất bại",
     tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300",
     icon: AlertTriangle,
   },
   CORRECTED: {
-    label: "Đã chỉnh sửa",
     tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-900/30 dark:text-violet-300",
     icon: FileCheck2,
   },
   APPROVED: {
-    label: "Đã duyệt",
     tone: "border-emerald-300 bg-emerald-50 text-emerald-800 font-medium dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
     icon: ShieldCheck,
   },
@@ -534,31 +525,30 @@ export const teamModules = [
   { member: "Pham Tung Duong", module: "Ops, Security, IaC", focus: "IAM, KMS, Secrets Manager, CloudTrail, Budgets, SAM, observability" },
 ]
 
-export const statusDistribution = Object.entries(statusMeta).map(([status, meta]) => ({
+export const statusDistribution = Object.entries(statusMeta).map(([status]) => ({
   status,
-  label: meta.label,
   count: documents.filter((document) => document.status === status).length,
 }))
 
 export const supportedCurrencies = [
-  { code: "VND", label: "Đồng Việt Nam" },
-  { code: "USD", label: "Đô la Mỹ" },
-  { code: "EUR", label: "Euro" },
-  { code: "GBP", label: "Bảng Anh" },
-  { code: "JPY", label: "Yên Nhật" },
-  { code: "CNY", label: "Nhân dân tệ" },
-  { code: "KRW", label: "Won Hàn Quốc" },
-  { code: "SGD", label: "Đô la Singapore" },
-  { code: "THB", label: "Baht Thái" },
-  { code: "AUD", label: "Đô la Úc" },
-  { code: "CAD", label: "Đô la Canada" },
-  { code: "CHF", label: "Franc Thụy Sĩ" },
-  { code: "HKD", label: "Đô la Hồng Kông" },
-  { code: "INR", label: "Rupee Ấn Độ" },
-  { code: "IDR", label: "Rupiah Indonesia" },
-  { code: "MYR", label: "Ringgit Malaysia" },
-  { code: "PHP", label: "Peso Philippines" },
-  { code: "TWD", label: "Đô la Đài Loan" },
+  { code: "VND" },
+  { code: "USD" },
+  { code: "EUR" },
+  { code: "GBP" },
+  { code: "JPY" },
+  { code: "CNY" },
+  { code: "KRW" },
+  { code: "SGD" },
+  { code: "THB" },
+  { code: "AUD" },
+  { code: "CAD" },
+  { code: "CHF" },
+  { code: "HKD" },
+  { code: "INR" },
+  { code: "IDR" },
+  { code: "MYR" },
+  { code: "PHP" },
+  { code: "TWD" },
 ] as const
 
 const zeroDecimalCurrencies = new Set(["VND", "JPY", "KRW"])
@@ -599,7 +589,7 @@ export function convertToDemoVnd(value: number | null | undefined, currency?: st
 }
 
 export function demoCurrencyRateDetail() {
-  return "Quy đổi demo theo bảng tỷ giá nội bộ"
+  return "demo.currencyRateDetail"
 }
 
 export const vendorSpend = documents

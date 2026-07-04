@@ -3,6 +3,7 @@
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useLanguage } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 interface TablePaginationProps {
@@ -43,6 +44,7 @@ export function TablePagination({
   isLoading = false,
   className,
 }: TablePaginationProps) {
+  const { t } = useLanguage()
   const safeTotalPages = Math.max(1, totalPages)
   const currentPage = Math.min(Math.max(page, 1), safeTotalPages)
   const firstItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
@@ -60,13 +62,11 @@ export function TablePagination({
     >
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span>
-          Hiển thị <span className="font-medium text-foreground">{firstItem}</span> đến{" "}
-          <span className="font-medium text-foreground">{lastItem}</span> trong{" "}
-          <span className="font-medium text-foreground">{totalItems}</span> kết quả
+          {t("table.showingRange", { from: firstItem, to: lastItem, total: totalItems })}
         </span>
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span>Dòng/trang</span>
+            <span>{t("table.rowsPerPage")}</span>
             <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))} disabled={isLoading}>
               <SelectTrigger size="sm" className="h-8 w-[76px]">
                 <SelectValue />
@@ -87,11 +87,11 @@ export function TablePagination({
         <div className="flex items-center gap-1">
           <Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onPageChange(1)} disabled={!canGoPrevious}>
             <ChevronFirst className="size-4" />
-            <span className="sr-only">Trang đầu</span>
+            <span className="sr-only">{t("table.firstPage")}</span>
           </Button>
           <Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onPageChange(currentPage - 1)} disabled={!canGoPrevious}>
             <ChevronLeft className="size-4" />
-            <span className="sr-only">Trang trước</span>
+            <span className="sr-only">{t("table.previousPage")}</span>
           </Button>
         </div>
 
@@ -124,11 +124,11 @@ export function TablePagination({
         <div className="flex items-center gap-1">
           <Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onPageChange(currentPage + 1)} disabled={!canGoNext}>
             <ChevronRight className="size-4" />
-            <span className="sr-only">Trang tiếp</span>
+            <span className="sr-only">{t("table.nextPage")}</span>
           </Button>
           <Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onPageChange(safeTotalPages)} disabled={!canGoNext}>
             <ChevronLast className="size-4" />
-            <span className="sr-only">Trang cuối</span>
+            <span className="sr-only">{t("table.lastPage")}</span>
           </Button>
         </div>
       </div>

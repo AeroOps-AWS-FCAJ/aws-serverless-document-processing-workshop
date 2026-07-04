@@ -5,6 +5,7 @@ import { AppRouter } from '@/components/router/app-router'
 import { useEffect } from 'react'
 import { initGTM } from '@/utils/analytics'
 import { AuthProvider } from '@/contexts/auth-context'
+import { LanguageProvider } from '@/lib/i18n'
 
 // Get basename from environment (for deployment) or use empty string for development
 const basename = import.meta.env.VITE_BASENAME || ''
@@ -18,13 +19,15 @@ function App() {
   return (
     <div className="font-sans antialiased" style={{ fontFamily: 'var(--font-body)' }}>
       <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-        <AuthProvider>
-          <SidebarConfigProvider>
-            <Router basename={basename}>
-              <AppRouter />
-            </Router>
-          </SidebarConfigProvider>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SidebarConfigProvider>
+              <Router basename={basename}>
+                <AppRouter />
+              </Router>
+            </SidebarConfigProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </div>
   )

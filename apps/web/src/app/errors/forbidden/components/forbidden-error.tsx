@@ -4,23 +4,25 @@ import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
 import { roleHomePaths } from "@/lib/auth"
 import { useAuth } from "@/contexts/auth-context"
+import { useLanguage } from "@/lib/i18n"
 
 export function ForbiddenError() {
   const navigate = useNavigate()
   const { session } = useAuth()
+  const { t } = useLanguage()
   const homePath = session ? roleHomePaths[session.role] : "/auth/sign-in"
 
   return (
     <div className='mx-auto flex min-h-dvh flex-col items-center justify-center gap-8 p-8 md:gap-12 md:p-16'>
       <div className="flex aspect-video w-full max-w-3xl items-center justify-center rounded-xl border bg-muted">
-        <div className="text-muted-foreground text-sm">DocuFlow AI role guard</div>
+        <div className="text-muted-foreground text-sm">{t("error.forbiddenEyebrow")}</div>
       </div>
       <div className='text-center'>
         <h1 className='mb-4 text-3xl font-bold'>403</h1>
-        <h2 className="mb-3 text-2xl font-semibold">Forbidden</h2>
-        <p>This page is not available for your current workspace role.</p>
+        <h2 className="mb-3 text-2xl font-semibold">{t("error.forbiddenTitle")}</h2>
+        <p>{t("error.forbiddenBody")}</p>
         <div className='mt-6 flex items-center justify-center gap-4 md:mt-8'>
-          <Button className='cursor-pointer' onClick={() => navigate(homePath)}>Return to workspace</Button>
+          <Button className='cursor-pointer' onClick={() => navigate(homePath)}>{t("error.backWorkspace")}</Button>
         </div>
       </div>
     </div>

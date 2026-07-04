@@ -14,30 +14,33 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import type { DocuFlowRole } from "@/lib/auth"
+import type { TranslationKey } from "@/lib/i18n"
 
 export interface AppNavigationItem {
   title: string
+  titleKey: TranslationKey
   url: string
   icon: LucideIcon
   roles: DocuFlowRole[]
 }
 
 export interface AppNavigationGroup {
-  label: string
+  label?: string
+  labelKey: TranslationKey
   items: AppNavigationItem[]
 }
 
 // ─── Finance (regular user) navigation ───────────────────────────────────────
 const financeNavigationGroups: AppNavigationGroup[] = [
   {
-    label: "Không gian tài liệu",
+    labelKey: "nav.finance.group",
     items: [
-      { title: "Tổng quan", url: "/dashboard", icon: LayoutDashboard, roles: ["finance"] },
-      { title: "Tải tài liệu lên", url: "/upload", icon: UploadCloud, roles: ["finance"] },
-      { title: "Tài liệu", url: "/documents", icon: FileSearch, roles: ["finance"] },
-      { title: "Hàng đợi duyệt", url: "/review", icon: Bell, roles: ["finance"] },
-      { title: "Báo cáo", url: "/reports", icon: BadgeDollarSign, roles: ["finance"] },
-      { title: "Settings", url: "/settings", icon: Settings2, roles: ["finance"] },
+      { title: "Overview", titleKey: "nav.overview", url: "/dashboard", icon: LayoutDashboard, roles: ["finance"] },
+      { title: "Upload", titleKey: "nav.upload", url: "/upload", icon: UploadCloud, roles: ["finance"] },
+      { title: "Documents", titleKey: "nav.documents", url: "/documents", icon: FileSearch, roles: ["finance"] },
+      { title: "Review", titleKey: "nav.review", url: "/review", icon: Bell, roles: ["finance"] },
+      { title: "Reports", titleKey: "nav.reports", url: "/reports", icon: BadgeDollarSign, roles: ["finance"] },
+      { title: "Settings", titleKey: "nav.settings", url: "/settings", icon: Settings2, roles: ["finance"] },
     ],
   },
 ]
@@ -45,20 +48,20 @@ const financeNavigationGroups: AppNavigationGroup[] = [
 // ─── Admin navigation ─────────────────────────────────────────────────────────
 const adminNavigationGroups: AppNavigationGroup[] = [
   {
-    label: "Bảng điều khiển",
+    labelKey: "nav.admin.group",
     items: [
-      { title: "Vận hành", url: "/operations", icon: Activity, roles: ["admin"] },
-      { title: "Tiếp nhận tài liệu", url: "/admin/ingestion", icon: Route, roles: ["admin"] },
-      { title: "Quy trình xử lý", url: "/admin/workflow", icon: GitBranch, roles: ["admin"] },
-      { title: "Quan sát hệ thống", url: "/admin/observability", icon: BarChart3, roles: ["admin"] },
-      { title: "Quản trị & Bảo mật", url: "/admin/governance", icon: ShieldCheck, roles: ["admin"] },
+      { title: "Operations", titleKey: "nav.operations", url: "/operations", icon: Activity, roles: ["admin"] },
+      { title: "Ingestion", titleKey: "nav.ingestion", url: "/admin/ingestion", icon: Route, roles: ["admin"] },
+      { title: "Workflow", titleKey: "nav.workflow", url: "/admin/workflow", icon: GitBranch, roles: ["admin"] },
+      { title: "Observability", titleKey: "nav.observability", url: "/admin/observability", icon: BarChart3, roles: ["admin"] },
+      { title: "Governance", titleKey: "nav.governance", url: "/admin/governance", icon: ShieldCheck, roles: ["admin"] },
     ],
   },
   {
-    label: "Tài nguyên",
+    labelKey: "nav.admin.resources",
     items: [
-      { title: "Bằng chứng dự án", url: "/evidence", icon: ClipboardList, roles: ["admin"] },
-      { title: "Cài đặt cảnh báo", url: "/settings/notifications", icon: Settings2, roles: ["admin"] },
+      { title: "Evidence", titleKey: "nav.evidence", url: "/evidence", icon: ClipboardList, roles: ["admin"] },
+      { title: "Notifications", titleKey: "nav.notifications", url: "/settings/notifications", icon: Settings2, roles: ["admin"] },
     ],
   },
 ]

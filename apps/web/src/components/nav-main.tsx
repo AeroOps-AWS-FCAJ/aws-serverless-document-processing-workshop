@@ -18,25 +18,31 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 export function NavMain({
   label,
+  labelKey,
   items,
 }: {
-  label: string
+  label?: string
+  labelKey?: TranslationKey
   items: {
     title: string
+    titleKey?: TranslationKey
     url: string
     icon?: LucideIcon
     isActive?: boolean
     items?: {
       title: string
+      titleKey?: TranslationKey
       url: string
       isActive?: boolean
     }[]
   }[]
 }) {
   const location = useLocation()
+  const { t } = useLanguage()
 
   const shouldBeOpen = (item: (typeof items)[0]) => {
     if (item.isActive) return true
@@ -47,7 +53,7 @@ export function NavMain({
     <SidebarGroup className="py-1.5">
       {/* Group label */}
       <SidebarGroupLabel className="mb-1 px-2 font-mono text-[8.5px] uppercase tracking-[0.18em] text-sidebar-foreground/35">
-        {label}
+        {labelKey ? t(labelKey) : label}
       </SidebarGroupLabel>
 
       <SidebarMenu className="gap-0.5">
@@ -66,13 +72,13 @@ export function NavMain({
                   <>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
-                        tooltip={item.title}
+                        tooltip={item.titleKey ? t(item.titleKey) : item.title}
                         className="h-9 cursor-pointer rounded-md px-2.5 text-sidebar-foreground/65 transition-colors duration-150 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                       >
                         {item.icon && (
                           <item.icon className="size-4 shrink-0 opacity-80" />
                         )}
-                        <span className="text-[13px] font-medium">{item.title}</span>
+                        <span className="text-[13px] font-medium">{item.titleKey ? t(item.titleKey) : item.title}</span>
                         <ChevronRight className="ml-auto size-3.5 text-sidebar-foreground/30 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -93,7 +99,7 @@ export function NavMain({
                                 ].join(" ")}
                               >
                                 <Link to={sub.url}>
-                                  <span>{sub.title}</span>
+                                  <span>{sub.titleKey ? t(sub.titleKey) : sub.title}</span>
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
@@ -106,7 +112,7 @@ export function NavMain({
                   /* ── No sub-items → direct link ──────────────────────── */
                   <SidebarMenuButton
                     asChild
-                    tooltip={item.title}
+                    tooltip={item.titleKey ? t(item.titleKey) : item.title}
                     isActive={isActive}
                     className={[
                       "relative h-9 cursor-pointer rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150",
@@ -127,7 +133,7 @@ export function NavMain({
                           ].join(" ")}
                         />
                       )}
-                      <span>{item.title}</span>
+                      <span>{item.titleKey ? t(item.titleKey) : item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

@@ -20,79 +20,70 @@ import {
   Zap,
 } from "lucide-react"
 import { Link } from "react-router-dom"
+import { LanguageToggle } from "@/components/language-toggle"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/logo"
 import { useAuth } from "@/contexts/auth-context"
-import { roleHomePaths, roleLabels } from "@/lib/auth"
-
-const workflowSteps = [
-  { label: "Tải lên", detail: "Cognito + presigned S3", icon: UploadCloud },
-  { label: "Trích xuất", detail: "Textract AnalyzeExpense", icon: ScanText },
-  { label: "Chuẩn hóa", detail: "AI normalization", icon: Workflow },
-  { label: "Kiểm duyệt", detail: "Finance approval queue", icon: FileCheck2 },
-  { label: "Lưu vết", detail: "DynamoDB + S3 evidence", icon: Database },
-]
-
-const capabilities = [
-  {
-    title: "Không thất lạc tài liệu sau upload",
-    body: "Tạo metadata ngay từ bước cấp upload URL, theo dõi trạng thái UPLOADED, QUEUED, PROCESSING, REVIEW_REQUIRED và APPROVED.",
-    icon: ReceiptText,
-  },
-  {
-    title: "Kiểm duyệt đúng nơi cần người quyết định",
-    body: "Các dòng có độ tin cậy thấp, tổng tiền bất thường hoặc lỗi trích xuất được đưa vào hàng đợi kiểm duyệt thay vì chặn toàn bộ pipeline.",
-    icon: BadgeCheck,
-  },
-  {
-    title: "Dữ liệu sẵn sàng cho báo cáo tài chính",
-    body: "Invoice, receipt, line items, currency, tax và confidence được chuẩn hóa theo data contract để dashboard và reports dùng chung một nguồn dữ liệu.",
-    icon: BarChart3,
-  },
-]
-
-const proofPoints = [
-  ["S3 Raw", "Tài liệu gốc được lưu riêng và truy xuất bằng URL tạm thời."],
-  ["Step Functions", "Workflow bất đồng bộ, retry rõ ràng theo từng bước."],
-  ["DynamoDB", "Truy vấn theo user, status và documentId cho UI người dùng."],
-  ["Cognito", "Luồng đăng nhập thật, tách quyền Finance và Admin."],
-]
+import { roleHomePaths } from "@/lib/auth"
+import { useLanguage } from "@/lib/i18n"
 
 export default function LandingPage() {
   const { session } = useAuth()
+  const { t } = useLanguage()
   const isAuthenticated = Boolean(session?.authenticated)
   const homePath = session ? roleHomePaths[session.role] : "/dashboard"
   const displayName = session?.firstName || session?.name || session?.email || "User"
+  const roleLabel = session ? (session.role === "admin" ? t("role.admin") : t("role.finance")) : ""
+  const workflowSteps = [
+    { label: t("workflow.upload"), detail: t("workflow.uploadDetail"), icon: UploadCloud },
+    { label: t("workflow.extract"), detail: t("workflow.extractDetail"), icon: ScanText },
+    { label: t("workflow.normalize"), detail: t("workflow.normalizeDetail"), icon: Workflow },
+    { label: t("workflow.review"), detail: t("workflow.reviewDetail"), icon: FileCheck2 },
+    { label: t("workflow.store"), detail: t("workflow.storeDetail"), icon: Database },
+  ]
+  const capabilities = [
+    { title: t("landing.capabilityIntakeTitle"), body: t("landing.capabilityIntakeBody"), icon: ReceiptText },
+    { title: t("landing.capabilityReviewTitle"), body: t("landing.capabilityReviewBody"), icon: BadgeCheck },
+    { title: t("landing.capabilityDataTitle"), body: t("landing.capabilityDataBody"), icon: BarChart3 },
+  ]
+  const proofPoints = [
+    ["S3 Raw", t("landing.proofRaw")],
+    ["Step Functions", t("landing.proofWorkflow")],
+    ["DynamoDB", t("landing.proofDynamo")],
+    ["Cognito", t("landing.proofCognito")],
+  ] as const
 
   return (
     <div className="min-h-screen bg-[#f4f1e8] text-[#10261d]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-[#10261d]/10 bg-[#f4f1e8]/90 backdrop-blur-xl">
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Landing navigation">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label={t("landing.navigation")}>
           <Link to="/" className="flex items-center gap-3">
             <span className="grid size-10 place-items-center bg-[#d8ff72] text-[#10261d]">
               <Logo size={24} />
             </span>
             <span>
               <span className="block text-sm font-bold leading-none">DocuFlow AI</span>
-              <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-[#10261d]/50">Financial document operations</span>
+              <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.18em] text-[#10261d]/50">{t("brand.tagline")}</span>
             </span>
           </Link>
 
           <div className="hidden items-center gap-7 text-sm font-medium text-[#10261d]/65 md:flex">
-            <a href="#workflow" className="transition hover:text-[#10261d]">Workflow</a>
-            <a href="#controls" className="transition hover:text-[#10261d]">Kiểm soát</a>
-            <a href="#security" className="transition hover:text-[#10261d]">Bảo mật</a>
+            <a href="#workflow" className="transition hover:text-[#10261d]">{t("landing.nav.workflow")}</a>
+            <a href="#controls" className="transition hover:text-[#10261d]">{t("landing.nav.controls")}</a>
+            <a href="#security" className="transition hover:text-[#10261d]">{t("landing.nav.security")}</a>
           </div>
 
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
+              <LanguageToggle compact className="sm:hidden" />
+              <LanguageToggle className="hidden sm:inline-flex" />
               <Button asChild variant="ghost" className="hidden max-w-[180px] text-[#10261d] hover:bg-[#10261d]/5 sm:inline-flex">
                 <Link to="/settings?tab=profile">
                   <UserRound className="size-4" />
                   <span className="truncate">{displayName}</span>
                   {session && (
                     <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-[#10261d]/45 lg:inline">
-                      {roleLabels[session.role]}
+                      {roleLabel}
                     </span>
                   )}
                 </Link>
@@ -100,18 +91,20 @@ export default function LandingPage() {
               <Button asChild className="bg-[#10261d] text-white hover:bg-[#1b3a2d]">
                 <Link to={homePath}>
                   <LayoutDashboard className="size-4" />
-                  Dashboard
+                  {t("common.dashboard")}
                 </Link>
               </Button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              <LanguageToggle compact className="sm:hidden" />
+              <LanguageToggle className="hidden sm:inline-flex" />
               <Button asChild variant="ghost" className="hidden text-[#10261d] hover:bg-[#10261d]/5 sm:inline-flex">
-                <Link to="/auth/sign-in">Đăng nhập</Link>
+                <Link to="/auth/sign-in">{t("common.signIn")}</Link>
               </Button>
               <Button asChild className="bg-[#10261d] text-white hover:bg-[#1b3a2d]">
                 <Link to="/auth/sign-up">
-                  Bắt đầu
+                  {t("common.start")}
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -130,13 +123,13 @@ export default function LandingPage() {
             <div className="absolute right-8 top-0 w-[520px] border border-[#d8ff72]/20 bg-[#f7f4ea] p-5 text-[#10261d] shadow-2xl shadow-black/30">
               <div className="mb-5 flex items-center justify-between border-b border-[#10261d]/10 pb-4">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#10261d]/45">Tài liệu nguồn</div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#10261d]/45">{t("landing.sourceDoc")}</div>
                   <div className="mt-1 text-lg font-bold">invoice-home.png</div>
                 </div>
-                <span className="rounded-full bg-[#d8ff72] px-3 py-1 font-mono text-[10px] font-bold uppercase">Đã tải lên</span>
+                <span className="rounded-full bg-[#d8ff72] px-3 py-1 font-mono text-[10px] font-bold uppercase">{t("landing.uploaded")}</span>
               </div>
               <div className="grid gap-3">
-                {["Vendor: SlicedInvoices", "Total due: $93.50", "Tax: $8.50", "Confidence: 91%"].map((item) => (
+                {[t("landing.previewVendor"), t("landing.previewTotal"), t("landing.previewTax"), t("landing.previewConfidence")].map((item) => (
                   <div key={item} className="flex items-center justify-between border border-[#10261d]/10 bg-white px-3 py-2 text-sm">
                     <span>{item}</span>
                     <CheckCircle2 className="size-4 text-emerald-700" />
@@ -144,12 +137,12 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="mt-5 grid grid-cols-[1fr_auto_auto] gap-2 border-t border-[#10261d]/10 pt-4 font-mono text-[10px] uppercase tracking-[0.1em] text-[#10261d]/50">
-                <span>Mô tả</span>
-                <span>SL</span>
-                <span>Thành tiền</span>
+                <span>{t("landing.previewDescription")}</span>
+                <span>{t("landing.previewQuantity")}</span>
+                <span>{t("landing.previewAmount")}</span>
               </div>
               <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2 bg-[#10261d] px-3 py-3 text-sm text-white">
-                <span className="truncate">Web Design This is a sample description...</span>
+                <span className="truncate">{t("landing.previewItem")}</span>
                 <span>1</span>
                 <span>$85.00</span>
               </div>
@@ -157,8 +150,8 @@ export default function LandingPage() {
 
             <div className="absolute right-0 top-72 w-[460px] border border-white/10 bg-[#10261d]/95 p-5 shadow-2xl shadow-black/40">
               <div className="mb-4 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/45">Pipeline live</div>
-                <span className="rounded-full border border-[#d8ff72]/30 bg-[#d8ff72]/10 px-3 py-1 font-mono text-[10px] text-[#d8ff72]">5 bước</span>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/45">{t("landing.pipelineLive")}</div>
+                <span className="rounded-full border border-[#d8ff72]/30 bg-[#d8ff72]/10 px-3 py-1 font-mono text-[10px] text-[#d8ff72]">{t("landing.steps")}</span>
               </div>
               <div className="space-y-3">
                 {workflowSteps.map((step, index) => {
@@ -182,33 +175,33 @@ export default function LandingPage() {
             <div className="flex min-h-[590px] flex-col justify-center">
               <div className="mb-6 inline-flex w-fit items-center gap-2 border border-[#d8ff72]/30 bg-[#d8ff72]/10 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#d8ff72]">
                 <Zap className="size-3" />
-                AWS serverless document processing
+                {t("landing.badge")}
               </div>
               <h1 className="max-w-4xl text-5xl font-black leading-[0.92] tracking-[-0.07em] sm:text-7xl lg:text-8xl">
-                Biến hóa đơn thành dữ liệu đáng tin cậy.
+                {t("landing.heroTitle")}
               </h1>
               <p className="mt-7 max-w-2xl text-base leading-8 text-white/68 sm:text-lg">
-                DocuFlow AI xử lý invoice và receipt bằng upload bảo mật, Textract, AI normalization và hàng đợi kiểm duyệt để Finance không phải dò từng dòng thủ công.
+                {t("landing.heroDescription")}
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <Button asChild size="lg" className="bg-[#d8ff72] text-[#10261d] hover:bg-[#e8ff9e]">
                   <Link to="/auth/sign-up">
-                    Tạo workspace
+                    {t("landing.createWorkspace")}
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white">
                   <Link to="/auth/sign-in">
                     <PlayCircle className="size-4" />
-                    Vào hệ thống
+                    {t("landing.enterSystem")}
                   </Link>
                 </Button>
               </div>
               <div className="mt-10 grid max-w-2xl grid-cols-3 border-y border-white/10 py-5">
                 {[
-                  ["5 bước", "pipeline chuẩn"],
-                  ["70%", "ngưỡng duyệt"],
-                  ["Audit", "theo từng tài liệu"],
+                  [t("landing.steps"), t("landing.metricPipeline")],
+                  ["70%", t("landing.metricThreshold")],
+                  ["Audit", t("landing.metricAudit")],
                 ].map(([value, label]) => (
                   <div key={value} className="border-l border-white/10 px-4 first:border-l-0 first:pl-0">
                     <div className="text-2xl font-bold tracking-[-0.05em] text-white">{value}</div>
@@ -224,8 +217,8 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/45">Operational workflow</div>
-                <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">Một luồng xử lý, nhiều điểm kiểm soát.</h2>
+                <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/45">{t("landing.workflowEyebrow")}</div>
+                <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">{t("landing.workflowTitle")}</h2>
               </div>
               <div className="grid gap-3 md:grid-cols-5">
                 {workflowSteps.map((step, index) => {
@@ -249,8 +242,8 @@ export default function LandingPage() {
         <section id="controls" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-10 max-w-3xl">
-              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/45">Finance controls</div>
-              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">Tập trung vào phần còn rủi ro.</h2>
+              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/45">{t("landing.controlsEyebrow")}</div>
+              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">{t("landing.controlsTitle")}</h2>
             </div>
             <div className="grid gap-4 lg:grid-cols-3">
               {capabilities.map((item) => {
@@ -270,15 +263,15 @@ export default function LandingPage() {
         <section id="security" className="bg-[#10261d] px-4 py-20 text-white sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#d8ff72]/70">Serverless architecture</div>
-              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">Đủ rõ để vận hành, đủ chặt để kiểm toán.</h2>
+              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#d8ff72]/70">{t("landing.securityEyebrow")}</div>
+              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em] sm:text-5xl">{t("landing.securityTitle")}</h2>
               <p className="mt-6 max-w-xl text-sm leading-7 text-white/62">
-                Kiến trúc tách raw bucket, processed bucket, DynamoDB metadata và Step Functions history. Người dùng chỉ thấy dữ liệu thuộc quyền của họ qua Cognito.
+                {t("landing.securityBody")}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><ShieldCheck className="size-4 text-[#d8ff72]" /> Cognito access</span>
-                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><LockKeyhole className="size-4 text-[#d8ff72]" /> Presigned upload</span>
-                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><FileText className="size-4 text-[#d8ff72]" /> Evidence trail</span>
+                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><ShieldCheck className="size-4 text-[#d8ff72]" /> {t("landing.cognitoAccess")}</span>
+                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><LockKeyhole className="size-4 text-[#d8ff72]" /> {t("landing.presignedUpload")}</span>
+                <span className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/70"><FileText className="size-4 text-[#d8ff72]" /> {t("landing.evidenceTrail")}</span>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -295,15 +288,15 @@ export default function LandingPage() {
         <section className="bg-[#d8ff72] px-4 py-16 text-[#10261d] sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 lg:flex-row lg:items-center">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/55">Ready for finance operations</div>
-              <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.06em] sm:text-5xl">Bắt đầu xử lý tài liệu thật, bằng API thật.</h2>
+              <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#10261d]/55">{t("landing.ctaEyebrow")}</div>
+              <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.06em] sm:text-5xl">{t("landing.ctaTitle")}</h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="bg-[#10261d] text-white hover:bg-[#1b3a2d]">
-                <Link to="/auth/sign-up">Đăng ký</Link>
+                <Link to="/auth/sign-up">{t("common.signUp")}</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-[#10261d]/30 bg-transparent hover:bg-[#10261d]/5">
-                <Link to="/auth/sign-in">Đăng nhập</Link>
+                <Link to="/auth/sign-in">{t("common.signIn")}</Link>
               </Button>
             </div>
           </div>
@@ -317,10 +310,10 @@ export default function LandingPage() {
             <span className="font-semibold text-[#10261d]">DocuFlow AI</span>
           </div>
           <div className="flex flex-wrap gap-4">
-            <Link to="/dashboard" className="hover:text-[#10261d]">Dashboard</Link>
-            <Link to="/documents" className="hover:text-[#10261d]">Tài liệu</Link>
-            <Link to="/review" className="hover:text-[#10261d]">Kiểm duyệt</Link>
-            <Link to="/reports" className="hover:text-[#10261d]">Báo cáo</Link>
+            <Link to="/dashboard" className="hover:text-[#10261d]">{t("common.dashboard")}</Link>
+            <Link to="/documents" className="hover:text-[#10261d]">{t("common.documents")}</Link>
+            <Link to="/review" className="hover:text-[#10261d]">{t("common.review")}</Link>
+            <Link to="/reports" className="hover:text-[#10261d]">{t("common.reports")}</Link>
           </div>
         </div>
       </footer>

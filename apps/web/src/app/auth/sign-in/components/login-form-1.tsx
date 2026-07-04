@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useNavigate } from "react-router-dom"
@@ -28,13 +28,12 @@ import { toast } from "sonner"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { useAuth } from "@/contexts/auth-context"
 import { roleHomePaths } from "@/lib/auth"
+import { useLanguage } from "@/lib/i18n"
 
-const loginFormSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-})
-
-type LoginFormValues = z.infer<typeof loginFormSchema>
+type LoginFormValues = {
+  email: string
+  password: string
+}
 type ChallengeKind = "NEW_PASSWORD" | "MFA_CODE" | "UNSUPPORTED"
 
 function resolveChallengeKind(step?: string): ChallengeKind {
@@ -50,10 +49,19 @@ export function LoginForm1({
 }: React.ComponentProps<"div">) {
   const navigate = useNavigate()
   const { refreshSession } = useAuth()
+  const { t } = useLanguage()
   const [isLoading, setIsLoading] = useState(false)
   const [challenge, setChallenge] = useState<{ kind: ChallengeKind; step: string } | null>(null)
   const [challengeResponse, setChallengeResponse] = useState("")
 
+  const loginFormSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(t("auth.invalidEmail")),
+        password: z.string().min(6, t("auth.passwordMin")),
+      }),
+    [t]
+  )
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -64,7 +72,7 @@ export function LoginForm1({
   })
 
   async function finishSignedIn() {
-    toast.success("Signed in successfully!");
+    toast.success(t("auth.signedIn"));
     await refreshSession();
     const { getCurrentDocuFlowSession } = await import("@/lib/auth");
     const session = await getCurrentDocuFlowSession();
@@ -77,10 +85,10 @@ export function LoginForm1({
     setChallenge({ kind, step })
     setChallengeResponse("")
     if (kind === "UNSUPPORTED") {
-      toast.error(`Cognito yêu cầu bước chưa hỗ trợ trong UI: ${step}`)
+      toast.error(t("auth.unsupportedStep", { step }))
       return
     }
-    toast.info(kind === "NEW_PASSWORD" ? "Vui lòng đặt mật khẩu mới để tiếp tục." : "Vui lòng nhập mã xác nhận Cognito.")
+    toast.info(kind === "NEW_PASSWORD" ? t("auth.newPasswordPrompt") : t("auth.confirmCodePrompt"))
   }
 
   async function completeSignIn(values: LoginFormValues) {
@@ -99,9 +107,9 @@ export function LoginForm1({
     } catch (error: unknown) {
       console.error("Error signing in", error);
       if (error instanceof Error) {
-        toast.error(error.message || "Failed to sign in. Please check your credentials.");
+        toast.error(error.message || t("auth.signInFailed"));
       } else {
-        toast.error("Failed to sign in. Please check your credentials.");
+        toast.error(t("auth.signInFailed"));
       }
     } finally {
       setIsLoading(false);
@@ -112,7 +120,7 @@ export function LoginForm1({
     event.preventDefault()
     if (!challenge || challenge.kind === "UNSUPPORTED") return
     if (!challengeResponse.trim()) {
-      toast.error(challenge.kind === "NEW_PASSWORD" ? "Vui lòng nhập mật khẩu mới." : "Vui lòng nhập mã xác nhận.")
+      toast.error(challenge.kind === "NEW_PASSWORD" ? t("auth.newPasswordRequired") : t("auth.confirmCodeRequired"))
       return
     }
 
@@ -130,7 +138,7 @@ export function LoginForm1({
       }
     } catch (error: unknown) {
       console.error("Error completing sign-in challenge", error);
-      toast.error(error instanceof Error ? error.message : "Không thể hoàn tất bước xác nhận Cognito.")
+      toast.error(error instanceof Error ? error.message : t("auth.challengeFailed"))
     } finally {
       setIsLoading(false)
     }
@@ -140,9 +148,9 @@ export function LoginForm1({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]">
         <CardHeader className="border-b border-[#e2e3db] text-left">
-          <CardTitle className="text-lg text-[#11251d]">Account details</CardTitle>
+          <CardTitle className="text-lg text-[#11251d]">{t("auth.accountDetails")}</CardTitle>
           <CardDescription className="text-[#647069]">
-            Sign in with your Amazon Cognito credentials.
+            {t("auth.accountDetailsDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -151,7 +159,7 @@ export function LoginForm1({
               <div className="grid gap-5 mt-4">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium text-[#405047]" htmlFor="challengeResponse">
-                    {challenge.kind === "NEW_PASSWORD" ? "Mật khẩu mới" : "Mã xác nhận"}
+                    {challenge.kind === "NEW_PASSWORD" ? t("auth.newPassword") : t("auth.confirmCode")}
                   </label>
                   <Input
                     id="challengeResponse"
@@ -165,10 +173,10 @@ export function LoginForm1({
                   <p className="text-xs text-[#647069]">{challenge.step}</p>
                 </div>
                 <Button disabled={isLoading} type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
-                  {isLoading ? <LoadingSpinner /> : "Tiếp tục"}
+                  {isLoading ? <LoadingSpinner /> : t("auth.continue")}
                 </Button>
                 <Button type="button" variant="outline" className="w-full cursor-pointer" onClick={() => setChallenge(null)} disabled={isLoading}>
-                  Quay lại đăng nhập
+                  {t("auth.backToLogin")}
                 </Button>
               </div>
             </form>
@@ -182,7 +190,7 @@ export function LoginForm1({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[#405047]">Email</FormLabel>
+                        <FormLabel className="text-[#405047]">{t("auth.email")}</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
@@ -201,12 +209,12 @@ export function LoginForm1({
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center">
-                          <FormLabel className="text-[#405047]">Password</FormLabel>
+                          <FormLabel className="text-[#405047]">{t("auth.password")}</FormLabel>
                           <a
                             href="/auth/forgot-password"
                             className="ml-auto text-sm text-[#647069] underline-offset-4 hover:text-[#153f30] hover:underline"
                           >
-                            Forgot your password?
+                            {t("auth.forgotPassword")}
                           </a>
                         </div>
                         <FormControl>
@@ -221,14 +229,14 @@ export function LoginForm1({
                     )}
                   />
                   <Button disabled={isLoading} type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
-                    {isLoading ? <LoadingSpinner /> : "Sign in"}
+                    {isLoading ? <LoadingSpinner /> : t("common.signIn")}
                   </Button>
                 </div>
                 
                 <div className="text-center text-sm text-[#647069]">
-                  Don&apos;t have an account?{" "}
+                  {t("auth.noAccount")}{" "}
                   <a href="/auth/sign-up" className="font-medium text-[#153f30] underline underline-offset-4">
-                    Sign up
+                    {t("common.signUp")}
                   </a>
                 </div>
               </div>

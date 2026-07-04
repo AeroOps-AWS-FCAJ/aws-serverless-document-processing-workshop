@@ -35,7 +35,7 @@ function sanitizeDocument(doc: unknown): DocumentRecord {
     documentId: record.documentId ?? "",
     userId: record.userId ?? "",
     originalFileName: record.originalFileName ?? "unknown",
-    documentType: record.documentType ?? "INVOICE",
+    documentType: record.documentType ?? "UNKNOWN",
     status: record.status ?? "UPLOADED",
     invoiceNumber: record.invoiceNumber ?? "",
     vendorName: record.vendorName ?? "Unknown",
@@ -200,7 +200,7 @@ export function createQueuedDocument(
 ): DocumentRecord {
   const now = new Date().toISOString()
   const extension = request.originalFileName.split(".").pop()?.toLowerCase()
-  const documentType = request.documentType ?? (request.originalFileName.toLowerCase().includes("receipt") ? "RECEIPT" : "INVOICE")
+  const documentType = request.documentType ?? "UNKNOWN"
 
   return {
     documentId: response.documentId,

@@ -58,7 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { TablePagination } from "@/components/table-pagination"
 import { useAuth } from "@/contexts/auth-context"
-import { clearDocuFlowSession, roleLabels } from "@/lib/auth"
+import { clearDocuFlowSession } from "@/lib/auth"
 import {
   formatDate,
   formatMoney,
@@ -76,6 +76,7 @@ import {
   type ApiActivityItem,
   type ApiNotificationItem,
 } from "@/lib/docuflow-api"
+import { useLanguage, type AppLanguage, type TranslationKey } from "@/lib/i18n"
 
 type SettingsTab = "profile" | "notifications" | "activity"
 type NotificationKind = "ACTION" | "FAILED" | "COMPLETE" | "PROCESSING"
@@ -163,49 +164,11 @@ const languageOptions = [
   { value: "en", label: "English" },
 ]
 
-const notificationFilters: Array<{ label: string; value: NotificationFilter }> = [
-  { label: "Tất cả", value: "ALL" },
-  { label: "Cần xử lý", value: "ACTION" },
-  { label: "Thất bại", value: "FAILED" },
-  { label: "Hoàn thành", value: "COMPLETE" },
-  { label: "Đang xử lý", value: "PROCESSING" },
-]
-
-const activityFilters: Array<{ label: string; value: ActivityFilter }> = [
-  { label: "Tất cả", value: "ALL" },
-  { label: "Tải lên", value: "UPLOAD" },
-  { label: "Đang xử lý", value: "PROCESSING" },
-  { label: "Chờ duyệt", value: "REVIEW" },
-  { label: "Đã duyệt", value: "APPROVAL" },
-]
-
-const activityRangeOptions: Array<{ label: string; value: ActivityRangeFilter }> = [
-  { label: "Mọi thời gian", value: "ALL" },
-  { label: "Hôm nay", value: "TODAY" },
-  { label: "7 ngày", value: "7D" },
-  { label: "30 ngày", value: "30D" },
-]
-
-const activitySeverityOptions: Array<{ label: string; value: ActivitySeverityFilter }> = [
-  { label: "Mọi mức độ", value: "ALL" },
-  { label: "Thông tin", value: "info" },
-  { label: "Cảnh báo", value: "warning" },
-  { label: "Lỗi", value: "error" },
-  { label: "Thành công", value: "success" },
-]
-
-const kindLabel: Record<ActivityKind, string> = {
-  UPLOAD: "Tải lên",
-  PROCESSING: "Xử lý",
-  REVIEW: "Kiểm duyệt",
-  APPROVAL: "Phê duyệt",
-}
-
-const activitySeverityMeta: Record<ActivitySeverity, { label: string; className: string }> = {
-  info: { label: "Thông tin", className: "border-cyan-200 bg-cyan-50 text-cyan-800" },
-  warning: { label: "Cảnh báo", className: "border-amber-200 bg-amber-50 text-amber-800" },
-  error: { label: "Lỗi", className: "border-red-200 bg-red-50 text-red-800" },
-  success: { label: "Thành công", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+const activitySeverityMeta: Record<ActivitySeverity, { labelKey: TranslationKey; className: string }> = {
+  info: { labelKey: "severity.info", className: "border-cyan-200 bg-cyan-50 text-cyan-800" },
+  warning: { labelKey: "severity.warning", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  error: { labelKey: "severity.error", className: "border-red-200 bg-red-50 text-red-800" },
+  success: { labelKey: "severity.success", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
 }
 
 function getActivityTime(value: string) {
@@ -231,9 +194,9 @@ function isActivityInRange(timestamp: string, range: ActivityRangeFilter) {
   return time >= floor.getTime()
 }
 
-function getActivityDayLabel(timestamp: string) {
+function getActivityDayLabel(timestamp: string, t: (key: TranslationKey, params?: Record<string, string | number>) => string) {
   const date = new Date(timestamp)
-  if (Number.isNaN(date.getTime())) return "Không xác định"
+  if (Number.isNaN(date.getTime())) return t("time.unknown")
 
   const today = new Date()
   const startToday = new Date(today)
@@ -242,15 +205,15 @@ function getActivityDayLabel(timestamp: string) {
   const startYesterday = new Date(startToday)
   startYesterday.setDate(startToday.getDate() - 1)
 
-  if (date.getTime() >= startToday.getTime()) return "Hôm nay"
-  if (date.getTime() >= startYesterday.getTime()) return "Hôm qua"
+  if (date.getTime() >= startToday.getTime()) return t("time.today")
+  if (date.getTime() >= startYesterday.getTime()) return t("time.yesterday")
   return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
-function groupActivityEvents(events: ActivityEvent[]) {
+function groupActivityEvents(events: ActivityEvent[], t: (key: TranslationKey, params?: Record<string, string | number>) => string) {
   const grouped = new Map<string, ActivityEvent[]>()
   events.forEach((event) => {
-    const label = getActivityDayLabel(event.timestamp)
+    const label = getActivityDayLabel(event.timestamp, t)
     grouped.set(label, [...(grouped.get(label) ?? []), event])
   })
   return [...grouped.entries()].map(([label, items]) => ({ label, items }))
@@ -302,16 +265,14 @@ function exportActivityCsv(events: ActivityEvent[]) {
   URL.revokeObjectURL(url)
 }
 
-function buildNotification(document: DocumentRecord): UserNotification | null {
+function buildNotification(document: DocumentRecord, t: (key: TranslationKey, params?: Record<string, string | number>) => string): UserNotification | null {
   if (document.status === "REVIEW_REQUIRED") {
     return {
       id: `${document.documentId}-review`,
       document,
       kind: "ACTION",
-      title: "Yêu cầu kiểm duyệt",
-      body: document.reviewReasonCodes.length
-        ? document.reviewReasonCodes.join("; ")
-        : "Một số trường trích xuất cần được xác minh.",
+      title: t("notification.reviewRequired"),
+      body: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : t("notification.reviewRequiredBody"),
       timestamp: document.updatedAt,
       unread: true,
       requiresAction: true,
@@ -325,8 +286,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-failed`,
       document,
       kind: "FAILED",
-      title: "Xử lý thất bại",
-      body: document.errorMessage ?? "Quy trình xử lý gặp lỗi trước khi cho ra kết quả.",
+      title: t("notification.processingFailed"),
+      body: document.errorMessage ?? t("notification.processingFailedBodyFallback"),
       timestamp: document.updatedAt,
       unread: true,
       requiresAction: true,
@@ -340,8 +301,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-corrected`,
       document,
       kind: "ACTION",
-      title: "Bản sửa đã sẵn sàng",
-      body: document.reviewerNote ?? "Các trường được sửa đã sẵn sàng để duyệt lần cuối.",
+      title: t("notification.correctionReady"),
+      body: document.reviewerNote ?? t("notification.correctionReadyBodyFallback"),
       timestamp: document.updatedAt,
       unread: true,
       requiresAction: true,
@@ -355,8 +316,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-complete`,
       document,
       kind: "COMPLETE",
-      title: document.status === "APPROVED" ? "Tài liệu đã duyệt" : "Trích xuất hoàn thành",
-      body: `${document.vendorName} đã hoàn tất với độ tin cậy ${Math.round(document.confidenceScore * 100)}%.`,
+      title: document.status === "APPROVED" ? t("notification.documentApproved") : t("notification.extractionComplete"),
+      body: t("notification.extractionCompleteBody", { vendor: document.vendorName || "", confidence: Math.round(document.confidenceScore * 100) }),
       timestamp: document.updatedAt,
       unread: false,
       requiresAction: false,
@@ -370,8 +331,8 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
       id: `${document.documentId}-processing`,
       document,
       kind: "PROCESSING",
-      title: "Đang được xử lý",
-      body: statusMeta[document.status].label,
+      title: t("notification.beingProcessed"),
+      body: t(`status.${document.status}` as TranslationKey),
       timestamp: document.updatedAt,
       unread: false,
       requiresAction: false,
@@ -383,16 +344,16 @@ function buildNotification(document: DocumentRecord): UserNotification | null {
   return null
 }
 
-function buildEvents(document: DocumentRecord): ActivityEvent[] {
+function buildEvents(document: DocumentRecord, t: (key: TranslationKey, params?: Record<string, string | number>) => string): ActivityEvent[] {
   const events: ActivityEvent[] = [
     {
       id: `${document.documentId}-created`,
       kind: "UPLOAD",
-      title: "Tài liệu được tải lên",
-      detail: `${document.originalFileName} đã được đưa vào hàng đợi xử lý.`,
+      title: t("activity.eventUploaded"),
+      detail: t("activity.eventUploadedBody", { name: document.originalFileName }),
       timestamp: document.createdAt,
       document,
-      actor: document.userId || "Người dùng",
+      actor: document.userId || t("profile.fallbackUser"),
       source: "Frontend upload",
       severity: "info",
       icon: UploadCloud,
@@ -403,12 +364,12 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-processing`,
       kind: "PROCESSING",
-      title: statusMeta[document.status].label,
-      detail: document.errorMessage ?? "Tài liệu đang chờ pipeline xử lý tự động.",
+      title: t(`status.${document.status}` as TranslationKey),
+      detail: document.errorMessage ?? t("activity.eventProcessingBody"),
       timestamp: document.updatedAt,
       document,
       actor: "AWS workflow",
-      source: statusMeta[document.status].label,
+      source: t(`status.${document.status}` as TranslationKey),
       severity: "info",
       icon: FileClock,
     })
@@ -418,8 +379,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-extracted`,
       kind: "PROCESSING",
-      title: "Trích xuất hoàn tất",
-      detail: `${document.vendorName} được trích xuất với độ tin cậy ${Math.round(document.confidenceScore * 100)}%.`,
+      title: t("activity.eventExtracted"),
+      detail: t("activity.eventExtractedBody", { vendor: document.vendorName, confidence: Math.round(document.confidenceScore * 100) }),
       timestamp: document.updatedAt,
       document,
       actor: "Textract + AI normalize",
@@ -433,8 +394,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-review`,
       kind: "REVIEW",
-      title: document.status === "FAILED" ? "Xử lý thất bại" : "Cần kiểm duyệt",
-      detail: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : document.errorMessage ?? "Cần xác minh thủ công.",
+      title: document.status === "FAILED" ? t("activity.eventFailed") : t("activity.eventReview"),
+      detail: document.reviewReasonCodes.length ? document.reviewReasonCodes.join("; ") : document.errorMessage ?? t("activity.eventManualReview"),
       timestamp: document.updatedAt,
       document,
       actor: document.status === "FAILED" ? "AWS workflow" : "Review rules",
@@ -448,8 +409,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-corrected`,
       kind: "REVIEW",
-      title: "Đã chỉnh sửa",
-      detail: document.reviewerNote ?? "Các trường không chắc chắn đã được cập nhật.",
+      title: t("activity.eventCorrected"),
+      detail: document.reviewerNote ?? t("activity.eventCorrectedBody"),
       timestamp: document.reviewedAt ?? document.updatedAt,
       document,
       actor: document.reviewedBy || "Reviewer",
@@ -463,8 +424,8 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
     events.push({
       id: `${document.documentId}-approved`,
       kind: "APPROVAL",
-      title: "Tài liệu đã được duyệt",
-      detail: document.reviewerNote ?? "Kết quả trích xuất đã được xác nhận.",
+      title: t("activity.eventApproved"),
+      detail: document.reviewerNote ?? t("activity.eventApprovedBody"),
       timestamp: document.reviewedAt ?? document.updatedAt,
       document,
       actor: document.reviewedBy || "Reviewer",
@@ -478,12 +439,13 @@ function buildEvents(document: DocumentRecord): ActivityEvent[] {
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
+  const { t } = useLanguage()
   const meta = statusMeta[status]
   const Icon = meta.icon
   return (
     <Badge variant="outline" className={meta.tone}>
       <Icon className="size-3.5" />
-      {meta.label}
+      {t(`status.${status}` as TranslationKey)}
     </Badge>
   )
 }
@@ -497,6 +459,8 @@ function SettingSearch({
   onChange: (value: string) => void
   placeholder: string
 }) {
+  const { t } = useLanguage()
+
   return (
     <div className="relative">
       <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -510,7 +474,7 @@ function SettingSearch({
           onClick={() => onChange("")}
         >
           <X className="size-4" />
-          <span className="sr-only">Xóa tìm kiếm</span>
+          <span className="sr-only">{t("activity.clearSearch")}</span>
         </Button>
       )}
     </div>
@@ -596,7 +560,7 @@ function documentFromApiItem(
     documentId: item.documentId,
     userId: raw.userId ?? "",
     originalFileName: raw.originalFileName ?? `document-${item.documentId}`,
-    documentType: raw.documentType ?? "INVOICE",
+    documentType: raw.documentType ?? "UNKNOWN",
     status: isDocumentStatus(raw.status) ? raw.status : "REVIEW_REQUIRED",
     invoiceNumber: raw.invoiceNumber ?? "",
     vendorName: raw.vendorName ?? "Unknown",
@@ -682,6 +646,36 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { session, refreshSession } = useAuth()
+  const { language, setLanguage, t } = useLanguage()
+  const localizedNotificationFilters: Array<{ label: string; value: NotificationFilter }> = [
+    { label: t("notifications.all"), value: "ALL" },
+    { label: t("notifications.actionRequired"), value: "ACTION" },
+    { label: t("notifications.failed"), value: "FAILED" },
+    { label: t("notifications.complete"), value: "COMPLETE" },
+    { label: t("notifications.processing"), value: "PROCESSING" },
+  ]
+  const localizedActivityFilters: Array<{ label: string; value: ActivityFilter }> = [
+    { label: t("activity.all"), value: "ALL" },
+    { label: t("activity.upload"), value: "UPLOAD" },
+    { label: t("activity.processing"), value: "PROCESSING" },
+    { label: t("activity.review"), value: "REVIEW" },
+    { label: t("activity.approval"), value: "APPROVAL" },
+  ]
+  const localizedRangeOptions: Array<{ label: string; value: ActivityRangeFilter }> = [
+    { label: t("settings.allTime"), value: "ALL" },
+    { label: t("settings.today"), value: "TODAY" },
+    { label: t("settings.days7"), value: "7D" },
+    { label: t("settings.days30"), value: "30D" },
+  ]
+  const localizedSeverityOptions: Array<{ label: string; value: ActivitySeverityFilter }> = [
+    { label: t("settings.allSeverities"), value: "ALL" },
+    { label: t("settings.info"), value: "info" },
+    { label: t("settings.warning"), value: "warning" },
+    { label: t("settings.error"), value: "error" },
+    { label: t("settings.success"), value: "success" },
+  ]
+  const activityKindLabel = (kind: ActivityKind) => localizedActivityFilters.find((item) => item.value === kind)?.label ?? kind
+  const activitySeverityLabel = (severity: ActivitySeverity) => localizedSeverityOptions.find((item) => item.value === severity)?.label ?? severity
   const { documents, mergeDocuments } = useDocuFlowDocuments()
   const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
   const [profileForm, setProfileForm] = useState<ProfileFormState>(defaultProfileForm)
@@ -721,7 +715,7 @@ export default function SettingsPage() {
   const derivedNotifications = useMemo(
     () =>
       visibleDocuments
-        .map(buildNotification)
+        .map((doc) => buildNotification(doc, t))
         .filter((item): item is UserNotification => Boolean(item))
         .map((notification) => ({
           ...notification,
@@ -742,8 +736,8 @@ export default function SettingsPage() {
   )
 
   const derivedEvents = useMemo(
-    () => visibleDocuments.flatMap(buildEvents).sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
-    [visibleDocuments]
+    () => visibleDocuments.flatMap((document) => buildEvents(document, t)).sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
+    [t, visibleDocuments]
   )
 
   const events = useMemo(
@@ -778,7 +772,7 @@ export default function SettingsPage() {
 
   const activityTotalPages = Math.max(1, Math.ceil(filteredEvents.length / activityPageSize))
   const paginatedEvents = filteredEvents.slice((activityPage - 1) * activityPageSize, activityPage * activityPageSize)
-  const groupedPaginatedEvents = groupActivityEvents(paginatedEvents)
+  const groupedPaginatedEvents = groupActivityEvents(paginatedEvents, t)
   const uploadEventCount = events.filter((event) => event.kind === "UPLOAD").length
   const reviewEventCount = events.filter((event) => event.kind === "REVIEW").length
   const errorEventCount = events.filter((event) => event.severity === "error").length
@@ -806,11 +800,12 @@ export default function SettingsPage() {
     setProfileForm({
       ...defaultProfileForm,
       ...stored,
+      language,
       firstName: session.firstName || stored.firstName || session.name.split(" ")[0] || "",
       lastName: session.lastName || stored.lastName || session.name.split(" ").slice(1).join(" ") || "",
       email: session.email || stored.email || "",
     })
-  }, [session])
+  }, [language, session])
 
   useEffect(() => {
     if (!apiMode) {
@@ -869,7 +864,7 @@ export default function SettingsPage() {
         setApiNotifications(notificationResult.value)
       } else {
         setApiNotifications(null)
-        setSettingsApiWarning("Backend chưa trả được /notifications, đang dùng thông báo dựng từ danh sách tài liệu.")
+        setSettingsApiWarning(t("settings.backendNotificationsWarning"))
       }
 
       if (activityResult.status === "fulfilled") {
@@ -878,8 +873,7 @@ export default function SettingsPage() {
         setApiActivityEvents(null)
         setSettingsApiWarning((current) =>
           current
-            ? `${current} /activity cũng chưa sẵn sàng.`
-            : "Backend chưa trả được /activity, đang dùng activity dựng từ danh sách tài liệu."
+            ? t("settings.backendActivityWarningCombined", { current }) : t("settings.backendActivityWarning")
         )
       }
 
@@ -909,12 +903,12 @@ export default function SettingsPage() {
           ) ?? null
         )
       } catch {
-        toast.warning("Backend chưa lưu trạng thái thông báo, tạm lưu trên trình duyệt.")
+        toast.warning(t("settings.backendNoticeLocal"))
       }
     }
 
     setAcknowledgedNotifications([...acknowledgedNotificationIds, notificationId])
-    toast.success("Đã đánh dấu thông báo là đã xem.")
+    toast.success(t("settings.notificationSeen"))
   }
 
   const handleAcknowledgeAllActionNotifications = async () => {
@@ -922,7 +916,7 @@ export default function SettingsPage() {
     if (apiNotifications) {
       const results = await Promise.allSettled(actionIds.map((id) => acknowledgeNotification(id)))
       if (results.some((result) => result.status === "rejected")) {
-        toast.warning("Một số thông báo chưa lưu được lên backend, tạm lưu trên trình duyệt.")
+        toast.warning(t("settings.backendNoticesLocal"))
       }
       setApiNotifications((current) =>
         current?.map((notification) =>
@@ -931,12 +925,12 @@ export default function SettingsPage() {
       )
     }
     setAcknowledgedNotifications([...acknowledgedNotificationIds, ...actionIds])
-    toast.success("Đã đánh dấu tất cả thông báo cần xử lý là đã xem.")
+    toast.success(t("settings.notificationsSeen"))
   }
 
   const handleResetNotificationAcknowledgements = () => {
     setAcknowledgedNotifications(acknowledgedNotificationIds.filter((id) => !notifications.some((notification) => notification.id === id)))
-    toast.success("Đã khôi phục trạng thái cần xử lý cho thông báo hiện tại.")
+    toast.success(t("settings.notificationsReset"))
   }
 
   const resetActivityFilters = () => {
@@ -963,12 +957,12 @@ export default function SettingsPage() {
     const fullName = [firstName, lastName].filter(Boolean).join(" ").trim()
 
     if (!firstName || !lastName) {
-      toast.error("Vui lòng nhập đầy đủ họ và tên.")
+      toast.error(t("settings.profileNameRequired"))
       return
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("Email không hợp lệ.")
+      toast.error(t("settings.invalidEmail"))
       return
     }
 
@@ -987,9 +981,9 @@ export default function SettingsPage() {
       await updateUserAttributes({ userAttributes })
       writeStoredProfile(session?.userId, { ...profileForm, firstName, lastName, email })
       await refreshSession()
-      toast.success(email !== session?.email ? "Đã cập nhật hồ sơ. Email mới có thể cần xác minh trong Cognito." : "Đã cập nhật hồ sơ.")
+      toast.success(email !== session?.email ? t("settings.profileSavedVerify") : t("settings.profileSaved"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể cập nhật hồ sơ.")
+      toast.error(error instanceof Error ? error.message : t("settings.profileSaveFailed"))
     } finally {
       setIsSavingProfile(false)
     }
@@ -997,17 +991,17 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      toast.error("Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.")
+      toast.error(t("settings.passwordRequired"))
       return
     }
 
     if (passwordForm.newPassword.length < 6) {
-      toast.error("Mật khẩu mới cần tối thiểu 6 ký tự.")
+      toast.error(t("settings.passwordTooShort"))
       return
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("Mật khẩu xác nhận không khớp.")
+      toast.error(t("settings.passwordMismatch"))
       return
     }
 
@@ -1018,52 +1012,52 @@ export default function SettingsPage() {
         newPassword: passwordForm.newPassword,
       })
       setPasswordForm(defaultPasswordForm)
-      toast.success("Đã cập nhật mật khẩu.")
+      toast.success(t("settings.passwordSaved"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể cập nhật mật khẩu.")
+      toast.error(error instanceof Error ? error.message : t("settings.passwordSaveFailed"))
     } finally {
       setIsChangingPassword(false)
     }
   }
 
   return (
-    <BaseLayout title="Settings" description="Hồ sơ, thông báo và lịch sử hoạt động trong một không gian duy nhất.">
+    <BaseLayout title={t("settings.title")} description={t("settings.description")}>
       <section className="px-4 lg:px-6">
         <div className="overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_420px]">
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/40 bg-[#d8ff72]/15 font-mono text-[10px] uppercase text-[#d8ff72]">
-                  User Settings
+                  {t("settings.title")}
                 </Badge>
                 <Badge variant="outline" className="border-white/20 bg-white/5 font-mono text-[10px] uppercase text-white/75">
-                  {roleLabels[role]}
+                  {t(`role.${role}` as TranslationKey)}
                 </Badge>
               </div>
               <h2 className="mt-2 max-w-3xl font-display text-lg font-semibold leading-snug tracking-tight text-white md:text-xl">
-                {session?.name ?? "Người dùng"}
+                {session?.name ?? t("profile.fallbackUser")}
               </h2>
               <p className="mt-1.5 max-w-2xl text-xs leading-6 text-white/62">
-                Quản lý hồ sơ, theo dõi thông báo và rà lại hoạt động tài liệu mà không phải chuyển qua nhiều trang.
+                {t("settings.description")}
                 {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
                   <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
-                  Làm mới dữ liệu
+                  {t("common.refresh")}
                 </Button>
                 <Button type="button" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={handleLogout}>
                   <LogOut className="size-4" />
-                  Đăng xuất
+                  {t("common.signOut")}
                 </Button>
               </div>
             </div>
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: "Tài liệu", value: visibleDocuments.length, icon: FileSearch },
-                { label: "Cần xử lý", value: openActionCount, icon: BellDot },
-                { label: "Thông báo", value: notifications.length, icon: MailCheck },
-                { label: "Đã duyệt", value: approvalCount, icon: ShieldCheck },
+                { label: t("profile.documents"), value: visibleDocuments.length, icon: FileSearch },
+                { label: t("profile.needsAction"), value: openActionCount, icon: BellDot },
+                { label: t("settings.notifications"), value: notifications.length, icon: MailCheck },
+                { label: t("activity.approved"), value: approvalCount, icon: ShieldCheck },
               ].map((item) => {
                 const Icon = item.icon
                 return (
@@ -1084,16 +1078,16 @@ export default function SettingsPage() {
           <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl border bg-background p-1">
             <TabsTrigger value="profile" className="min-h-10 px-4">
               <UserRound className="size-4" />
-              Hồ sơ
+              {t("settings.profile")}
             </TabsTrigger>
             <TabsTrigger value="notifications" className="min-h-10 px-4">
               <BellDot className="size-4" />
-              Thông báo
+              {t("settings.notifications")}
               {openActionCount > 0 && <span className="ml-1 rounded-full bg-[#d8ff72] px-1.5 py-0.5 text-[10px] text-[#10261d]">{openActionCount}</span>}
             </TabsTrigger>
             <TabsTrigger value="activity" className="min-h-10 px-4">
               <History className="size-4" />
-              Hoạt động
+              {t("settings.activity")}
             </TabsTrigger>
           </TabsList>
 
@@ -1104,9 +1098,9 @@ export default function SettingsPage() {
                   <CardHeader className="border-b bg-muted/25">
                     <CardTitle className="flex items-center gap-2">
                       <UserRound className="size-5" />
-                      Danh tính Cognito
+                      {t("settings.identity")}
                     </CardTitle>
-                    <CardDescription>Thông tin đang dùng để gọi API và phân quyền tài liệu.</CardDescription>
+                    <CardDescription>{t("settings.identityBody")}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-5 pt-5">
                     <div className="flex items-center gap-4">
@@ -1116,12 +1110,12 @@ export default function SettingsPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <div className="truncate text-base font-semibold">{session?.name ?? "Người dùng"}</div>
-                        <div className="truncate text-sm text-muted-foreground">{session?.email ?? "Không có email"}</div>
+                        <div className="truncate text-base font-semibold">{session?.name ?? t("profile.fallbackUser")}</div>
+                        <div className="truncate text-sm text-muted-foreground">{session?.email ?? t("settings.noEmail")}</div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge variant="outline">{roleLabels[role]}</Badge>
+                          <Badge variant="outline">{t(`role.${role}` as TranslationKey)}</Badge>
                           <Badge variant="outline" className={session?.emailVerified ? "border-emerald-200 text-emerald-700" : "border-amber-200 text-amber-700"}>
-                            {session?.emailVerified ? "Email đã xác minh" : "Email chưa xác minh"}
+                            {session?.emailVerified ? t("settings.emailVerified") : t("settings.emailUnverified")}
                           </Badge>
                         </div>
                       </div>
@@ -1129,9 +1123,9 @@ export default function SettingsPage() {
 
                     <div className="grid gap-3">
                       {[
-                        ["Cognito sub", session?.userId ?? "Không xác định"],
-                        ["Nhóm Cognito", session?.groups?.length ? session.groups.join(", ") : "Finance mặc định"],
-                        ["Vai trò ứng dụng", roleLabels[role]],
+                        ["Cognito sub", session?.userId ?? t("profile.unknown")],
+                        [t("settings.cognitoGroup"), session?.groups?.length ? session.groups.join(", ") : t("settings.defaultFinance")],
+                        [t("settings.appRole"), t(`role.${role}` as TranslationKey)],
                       ].map(([label, value]) => (
                         <div key={label} className="grid gap-1 rounded-xl border p-3">
                           <div className="font-mono text-[10px] uppercase text-muted-foreground">{label}</div>
@@ -1141,7 +1135,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
-                      `Cognito sub` đang được dùng làm khóa người dùng để khớp với backend Lambda và DynamoDB.
+                      {t("settings.cognitoKeyHint")}
                     </div>
                   </CardContent>
                 </Card>
@@ -1150,20 +1144,20 @@ export default function SettingsPage() {
                   <CardHeader className="border-b bg-muted/25">
                     <CardTitle className="flex items-center gap-2">
                       <ShieldCheck className="size-5" />
-                      Quyền truy cập
+                      {t("settings.access")}
                     </CardTitle>
-                    <CardDescription>{capability?.description}</CardDescription>
+                    <CardDescription>{t(role === "admin" ? "settings.adminAccessBody" : "settings.financeAccessBody")}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3 pt-5">
                     {[
-                      { label: "Tải tài liệu", enabled: capability?.canUpload },
-                      { label: "Kiểm duyệt", enabled: capability?.canReview },
-                      { label: "Quản trị hệ thống", enabled: capability?.canOperate },
+                      { label: t("profile.uploadAccess"), enabled: capability?.canUpload },
+                      { label: t("profile.reviewAccess"), enabled: capability?.canReview },
+                      { label: t("profile.adminAccess"), enabled: capability?.canOperate },
                     ].map(({ label, enabled }) => (
                       <div key={label} className="flex items-center justify-between gap-3 rounded-xl border p-3">
                         <span className="text-sm font-medium">{label}</span>
                         <Badge variant="outline" className={enabled ? "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300" : "border-muted-foreground/30 text-muted-foreground"}>
-                          {enabled ? "Được phép" : "Hạn chế"}
+                          {enabled ? t("profile.allowed") : t("profile.restricted")}
                         </Badge>
                       </div>
                     ))}
@@ -1176,38 +1170,38 @@ export default function SettingsPage() {
                   <CardHeader className="border-b bg-muted/25">
                     <CardTitle className="flex items-center gap-2">
                       <UserRound className="size-5" />
-                      Hồ sơ cá nhân
+                      {t("settings.personalProfile")}
                     </CardTitle>
-                    <CardDescription>Cập nhật tên hiển thị và email trên Cognito.</CardDescription>
+                    <CardDescription>{t("settings.personalProfileBody")}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-5 pt-5">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="grid gap-2">
-                        <Label htmlFor="firstName">Tên</Label>
+                        <Label htmlFor="firstName">{t("auth.firstName")}</Label>
                         <Input id="firstName" value={profileForm.firstName} onChange={(event) => updateProfileField("firstName", event.target.value)} placeholder="Minh" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="lastName">Họ</Label>
+                        <Label htmlFor="lastName">{t("auth.lastName")}</Label>
                         <Input id="lastName" value={profileForm.lastName} onChange={(event) => updateProfileField("lastName", event.target.value)} placeholder="Nguyen" />
                       </div>
                       <div className="grid gap-2 md:col-span-2">
-                        <Label htmlFor="email">Email Cognito</Label>
+                        <Label htmlFor="email">{t("auth.email")} Cognito</Label>
                         <Input id="email" type="email" value={profileForm.email} onChange={(event) => updateProfileField("email", event.target.value)} placeholder="finance@docuflow.ai" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="company">Công ty</Label>
+                        <Label htmlFor="company">{t("settings.company")}</Label>
                         <Input id="company" value={profileForm.company} onChange={(event) => updateProfileField("company", event.target.value)} placeholder="DocuFlow AI" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="department">Bộ phận</Label>
+                        <Label htmlFor="department">{t("settings.department")}</Label>
                         <Input id="department" value={profileForm.department} onChange={(event) => updateProfileField("department", event.target.value)} placeholder="Finance operations" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="phone">Số điện thoại</Label>
+                        <Label htmlFor="phone">{t("settings.phone")}</Label>
                         <Input id="phone" value={profileForm.phone} onChange={(event) => updateProfileField("phone", event.target.value)} placeholder="+84..." />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="defaultCurrency">Tiền tệ mặc định</Label>
+                        <Label htmlFor="defaultCurrency">{t("settings.defaultCurrency")}</Label>
                         <Select value={profileForm.defaultCurrency} onValueChange={(value) => updateProfileField("defaultCurrency", value)}>
                           <SelectTrigger id="defaultCurrency" className="w-full">
                             <SelectValue />
@@ -1225,7 +1219,7 @@ export default function SettingsPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="grid gap-2">
-                        <Label htmlFor="timezone">Timezone</Label>
+                        <Label htmlFor="timezone">{t("settings.timezone")}</Label>
                         <Select value={profileForm.timezone} onValueChange={(value) => updateProfileField("timezone", value)}>
                           <SelectTrigger id="timezone" className="w-full">
                             <SelectValue />
@@ -1238,8 +1232,14 @@ export default function SettingsPage() {
                         </Select>
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="language">Ngôn ngữ</Label>
-                        <Select value={profileForm.language} onValueChange={(value) => updateProfileField("language", value)}>
+                        <Label htmlFor="language">{t("settings.language")}</Label>
+                        <Select
+                          value={profileForm.language}
+                          onValueChange={(value) => {
+                            updateProfileField("language", value)
+                            setLanguage(value as AppLanguage)
+                          }}
+                        >
                           <SelectTrigger id="language" className="w-full">
                             <SelectValue />
                           </SelectTrigger>
@@ -1254,24 +1254,24 @@ export default function SettingsPage() {
 
                     <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
                       <div>
-                        <div className="text-sm font-medium">Bảng dữ liệu gọn hơn</div>
-                        <div className="mt-1 text-xs text-muted-foreground">Lưu preference này cho các bảng thao tác nhiều dòng.</div>
+                        <div className="text-sm font-medium">{t("settings.compactTables")}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{t("settings.languageHint")}</div>
                       </div>
                       <Switch checked={profileForm.compactTables} onCheckedChange={(value) => updateProfileField("compactTables", value)} />
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="notes">Ghi chú nội bộ</Label>
-                      <Textarea id="notes" value={profileForm.notes} onChange={(event) => updateProfileField("notes", event.target.value)} placeholder="Ví dụ: phụ trách hóa đơn nhà cung cấp khu vực APAC..." />
+                      <Label htmlFor="notes">{t("settings.internalNotes")}</Label>
+                      <Textarea id="notes" value={profileForm.notes} onChange={(event) => updateProfileField("notes", event.target.value)} placeholder={t("settings.notesPlaceholder")} />
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                       <Button type="button" variant="outline" onClick={() => session && setProfileForm({ ...defaultProfileForm, ...readStoredProfile(session.userId), firstName: session.firstName || "", lastName: session.lastName || "", email: session.email })}>
-                        Hoàn tác
+                        {t("settings.undo")}
                       </Button>
                       <Button type="button" onClick={handleSaveProfile} disabled={isSavingProfile}>
                         <Save className="size-4" />
-                        {isSavingProfile ? "Đang lưu..." : "Lưu hồ sơ"}
+                        {isSavingProfile ? t("settings.saving") : t("settings.saveProfile")}
                       </Button>
                     </div>
                   </CardContent>
@@ -1282,28 +1282,28 @@ export default function SettingsPage() {
                     <CardHeader className="border-b bg-muted/25">
                       <CardTitle className="flex items-center gap-2">
                         <ShieldCheck className="size-5" />
-                        Bảo mật tài khoản
+                        {t("settings.accountSecurity")}
                       </CardTitle>
-                      <CardDescription>Đổi mật khẩu Cognito cho phiên đăng nhập hiện tại.</CardDescription>
+                      <CardDescription>{t("settings.accountSecurityBody")}</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4 pt-5">
                       <div className="grid gap-2">
-                        <Label htmlFor="currentPassword">Mật khẩu hiện tại</Label>
+                        <Label htmlFor="currentPassword">{t("settings.currentPassword")}</Label>
                         <Input id="currentPassword" type="password" value={passwordForm.currentPassword} onChange={(event) => updatePasswordField("currentPassword", event.target.value)} />
                       </div>
                       <div className="grid gap-2 md:grid-cols-2">
                         <div className="grid gap-2">
-                          <Label htmlFor="newPassword">Mật khẩu mới</Label>
+                          <Label htmlFor="newPassword">{t("settings.newPassword")}</Label>
                           <Input id="newPassword" type="password" value={passwordForm.newPassword} onChange={(event) => updatePasswordField("newPassword", event.target.value)} />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>
+                          <Label htmlFor="confirmPassword">{t("settings.confirmPassword")}</Label>
                           <Input id="confirmPassword" type="password" value={passwordForm.confirmPassword} onChange={(event) => updatePasswordField("confirmPassword", event.target.value)} />
                         </div>
                       </div>
                       <div className="flex justify-end">
                         <Button type="button" variant="outline" onClick={handleChangePassword} disabled={isChangingPassword}>
-                          {isChangingPassword ? "Đang cập nhật..." : "Đổi mật khẩu"}
+                          {isChangingPassword ? t("settings.saving") : t("settings.changePassword")}
                         </Button>
                       </div>
                     </CardContent>
@@ -1313,21 +1313,21 @@ export default function SettingsPage() {
                     <CardHeader className="border-b border-[#d8ff72]/30">
                       <CardTitle className="flex items-center gap-2">
                         <CircleDollarSign className="size-5" />
-                        Workspace mặc định
+                        {t("settings.defaultWorkspace")}
                       </CardTitle>
-                      <CardDescription>Thiết lập này đang lưu trên trình duyệt theo user.</CardDescription>
+                      <CardDescription>{t("settings.defaultWorkspaceBody")}</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 pt-5 text-sm">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Tiền tệ</span>
+                        <span className="text-muted-foreground">{t("documents.currency")}</span>
                         <span className="font-mono font-semibold">{profileForm.defaultCurrency}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Timezone</span>
+                        <span className="text-muted-foreground">{t("settings.timezone")}</span>
                         <span className="font-mono text-xs font-semibold">{profileForm.timezone}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground">Ngôn ngữ</span>
+                        <span className="text-muted-foreground">{t("settings.language")}</span>
                         <span className="font-semibold">{languageOptions.find((item) => item.value === profileForm.language)?.label}</span>
                       </div>
                     </CardContent>
@@ -1343,16 +1343,16 @@ export default function SettingsPage() {
                 <CardHeader className="border-b bg-muted/25">
                   <CardTitle className="flex items-center gap-2">
                     <Settings2 className="size-5" />
-                    Bộ lọc thông báo
+                    {t("settings.notificationFilters")}
                   </CardTitle>
                   <CardDescription>
-                    {filteredNotifications.length} thông báo phù hợp · {apiNotifications ? "Nguồn API" : "Nguồn tài liệu"}
+                    {t("settings.notificationFilterSummary", { count: filteredNotifications.length, source: apiNotifications ? t("settings.apiSource") : t("settings.documentSource") })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 pt-5">
-                  <SettingSearch value={notificationQuery} onChange={setNotificationQuery} placeholder="Tìm kiếm thông báo..." />
+                  <SettingSearch value={notificationQuery} onChange={setNotificationQuery} placeholder={t("notifications.searchPlaceholder")} />
                   <div className="grid gap-2">
-                    {notificationFilters.map((item) => {
+                    {localizedNotificationFilters.map((item) => {
                       const count =
                         item.value === "ALL"
                           ? notifications.length
@@ -1382,7 +1382,7 @@ export default function SettingsPage() {
                   <div className="grid gap-2">
                     <Button type="button" size="sm" onClick={handleAcknowledgeAllActionNotifications} disabled={openActionCount === 0}>
                       <CheckCheck className="size-4" />
-                      Đánh dấu đã xem
+                      {t("settings.markViewed")}
                     </Button>
                     <Button
                       type="button"
@@ -1391,7 +1391,7 @@ export default function SettingsPage() {
                       onClick={handleResetNotificationAcknowledgements}
                       disabled={!notifications.some((notification) => acknowledgedNotificationSet.has(notification.id))}
                     >
-                      Khôi phục trạng thái
+                      {t("settings.restoreStatus")}
                     </Button>
                   </div>
                 </CardContent>
@@ -1403,13 +1403,13 @@ export default function SettingsPage() {
               <CardHeader className="border-b bg-muted/25">
                 <CardTitle className="flex items-center gap-2">
                   <Inbox className="size-5" />
-                  Trung tâm thông báo
+                  {t("settings.notificationCenter")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 pt-5">
                 {(syncError || settingsApiWarning) && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    {syncError ? `Không thể đồng bộ dữ liệu mới: ${syncError}` : settingsApiWarning}
+                    {syncError ? t("settings.syncDataError", { error: syncError }) : settingsApiWarning}
                   </div>
                 )}
                 {isSyncing || isLoadingSettingsApi ? (
@@ -1440,15 +1440,15 @@ export default function SettingsPage() {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <div className="font-medium">{notification.title}</div>
-                              {notification.unread && <Badge className="bg-[#d8ff72] text-[#10261d]">Cần xử lý</Badge>}
-                              {acknowledged && <Badge variant="outline">Đã xem</Badge>}
+                              {notification.unread && <Badge className="bg-[#d8ff72] text-[#10261d]">{t("notifications.actionRequired")}</Badge>}
+                              {acknowledged && <Badge variant="outline">{t("notifications.markRead")}</Badge>}
                               <StatusBadge status={notification.document.status} />
                             </div>
                             <div className="mt-1 text-sm leading-6 text-muted-foreground">{notification.body}</div>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <MailCheck className="size-3.5" />
                               <span className="max-w-[260px] truncate">{notification.document.originalFileName}</span>
-                              <span>{notification.document.vendorName || "Thiếu nhà cung cấp"}</span>
+                              <span>{notification.document.vendorName || t("settings.missingVendor")}</span>
                               <span>{formatMoney(notification.document.totalAmount, notification.document.currency)}</span>
                               <span>{Math.round(notification.document.confidenceScore * 100)}%</span>
                               <span>{formatDate(notification.timestamp)}</span>
@@ -1459,19 +1459,19 @@ export default function SettingsPage() {
                           {notification.requiresAction && notification.unread && (
                             <Button type="button" variant="outline" size="sm" onClick={() => handleAcknowledgeNotification(notification.id)}>
                               <CheckCheck className="size-3.5" />
-                              Đã xem
+                              {t("notifications.markRead")}
                             </Button>
                           )}
                           <Button asChild variant="outline" size="sm">
                             <Link to={`/documents/${notification.document.documentId}`}>
-                              Mở tài liệu
+                              {t("notifications.openDocument")}
                               <ArrowRight className="ml-1 size-3.5" />
                             </Link>
                           </Button>
                           {notification.requiresAction && (
                             <Button asChild size="sm">
                               <Link to="/review">
-                                Kiểm duyệt
+                                {t("notifications.review")}
                                 <ArrowRight className="ml-1 size-3.5" />
                               </Link>
                             </Button>
@@ -1483,8 +1483,8 @@ export default function SettingsPage() {
                 ) : (
                   <div className="rounded-xl border border-dashed p-8 text-center">
                     <CheckCircle2 className="mx-auto mb-3 size-8 text-emerald-600" />
-                    <div className="font-medium">Không có thông báo nào phù hợp.</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Hãy xóa bộ lọc hoặc kiểm tra lại tài liệu.</div>
+                    <div className="font-medium">{t("notifications.noMatch")}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{t("notifications.noMatchHint")}</div>
                   </div>
                 )}
               </CardContent>
@@ -1497,9 +1497,9 @@ export default function SettingsPage() {
                 <CardHeader className="border-b bg-muted/25">
                   <CardTitle className="flex items-center gap-2">
                     <Settings2 className="size-5" />
-                    Bộ lọc hoạt động
+                    {t("activity.filters")}
                   </CardTitle>
-                  <CardDescription>Tìm kiếm và lọc theo loại hoạt động.</CardDescription>
+                  <CardDescription>{t("activity.filtersBody")}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 pt-5">
                   <SettingSearch
@@ -1508,10 +1508,10 @@ export default function SettingsPage() {
                       setActivityQuery(value)
                       setActivityPage(1)
                     }}
-                    placeholder="Tìm kiếm tên tài liệu..."
+                    placeholder={t("activity.searchNamePlaceholder")}
                   />
                   <div className="grid gap-2">
-                    {activityFilters.map((item) => (
+                    {localizedActivityFilters.map((item) => (
                       <Button
                         key={item.value}
                         type="button"
@@ -1531,41 +1531,41 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid gap-3">
                     <div className="grid gap-1.5">
-                      <Label>Khoảng thời gian</Label>
+                      <Label>{t("settings.activityRange")}</Label>
                       <Select value={activityRangeFilter} onValueChange={(value) => { setActivityRangeFilter(value as ActivityRangeFilter); setActivityPage(1) }}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {activityRangeOptions.map((option) => (
+                          {localizedRangeOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-1.5">
-                      <Label>Mức độ</Label>
+                      <Label>{t("settings.activitySeverity")}</Label>
                       <Select value={activitySeverityFilter} onValueChange={(value) => { setActivitySeverityFilter(value as ActivitySeverityFilter); setActivityPage(1) }}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {activitySeverityOptions.map((option) => (
+                          {localizedSeverityOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-1.5">
-                      <Label>Trạng thái tài liệu</Label>
+                      <Label>{t("settings.documentStatus")}</Label>
                       <Select value={activityStatusFilter} onValueChange={(value) => { setActivityStatusFilter(value as ActivityStatusFilter); setActivityPage(1) }}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ALL">Mọi trạng thái</SelectItem>
+                          <SelectItem value="ALL">{t("settings.allStatuses")}</SelectItem>
                           {(Object.keys(statusMeta) as DocumentStatus[]).map((status) => (
-                            <SelectItem key={status} value={status}>{statusMeta[status].label}</SelectItem>
+                            <SelectItem key={status} value={status}>{t(`status.${status}` as TranslationKey)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1574,9 +1574,7 @@ export default function SettingsPage() {
                   <Separator />
                   <div className="grid grid-cols-2 gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={resetActivityFilters}>
-                      <RotateCcw className="size-3.5" />
-                      Đặt lại
-                    </Button>
+                      <RotateCcw className="size-3.5" />{t("settings.reset")}</Button>
                     <Button type="button" size="sm" onClick={() => exportActivityCsv(filteredEvents)} disabled={!filteredEvents.length}>
                       <Download className="size-3.5" />
                       CSV
@@ -1588,16 +1586,14 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader className="border-b bg-muted/25">
                   <CardTitle className="flex items-center gap-2">
-                    <ListChecks className="size-5" />
-                    Tóm tắt audit
-                  </CardTitle>
+                    <ListChecks className="size-5" />{t("settings.auditSummary")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-3 pt-5">
                   {[
-                    ["Tổng sự kiện", events.length],
-                    ["Tải lên", uploadEventCount],
-                    ["Cần duyệt/lỗi", reviewEventCount],
-                    ["Lỗi", errorEventCount],
+                    [t("settings.totalEvents"), events.length],
+                    [t("settings.upload"), uploadEventCount],
+                    [t("settings.needsReviewOrError"), reviewEventCount],
+                    [t("settings.errorEvent"), errorEventCount],
                   ].map(([label, value]) => (
                     <div key={label} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
                       <span className="text-muted-foreground">{label}</span>
@@ -1611,7 +1607,7 @@ export default function SettingsPage() {
                 <CardHeader className="border-b bg-muted/25">
                   <CardTitle className="flex items-center gap-2">
                     <Clock3 className="size-5" />
-                    Hoạt động mới nhất
+                    {t("activity.latest")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-5">
@@ -1621,12 +1617,12 @@ export default function SettingsPage() {
                       <div className="mt-1 text-sm leading-6 text-muted-foreground">{latestEvent.detail}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Badge variant="outline">{latestEvent.actor}</Badge>
-                        <Badge variant="outline" className={activitySeverityMeta[latestEvent.severity].className}>{activitySeverityMeta[latestEvent.severity].label}</Badge>
+                        <Badge variant="outline" className={activitySeverityMeta[latestEvent.severity].className}>{activitySeverityLabel(latestEvent.severity)}</Badge>
                       </div>
                       <div className="mt-3 font-mono text-xs text-muted-foreground">{formatDate(latestEvent.timestamp)}</div>
                     </div>
                   ) : (
-                    <div className="text-sm text-muted-foreground">Chưa có hoạt động nào.</div>
+                    <div className="text-sm text-muted-foreground">{t("activity.noActivity")}</div>
                   )}
                 </CardContent>
               </Card>
@@ -1636,14 +1632,14 @@ export default function SettingsPage() {
               <CardHeader className="border-b bg-muted/25">
                 <CardTitle className="flex items-center gap-2">
                   <ListChecks className="size-5" />
-                  Dòng thời gian
+                  {t("activity.timeline")}
                 </CardTitle>
-                <CardDescription>{filteredEvents.length} sự kiện phù hợp bộ lọc, nhóm theo ngày để dễ đối chiếu.</CardDescription>
+                <CardDescription>{t("settings.timelineSummary", { count: filteredEvents.length })}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 pt-5">
                 {(syncError || settingsApiWarning) && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    {syncError ? `Không thể đồng bộ activity mới: ${syncError}` : settingsApiWarning}
+                    {syncError ? t("settings.syncActivityError", { error: syncError }) : settingsApiWarning}
                   </div>
                 )}
                 {isSyncing || isLoadingSettingsApi ? (
@@ -1675,20 +1671,20 @@ export default function SettingsPage() {
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <div className="font-medium">{event.title}</div>
-                                    <Badge variant="secondary" className="text-xs">{kindLabel[event.kind]}</Badge>
-                                    <Badge variant="outline" className={activitySeverityMeta[event.severity].className}>{activitySeverityMeta[event.severity].label}</Badge>
+                                    <Badge variant="secondary" className="text-xs">{activityKindLabel(event.kind)}</Badge>
+                                    <Badge variant="outline" className={activitySeverityMeta[event.severity].className}>{activitySeverityLabel(event.severity)}</Badge>
                                     <StatusBadge status={event.document.status} />
                                   </div>
                                   <div className="mt-1 text-sm leading-6 text-muted-foreground">{event.detail}</div>
                                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                     <span className="max-w-[220px] truncate">{event.document.originalFileName}</span>
-                                    <span>{event.document.vendorName || "Thiếu nhà cung cấp"}</span>
+                                    <span>{event.document.vendorName || t("settings.missingVendor")}</span>
                                     <span>{formatMoney(event.document.totalAmount, event.document.currency)}</span>
                                     <span>{Math.round(event.document.confidenceScore * 100)}%</span>
                                   </div>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
-                                    <Badge variant="outline">Actor: {event.actor}</Badge>
-                                    <Badge variant="outline">Source: {event.source}</Badge>
+                                    <Badge variant="outline">{t("settings.actor")}: {event.actor}</Badge>
+                                    <Badge variant="outline">{t("settings.source")}: {event.source}</Badge>
                                     <Badge variant="outline" className="font-mono">{formatDate(event.timestamp)}</Badge>
                                   </div>
                                 </div>
@@ -1696,13 +1692,13 @@ export default function SettingsPage() {
                               <div className="flex flex-wrap gap-2 lg:flex-col">
                                 <Button asChild variant="outline" size="sm" className="w-fit shrink-0">
                                   <Link to={`/documents/${event.document.documentId}`}>
-                                    Xem <ArrowRight className="ml-1 size-3.5" />
+                                    {t("activity.view")} <ArrowRight className="ml-1 size-3.5" />
                                   </Link>
                                 </Button>
                                 {event.kind === "REVIEW" && (
                                   <Button asChild size="sm" className="w-fit shrink-0">
                                     <Link to="/review">
-                                      Review <ArrowRight className="ml-1 size-3.5" />
+                                      {t("activity.review")} <ArrowRight className="ml-1 size-3.5" />
                                     </Link>
                                   </Button>
                                 )}
@@ -1716,8 +1712,8 @@ export default function SettingsPage() {
                 ) : (
                   <div className="rounded-xl border border-dashed p-8 text-center">
                     <History className="mx-auto mb-3 size-8 text-muted-foreground" />
-                    <div className="font-medium">Không có kết quả phù hợp.</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Thử xóa bộ lọc hoặc tìm kiếm lại.</div>
+                    <div className="font-medium">{t("activity.noMatch")}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{t("activity.noMatchHint")}</div>
                   </div>
                 )}
 

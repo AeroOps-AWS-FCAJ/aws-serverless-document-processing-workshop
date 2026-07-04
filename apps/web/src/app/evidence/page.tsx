@@ -50,6 +50,7 @@ import {
   demoScript,
   testCases,
 } from "@/lib/docuflow-data"
+import { useAdminText } from "@/lib/admin-i18n"
 
 type EvidenceStatus = "Captured" | "Ready" | "Missing"
 type ArtifactType = "Screenshot" | "AWS Console" | "JSON" | "Command" | "Email" | "Trace"
@@ -192,6 +193,7 @@ function exportEvidenceCsv(rows: Array<Record<string, string | number>>) {
 }
 
 export default function EvidencePage() {
+  const a = useAdminText()
   const [copied, setCopied] = useState(false)
   const capturedCount = useMemo(
     () => Object.values(evidenceArtifacts).filter((artifact) => artifact.status === "Captured").length,
@@ -219,17 +221,17 @@ export default function EvidencePage() {
 
   const copyReviewerPacket = async () => {
     const packet = [
-      "DocuFlow AI reviewer packet",
-      `Readiness: ${readiness}%`,
-      `Captured artifacts: ${capturedCount}`,
-      `Ready to capture: ${readyCount}`,
-      `Missing artifacts: ${missingCount}`,
+      a("DocuFlow AI reviewer packet"),
+      `${a("Readiness")}: ${readiness}%`,
+      `${a("Captured artifacts")}: ${capturedCount}`,
+      `${a("Ready to capture")}: ${readyCount}`,
+      `${a("Missing artifacts")}: ${missingCount}`,
       "",
-      "Demo checkpoints:",
-      ...demoTimeline.map((item) => `- ${item.time} ${item.step} (${item.screen})`),
+      a("Demo checkpoints:"),
+      ...demoTimeline.map((item) => `- ${item.time} ${a(item.step)} (${item.screen})`),
       "",
-      "Open items:",
-      ...evidenceRows.filter((row) => row.evidenceStatus !== "Captured").map((row) => `- ${row.id}: ${row.artifact}`),
+      a("Open items:"),
+      ...evidenceRows.filter((row) => row.evidenceStatus !== "Captured").map((row) => `- ${row.id}: ${a(row.artifact)}`),
     ].join("\n")
 
     setCopied(true)
@@ -261,18 +263,17 @@ export default function EvidencePage() {
               <div className="absolute inset-y-0 right-0 hidden w-px bg-white/12 lg:block" />
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-[#d8ff72]/30 bg-[#d8ff72] font-semibold text-[11px] text-[#10261d]">
-                  Submission packet
+                  {a("Submission packet")}
                 </Badge>
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
-                  Reviewer ready
+                  {a("Reviewer ready")}
                 </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
-                Evidence room for proving the full document workflow.
+                {a("Evidence room for proving the full document workflow.")}
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/62">
-                Capture the exact artifacts a reviewer needs: happy path, failure path, AWS service proof,
-                alert delivery, secret hygiene, budget guardrails, and cleanup readiness.
+                {a("Capture the exact artifacts a reviewer needs: happy path, failure path, AWS service proof, alert delivery, secret hygiene, budget guardrails, and cleanup readiness.")}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button
@@ -281,7 +282,7 @@ export default function EvidencePage() {
                   onClick={() => exportEvidenceCsv(evidenceRows)}
                 >
                   <Download className="size-4" />
-                  Export checklist
+                  {a("Export checklist")}
                 </Button>
                 <Button
                   type="button"
@@ -290,7 +291,7 @@ export default function EvidencePage() {
                   onClick={copyReviewerPacket}
                 >
                   {copied ? <ClipboardCheck className="size-4" /> : <Clipboard className="size-4" />}
-                  {copied ? "Copied packet" : "Copy reviewer packet"}
+                  {copied ? a("Copied packet") : a("Copy reviewer packet")}
                 </Button>
               </div>
             </div>
@@ -309,7 +310,7 @@ export default function EvidencePage() {
                       <span className="font-mono text-[10px] text-white/35">EVD</span>
                     </div>
                     <div className="text-3xl font-semibold text-white">{item.value}</div>
-                    <div className="mt-1 text-xs text-white/50">{item.label}</div>
+                    <div className="mt-1 text-xs text-white/50">{a(item.label)}</div>
                   </div>
                 )
               })}
@@ -323,10 +324,10 @@ export default function EvidencePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="size-5" />
-              Evidence artifact table
+              {a("Evidence artifact table")}
             </CardTitle>
             <CardDescription>
-              Each test has a concrete artifact slot, owner, and route back into the product.
+              {a("Each test has a concrete artifact slot, owner, and route back into the product.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -335,11 +336,11 @@ export default function EvidencePage() {
                 <TableHeader className="bg-muted">
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>Test case</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Artifact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Open</TableHead>
+                    <TableHead>{a("Test case")}</TableHead>
+                    <TableHead>{a("Owner")}</TableHead>
+                    <TableHead>{a("Artifact")}</TableHead>
+                    <TableHead>{a("Status")}</TableHead>
+                    <TableHead>{a("Open")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -349,25 +350,25 @@ export default function EvidencePage() {
                       <TableRow key={testCase.id}>
                         <TableCell className="font-mono">{testCase.id}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{testCase.name}</div>
-                          <div className="mt-1 text-xs leading-5 text-muted-foreground">{testCase.expected}</div>
+                          <div className="font-medium">{a(testCase.name)}</div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">{a(testCase.expected)}</div>
                         </TableCell>
                         <TableCell>{testCase.owner}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">{artifact.type}</Badge>
-                            <span className="text-sm text-muted-foreground">{artifact.artifact}</span>
+                            <Badge variant="secondary">{a(artifact.type)}</Badge>
+                            <span className="text-sm text-muted-foreground">{a(artifact.artifact)}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={statusClass(artifact.status)}>
-                            {artifact.status}
+                            {a(artifact.status)}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Button asChild variant="outline" size="sm" className="h-8">
                             <Link to={artifact.route}>
-                              View
+                              {a("View")}
                               <ExternalLink className="size-3.5" />
                             </Link>
                           </Button>
@@ -386,16 +387,16 @@ export default function EvidencePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <BadgeCheck className="size-5" />
-                Readiness gauge
+                {a("Readiness gauge")}
               </CardTitle>
               <CardDescription>
-                Weighted by captured and ready-to-capture artifacts.
+                {a("Weighted by captured and ready-to-capture artifacts.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-5 pt-5">
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">Reviewer packet readiness</span>
+                  <span className="font-medium">{a("Reviewer packet readiness")}</span>
                   <span className="font-mono text-muted-foreground">{readiness}%</span>
                 </div>
                 <Progress value={readiness} />
@@ -408,7 +409,7 @@ export default function EvidencePage() {
                 ].map(([label, value]) => (
                   <div key={label} className="border-r p-3 last:border-r-0">
                     <div className="text-2xl font-semibold">{value}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{a(String(label))}</div>
                   </div>
                 ))}
               </div>
@@ -416,7 +417,7 @@ export default function EvidencePage() {
                 {quickLinks.map((link) => (
                   <Button key={link.to} asChild variant="outline" className="justify-between">
                     <Link to={link.to}>
-                      {link.label}
+                      {a(link.label)}
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
@@ -429,10 +430,10 @@ export default function EvidencePage() {
             <CardHeader className="border-b bg-muted/25">
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="size-5" />
-                Secret hygiene
+                {a("Secret hygiene")}
               </CardTitle>
               <CardDescription>
-                Required proof before publishing source or screenshots.
+                {a("Required proof before publishing source or screenshots.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-5 text-sm">
@@ -444,7 +445,7 @@ export default function EvidencePage() {
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3 border p-3">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span>{item}</span>
+                  <span>{a(item)}</span>
                 </div>
               ))}
             </CardContent>
@@ -457,10 +458,10 @@ export default function EvidencePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Film className="size-5" />
-              Demo run timeline
+              {a("Demo run timeline")}
             </CardTitle>
             <CardDescription>
-              Seven-minute flow with the screen and proof point for each beat.
+              {a("Seven-minute flow with the screen and proof point for each beat.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5">
@@ -474,8 +475,8 @@ export default function EvidencePage() {
                       {step.screen}
                     </Link>
                   </div>
-                  <div className="mt-2 text-sm leading-6">{step.step}</div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{step.proof}</div>
+                  <div className="mt-2 text-sm leading-6">{a(step.step)}</div>
+                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{a(step.proof)}</div>
                 </div>
               </div>
             ))}
@@ -486,10 +487,10 @@ export default function EvidencePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <Cloud className="size-5" />
-              AWS service proof matrix
+              {a("AWS service proof matrix")}
             </CardTitle>
             <CardDescription>
-              Every retained service has a screenshot, trace, command, or JSON proof target.
+              {a("Every retained service has a screenshot, trace, command, or JSON proof target.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5 md:grid-cols-2">
@@ -504,14 +505,14 @@ export default function EvidencePage() {
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium">{item.service}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{item.layer}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{a(item.layer)}</div>
                       </div>
                     </div>
                     <Badge variant="outline" className={statusClass(item.status)}>
-                      {item.status}
+                      {a(item.status)}
                     </Badge>
                   </div>
-                  <div className="mt-4 text-sm leading-6 text-muted-foreground">{item.artifact}</div>
+                  <div className="mt-4 text-sm leading-6 text-muted-foreground">{a(item.artifact)}</div>
                 </div>
               )
             })}
@@ -524,17 +525,17 @@ export default function EvidencePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <CheckSquare className="size-5" />
-              Definition of Done
+              {a("Definition of Done")}
             </CardTitle>
             <CardDescription>
-              MVP is complete when these integration and cost-control items are evidenced.
+              {a("MVP is complete when these integration and cost-control items are evidenced.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-3">
             {definitionOfDone.map((item) => (
               <div key={item} className="flex items-start gap-3 border p-3">
                 <CheckSquare className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                <span className="text-sm leading-6">{item}</span>
+                <span className="text-sm leading-6">{a(item)}</span>
               </div>
             ))}
           </CardContent>
@@ -544,21 +545,21 @@ export default function EvidencePage() {
           <CardHeader className="border-b bg-muted/25">
             <CardTitle className="flex items-center gap-2">
               <TerminalSquare className="size-5" />
-              Reviewer packet
+              {a("Reviewer packet")}
             </CardTitle>
             <CardDescription>
-              The minimum story to close the workshop demo.
+              {a("The minimum story to close the workshop demo.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 pt-5">
             {reviewerPacket.map((item, index) => (
               <div key={item} className="flex items-center gap-3 border p-3">
                 <Badge variant="secondary">0{index + 1}</Badge>
-                <span className="text-sm font-medium">{item}</span>
+                <span className="text-sm font-medium">{a(item)}</span>
               </div>
             ))}
             <div className="border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-              Capture missing failure and cleanup artifacts before the final mentor review.
+              {a("Capture missing failure and cleanup artifacts before the final mentor review.")}
             </div>
           </CardContent>
         </Card>

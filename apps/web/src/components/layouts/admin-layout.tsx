@@ -7,12 +7,15 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { useLanguage } from "@/lib/i18n"
 
 interface AdminLayoutProps {
   children: React.ReactNode
 }
 
 export function AdminLayout({ children }: AdminLayoutProps) {
+  const { t } = useLanguage()
+
   return (
     <SidebarProvider
       style={
@@ -36,7 +39,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         {/* Admin footer */}
         <footer className="border-t px-6 py-3 bg-muted/20">
           <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-            DocuFlow AI · Admin Console · System administrator access
+            DocuFlow AI · {t("admin.console")} · {t("admin.footer")}
           </p>
         </footer>
       </SidebarInset>

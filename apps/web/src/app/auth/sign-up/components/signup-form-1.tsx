@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
@@ -28,20 +28,16 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useLanguage } from "@/lib/i18n"
 
-const signupFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(6, "Please confirm your password"),
-  terms: z.boolean().refine(val => val === true, "You must agree to the terms"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-})
-
-type SignupFormValues = z.infer<typeof signupFormSchema>
+type SignupFormValues = {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  confirmPassword: string
+  terms: boolean
+}
 
 const authCardClass = "border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]"
 const authInputClass = "!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
@@ -54,10 +50,29 @@ export function SignupForm1({
   ...props
 }: React.ComponentProps<"div">) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const [step, setStep] = useState<"signUp" | "confirmSignUp">("signUp")
   const [isLoading, setIsLoading] = useState(false)
   const [registeredEmail, setRegisteredEmail] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
+
+  const signupFormSchema = useMemo(
+    () =>
+      z
+        .object({
+          firstName: z.string().min(1, t("auth.firstNameRequired")),
+          lastName: z.string().min(1, t("auth.lastNameRequired")),
+          email: z.string().email(t("auth.invalidEmail")),
+          password: z.string().min(6, t("auth.passwordMin")),
+          confirmPassword: z.string().min(6, t("auth.confirmPasswordRequired")),
+          terms: z.boolean().refine((val) => val === true, t("auth.termsRequired")),
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+          message: t("auth.passwordMismatch"),
+          path: ["confirmPassword"],
+        }),
+    [t]
+  )
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
@@ -90,17 +105,17 @@ export function SignupForm1({
 
       if (nextStep.signUpStep === "CONFIRM_SIGN_UP") {
         setStep("confirmSignUp")
-        toast.success("A verification code has been sent to your email.")
+        toast.success(t("auth.codeSent"))
       } else {
-        toast.success("Registration successful! Please sign in.")
+        toast.success(t("auth.registrationSuccess"))
         navigate("/auth/sign-in")
       }
     } catch (error: unknown) {
       console.error("Signup error:", error)
       if (error instanceof Error) {
-        toast.error(error.message || "Failed to sign up. Please try again.")
+        toast.error(error.message || t("auth.signUpFailed"))
       } else {
-        toast.error("Failed to sign up. Please try again.")
+        toast.error(t("auth.signUpFailed"))
       }
     } finally {
       setIsLoading(false)
@@ -110,7 +125,7 @@ export function SignupForm1({
   async function handleConfirmCode(e: React.FormEvent) {
     e.preventDefault()
     if (!verificationCode) {
-      toast.error("Please enter the verification code.")
+      toast.error(t("auth.enterCode"))
       return
     }
     setIsLoading(true)
@@ -121,17 +136,17 @@ export function SignupForm1({
       })
 
       if (isSignUpComplete) {
-        toast.success("Account confirmed successfully! Please sign in.")
+        toast.success(t("auth.confirmed"))
         navigate("/auth/sign-in")
       } else {
-        toast.error("Verification incomplete. Please check again.")
+        toast.error(t("auth.confirmIncomplete"))
       }
     } catch (error: unknown) {
       console.error("Confirmation error:", error)
       if (error instanceof Error) {
-        toast.error(error.message || "Invalid verification code.")
+        toast.error(error.message || t("auth.invalidCode"))
       } else {
-        toast.error("Invalid verification code.")
+        toast.error(t("auth.invalidCode"))
       }
     } finally {
       setIsLoading(false)
@@ -140,19 +155,19 @@ export function SignupForm1({
 
   async function handleResendCode() {
     if (!registeredEmail) {
-      toast.error("No registered email found.")
+      toast.error(t("auth.noRegisteredEmail"))
       return
     }
     setIsLoading(true)
     try {
       await resendSignUpCode({ username: registeredEmail })
-      toast.success("Verification code resent.")
+      toast.success(t("auth.codeResent"))
     } catch (error: unknown) {
       console.error("Resend error:", error)
       if (error instanceof Error) {
-        toast.error(error.message || "Failed to resend code.")
+        toast.error(error.message || t("auth.resendFailed"))
       } else {
-        toast.error("Failed to resend code.")
+        toast.error(t("auth.resendFailed"))
       }
     } finally {
       setIsLoading(false)
@@ -165,9 +180,9 @@ export function SignupForm1({
         {step === "signUp" ? (
           <>
             <CardHeader className="border-b border-[#e2e3db] text-left">
-              <CardTitle className="text-lg text-[#11251d]">Account setup</CardTitle>
+              <CardTitle className="text-lg text-[#11251d]">{t("auth.accountSetup")}</CardTitle>
               <CardDescription className="text-[#647069]">
-                Register a Cognito user for the finance workspace.
+                {t("auth.accountSetupDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -181,7 +196,7 @@ export function SignupForm1({
                           name="firstName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className={authLabelClass}>First Name</FormLabel>
+                              <FormLabel className={authLabelClass}>{t("auth.firstName")}</FormLabel>
                               <FormControl>
                                 <Input placeholder="Minh" className={authInputClass} {...field} disabled={isLoading} />
                               </FormControl>
@@ -194,7 +209,7 @@ export function SignupForm1({
                           name="lastName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className={authLabelClass}>Last Name</FormLabel>
+                              <FormLabel className={authLabelClass}>{t("auth.lastName")}</FormLabel>
                               <FormControl>
                                 <Input placeholder="Nguyen" className={authInputClass} {...field} disabled={isLoading} />
                               </FormControl>
@@ -208,7 +223,7 @@ export function SignupForm1({
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={authLabelClass}>Email</FormLabel>
+                            <FormLabel className={authLabelClass}>{t("auth.email")}</FormLabel>
                             <FormControl>
                               <Input
                                 type="email"
@@ -227,7 +242,7 @@ export function SignupForm1({
                         name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={authLabelClass}>Password</FormLabel>
+                            <FormLabel className={authLabelClass}>{t("auth.password")}</FormLabel>
                             <FormControl>
                               <Input type="password" className={authInputClass} {...field} disabled={isLoading} />
                             </FormControl>
@@ -240,7 +255,7 @@ export function SignupForm1({
                         name="confirmPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={authLabelClass}>Confirm Password</FormLabel>
+                            <FormLabel className={authLabelClass}>{t("auth.confirmPassword")}</FormLabel>
                             <FormControl>
                               <Input type="password" className={authInputClass} {...field} disabled={isLoading} />
                             </FormControl>
@@ -262,19 +277,19 @@ export function SignupForm1({
                               />
                             </FormControl>
                             <FormLabel className="text-sm leading-5 text-[#647069]">
-                              I agree to the terms of service and privacy policy
+                              {t("auth.terms")}
                             </FormLabel>
                           </FormItem>
                         )}
                       />
                       <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
-                        {isLoading ? <LoadingSpinner /> : "Create account"}
+                        {isLoading ? <LoadingSpinner /> : t("auth.createAccount")}
                       </Button>
                     </div>
                     <div className="text-center text-sm text-[#647069]">
-                      Already have an account?{" "}
+                      {t("auth.hasAccount")}{" "}
                       <Link to="/auth/sign-in" className="font-medium text-[#153f30] underline underline-offset-4">
-                        Sign in
+                        {t("common.signIn")}
                       </Link>
                     </div>
                   </div>
@@ -285,9 +300,9 @@ export function SignupForm1({
         ) : (
           <>
             <CardHeader className="border-b border-[#e2e3db] text-left">
-              <CardTitle className="text-lg text-[#11251d]">Confirm account</CardTitle>
+              <CardTitle className="text-lg text-[#11251d]">{t("auth.confirmAccount")}</CardTitle>
               <CardDescription className="text-[#647069]">
-                Enter the verification code sent to {registeredEmail}.
+                {t("auth.confirmAccountDescription", { email: registeredEmail })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -295,7 +310,7 @@ export function SignupForm1({
                 <div className="grid gap-6 mt-4">
                   <div className="grid gap-4">
                     <div className="grid gap-3">
-                      <Label htmlFor="verificationCode" className={authLabelClass}>Verification Code</Label>
+                      <Label htmlFor="verificationCode" className={authLabelClass}>{t("auth.verificationCode")}</Label>
                       <Input
                         id="verificationCode"
                         type="text"
@@ -308,7 +323,7 @@ export function SignupForm1({
                       />
                     </div>
                     <Button type="submit" className={authPrimaryButtonClass} disabled={isLoading}>
-                      {isLoading ? <LoadingSpinner /> : "Confirm Account"}
+                      {isLoading ? <LoadingSpinner /> : t("auth.confirm")}
                     </Button>
                     <Button
                       type="button"
@@ -317,17 +332,17 @@ export function SignupForm1({
                       onClick={handleResendCode}
                       disabled={isLoading}
                     >
-                      Resend Code
+                      {t("auth.resend")}
                     </Button>
                   </div>
                   <div className="text-center text-sm text-[#647069]">
-                    Need to change email?{" "}
+                    {t("auth.changeEmail")}{" "}
                     <button
                       type="button"
                       onClick={() => setStep("signUp")}
                       className="cursor-pointer border-0 bg-transparent p-0 font-medium text-[#153f30] underline underline-offset-4 hover:text-[#10261d]"
                     >
-                      Back to sign up
+                      {t("auth.backToSignUp")}
                     </button>
                   </div>
                 </div>
@@ -337,7 +352,7 @@ export function SignupForm1({
         )}
       </Card>
       <div className="text-center text-xs text-[#647069] text-balance *:[a]:underline *:[a]:underline-offset-4 *:[a]:hover:text-[#153f30]">
-        Finance access is the default. Administrator access is assigned separately.
+        {t("auth.financeDefault")}
       </div>
     </div>
   )

@@ -27,7 +27,7 @@ export interface ProcessDocumentResponse {
 export interface ProcessDocumentMetadata {
   originalFileName?: string
   mimeType?: string
-  documentType?: "INVOICE" | "RECEIPT"
+  documentType?: "INVOICE" | "RECEIPT" | "UNKNOWN"
   pageCount?: number
 }
 
@@ -189,6 +189,21 @@ function isNotFoundError(error: unknown) {
   }
 }
 
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiRequestError) {
+    try {
+      const parsed = JSON.parse(error.body)
+      const message = parsed?.error?.errorMessage ?? parsed?.message
+      if (typeof message === "string" && message.trim()) return message.trim()
+    } catch {
+      if (error.body.trim()) return error.body.trim()
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) return error.message.trim()
+  return fallback
+}
+
 /**
  * Normalize a raw backend document to ensure every field the UI relies on is
  * present with a safe default value. The backend may omit fields, return them
@@ -208,7 +223,7 @@ function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
       explicitFileName: pickString(raw.originalFileName, raw.fileName, file.originalFileName, file.fileName),
       rawS3Key,
     }),
-    documentType:     raw.documentType ?? "INVOICE",
+    documentType:     raw.documentType ?? "UNKNOWN",
     status:           raw.status ?? "UPLOADED",
     invoiceNumber:    typeof raw.invoiceNumber === "string" ? raw.invoiceNumber : "",
     vendorName:       raw.vendorName ?? "Unknown",
@@ -611,7 +626,7 @@ function sanitizeNotification(raw: unknown): ApiNotificationItem | null {
     documentId,
     document,
     kind: normalizeNotificationKind(raw.kind, raw.severity),
-    title: String(raw.title ?? "Thông báo tài liệu"),
+    title: String(raw.title ?? "notification.defaultTitle"),
     body: String(raw.body ?? raw.message ?? ""),
     timestamp: String(raw.timestamp ?? raw.createdAt ?? raw.updatedAt ?? new Date().toISOString()),
     unread: Boolean(raw.unread ?? raw.isUnread ?? false),
@@ -648,7 +663,7 @@ function sanitizeActivity(raw: unknown): ApiActivityItem | null {
     documentId,
     document,
     kind: normalizeActivityKind(raw.kind),
-    title: String(raw.title ?? "Hoạt động tài liệu"),
+    title: String(raw.title ?? "activity.defaultTitle"),
     detail: String(raw.detail ?? raw.message ?? ""),
     timestamp: String(raw.timestamp ?? raw.createdAt ?? raw.updatedAt ?? new Date().toISOString()),
     actor: String(raw.actor ?? raw.userId ?? "Backend"),
