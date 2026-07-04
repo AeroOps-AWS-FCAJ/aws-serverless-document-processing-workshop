@@ -150,6 +150,9 @@ export default function DashboardPage() {
   const avgConf         = confDocs.length
     ? Math.round((confDocs.reduce((s, d) => s + d.confidenceScore, 0) / confDocs.length) * 100) : 0
   const totalVnd        = documents.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
+  const attentionVnd    = documents
+    .filter((d) => ["REVIEW_REQUIRED","CORRECTED"].includes(d.status))
+    .reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
 
   const attentionQueue = [...documents]
     .filter((d) => ["REVIEW_REQUIRED","FAILED","CORRECTED"].includes(d.status))
@@ -161,6 +164,10 @@ export default function DashboardPage() {
     .slice(0, 6)
 
   const activeDocs = recentDocs.filter((d) => ["UPLOADED","QUEUED","PROCESSING"].includes(d.status))
+  const latestDocument = recentDocs[0] ?? null
+  const heroFocusDocument = attentionQueue[0] ?? activeDocs[0] ?? recentDocs[0] ?? null
+  const heroFocusStatus = heroFocusDocument ? statusMeta[heroFocusDocument.status] : null
+  const HeroFocusIcon = heroFocusStatus?.icon ?? Files
 
   const visibleTrend   = monthlyVolume.slice(trendWindow === "30d" ? -1 : trendWindow === "90d" ? -3 : -6)
   const trendTotal     = visibleTrend.reduce((s, i) => s + i.extracted + i.review + i.failed, 0)
@@ -190,6 +197,22 @@ export default function DashboardPage() {
       ? { label: "Tiếp tục kiểm duyệt", url: "/review",    icon: CheckCircle2 }
       : { label: "Tải tài liệu lên",    url: "/upload",    icon: UploadCloud }
   const PrimaryIcon = primaryAction.icon
+  const PipelineHealthIcon = syncError ? WifiOff : apiMode ? Wifi : Activity
+  const pipelineHealthLabel = syncError
+    ? "Cần kiểm tra đồng bộ"
+    : activeDocs.length
+      ? "Pipeline đang xử lý"
+      : "Pipeline sẵn sàng"
+  const nextActionTitle = role === "admin"
+    ? "Kiểm tra vận hành và bằng chứng hệ thống."
+    : attentionQueue.length
+      ? "Xử lý hàng đợi kiểm duyệt trước."
+      : "Tải tài liệu mới để bắt đầu xử lý."
+  const nextActionDetail = role === "admin"
+    ? "Đi tới Operations để xem ingestion, workflow và cảnh báo."
+    : attentionQueue.length
+      ? `${attentionQueue.length} tài liệu đang cần quyết định của Finance.`
+      : "Workspace đang sạch. Bạn có thể upload invoice hoặc receipt mới."
 
   const exportCsv = () => {
     const hdr  = ["documentId","originalFileName","type","status","vendor","currency","totalAmount","confidence","updatedAt"]
@@ -203,8 +226,8 @@ export default function DashboardPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <BaseLayout
-      title="Trung tâm kiểm soát"
-      description="Theo dõi toàn bộ tài liệu đang di chuyển qua luồng xử lý bất đồng bộ."
+      title="Bảng điều phối tài liệu"
+      description="Ưu tiên hồ sơ cần xử lý, theo dõi pipeline và kiểm soát dữ liệu tài chính trong một màn hình."
     >
       <div className="grid min-w-0 gap-5 px-4 lg:px-6">
 
@@ -264,6 +287,46 @@ export default function DashboardPage() {
                       ? `${attentionCount} tài liệu cần chú ý — pipeline vẫn tiếp tục chạy nền.`
                       : "Pipeline đang hoạt động bình thường. Tải tài liệu mới bất kỳ lúc nào."}
                 </p>
+              </div>
+
+              <div className="grid gap-2.5 rounded-xl border border-white/10 bg-black/10 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:grid-cols-[1.25fr_0.85fr_0.85fr]">
+                <div className="min-w-0">
+                  <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">
+                    <HeroFocusIcon className="size-3 text-[#d8ff72]" />
+                    Hồ sơ ưu tiên
+                  </div>
+                  {heroFocusDocument ? (
+                    <Link to={`/documents/${heroFocusDocument.documentId}`} className="group block min-w-0">
+                      <div className="truncate text-sm font-semibold text-white group-hover:underline" title={heroFocusDocument.originalFileName}>
+                        {heroFocusDocument.originalFileName}
+                      </div>
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-white/45">
+                        <span className="truncate">{heroFocusDocument.vendorName}</span>
+                        <span className="text-white/20">·</span>
+                        <span>{formatDate(heroFocusDocument.updatedAt)}</span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="text-sm font-medium text-white/70">Chưa có tài liệu trong workspace</div>
+                  )}
+                </div>
+
+                <div className="border-t border-white/10 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">Giá trị cần xác nhận</div>
+                  <div className="mt-1 truncate text-base font-semibold tracking-[-0.03em] text-white">
+                    {formatMoney(attentionVnd, "VND")}
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/40">{reviewCount + correctedCount} hồ sơ đang chờ quyết định</div>
+                </div>
+
+                <div className="border-t border-white/10 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">Độ tin cậy trung bình</div>
+                  <div className="mt-1 flex items-end gap-2">
+                    <span className="text-base font-semibold tracking-[-0.03em] text-white">{avgConf}%</span>
+                    <span className="pb-0.5 text-[11px] text-white/40">{confDocs.length} tài liệu có điểm</span>
+                  </div>
+                  <Progress value={avgConf} className="mt-2 h-1.5 bg-white/10 [&>div]:bg-[#d8ff72]" />
+                </div>
               </div>
 
               {/* CTAs */}
@@ -368,12 +431,105 @@ export default function DashboardPage() {
           />
         </section>
 
+        <section aria-label="Tóm tắt công việc hôm nay" className="grid gap-4 lg:grid-cols-[1.15fr_.9fr_.95fr]">
+          <article className="flex min-w-0 flex-col justify-between rounded-xl border bg-card p-4 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                <PrimaryIcon className="size-3.5 text-primary" />
+                Việc tiếp theo
+              </div>
+              <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">{nextActionTitle}</h3>
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{nextActionDetail}</p>
+            </div>
+            <Button asChild size="sm" className="mt-4 w-fit">
+              <Link to={primaryAction.url}>
+                {primaryAction.label}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </article>
+
+          <article className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                <PipelineHealthIcon className={isSyncing ? "size-3.5 animate-spin text-primary" : "size-3.5 text-primary"} />
+                Sức khỏe pipeline
+              </div>
+              <Badge variant="outline" className={syncError ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>
+                {syncError ? "Cảnh báo" : "Ổn định"}
+              </Badge>
+            </div>
+            <div className="mt-4 text-base font-semibold tracking-[-0.02em]">{pipelineHealthLabel}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {activeDocs.length} tài liệu đang chạy · đồng bộ lúc {lastSync.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+            <Progress value={completionRate} className="mt-4 h-2" />
+            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+              <span>Sẵn sàng</span>
+              <span>{completionRate}%</span>
+            </div>
+          </article>
+
+          <article className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+              <Files className="size-3.5 text-primary" />
+              Tài liệu mới nhất
+            </div>
+            {latestDocument ? (
+              <Link to={`/documents/${latestDocument.documentId}`} className="group mt-4 block min-w-0">
+                <div className="truncate text-base font-semibold tracking-[-0.02em] group-hover:underline" title={latestDocument.originalFileName}>
+                  {latestDocument.originalFileName}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={latestDocument.status} />
+                  <span className="text-xs text-muted-foreground">{formatMoney(latestDocument.totalAmount, latestDocument.currency)}</span>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {latestDocument.vendorName} · {formatDate(latestDocument.updatedAt)}
+                </div>
+              </Link>
+            ) : (
+              <div className="mt-4">
+                <div className="text-base font-semibold tracking-[-0.02em]">Chưa có tài liệu.</div>
+                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Upload tài liệu đầu tiên để dashboard có dữ liệu thật.</p>
+              </div>
+            )}
+          </article>
+        </section>
+
+        {(failedCount > 0 || reviewCount > 0) && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-200/80 bg-amber-50/55 p-3 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                <AlertTriangle className="size-3.5 text-amber-700 dark:text-amber-300" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">Có tài liệu cần xác minh trước khi dùng cho báo cáo.</div>
+                <p className="mt-0.5 text-xs opacity-70">
+                  {failedCount > 0 && `${failedCount} tài liệu thất bại`}
+                  {failedCount > 0 && reviewCount > 0 && " và "}
+                  {reviewCount > 0 && `${reviewCount} tài liệu cần duyệt`}
+                  {" "}đang nằm trong hàng đợi xử lý bên dưới.
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 border-amber-300 bg-white/70 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-transparent dark:text-amber-100"
+            >
+              <Link to="/review">Mở hàng đợi <ArrowRight className="size-3.5" /></Link>
+            </Button>
+          </div>
+        )}
+
         {/* ── SECTION 3: Action area (attention queue + confidence ring) ────
             Widest card on the left = things to do NOW.
             Narrow card on the right = quick data quality snapshot.
             Together they answer: "What needs my attention?" immediately.
         ──────────────────────────────────────────────────────────────────── */}
-        <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[1fr_300px]">
+        <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
 
           {/* Attention queue */}
           <Card className="min-w-0 overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
@@ -642,37 +798,6 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* ── SECTION 6: Alert banner (conditional) ────────────────────────
-            Only rendered when there's something urgent.
-            Placed last so it doesn't visually interrupt the normal flow.
-        ──────────────────────────────────────────────────────────────────── */}
-        {(failedCount > 0 || reviewCount > 0) && (
-          <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-                <AlertTriangle className="size-4 text-amber-700 dark:text-amber-300" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold">Xác minh thủ công bảo vệ tính chính xác của dữ liệu tài chính.</div>
-                <p className="mt-0.5 text-xs opacity-70">
-                  {failedCount > 0 && `${failedCount} tài liệu thất bại`}
-                  {failedCount > 0 && reviewCount > 0 && " và "}
-                  {reviewCount > 0 && `${reviewCount} tài liệu cần duyệt`}
-                  {" "}vẫn hiển thị cho đến khi được giải quyết.
-                </p>
-              </div>
-            </div>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-amber-300 bg-white/80 text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-transparent dark:text-amber-100"
-            >
-              <Link to="/review">Giải quyết ngoại lệ <ArrowRight className="size-3.5" /></Link>
-            </Button>
-          </div>
-        )}
 
       </div>
     </BaseLayout>
