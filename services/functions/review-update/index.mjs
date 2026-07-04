@@ -17,11 +17,17 @@ const TABLE_NAME = process.env.DOCUFLOW_DEV_TABLE_NAME;
 const PROCESSED_BUCKET = process.env.DOCUFLOW_DEV_PROCESSED_BUCKET;
 const ALLOWED_REVIEW_STATUSES = new Set(["CORRECTED", "APPROVED"]);
 const REVIEWABLE_DOCUMENT_STATUSES = new Set([
+  "EXTRACTED",
   "REVIEW_REQUIRED",
   "CORRECTED",
   "APPROVED",
 ]);
+
+export function isReviewableDocumentStatus(status) {
+  return REVIEWABLE_DOCUMENT_STATUSES.has(status);
+}
 const ALLOWED_CORRECTION_FIELDS = new Set([
+  "documentType",
   "invoiceNumber",
   "vendorName",
   "invoiceDate",
@@ -35,6 +41,7 @@ const ALLOWED_CORRECTION_FIELDS = new Set([
   "lineItems",
 ]);
 const DYNAMODB_SUMMARY_FIELDS = new Set([
+  "documentType",
   "invoiceNumber",
   "vendorName",
   "invoiceDate",
@@ -142,7 +149,7 @@ export const handler = async (event) => {
       );
     }
 
-    if (!REVIEWABLE_DOCUMENT_STATUSES.has(existingItem.status)) {
+    if (!isReviewableDocumentStatus(existingItem.status)) {
       return formatResponse(
         409,
         false,
@@ -424,6 +431,11 @@ function buildDynamoDbUpdate({
 }
 
 function applyCorrection(document, correction) {
+  if (correction.fieldName === "documentType") {
+    document.documentType = correction.newValue;
+    return;
+  }
+
   if (correction.fieldName === "lineItems") {
     document.lineItems = correction.newValue;
     return;
@@ -489,12 +501,20 @@ function normalizeCorrectionValue(fieldName, value) {
       ),
     }));
   }
-  if (fieldName === "currency") return String(value).trim().toUpperCase();
+  if (fieldName === "currency" || fieldName === "documentType") {
+    return String(value).trim().toUpperCase();
+  }
   if (fieldName.endsWith("Amount")) return Number(value);
   return String(value).trim();
 }
 
-function validateCorrectionValue(fieldName, value) {
+export function validateCorrectionValue(fieldName, value) {
+  if (fieldName === "documentType") {
+    return ["INVOICE", "RECEIPT"].includes(String(value || "").trim().toUpperCase())
+      ? null
+      : "documentType must be INVOICE or RECEIPT.";
+  }
+
   if (fieldName === "lineItems") {
     if (value.length > 200) return "A maximum of 200 line items is allowed.";
     for (const item of value) {
