@@ -3,11 +3,11 @@ import { Navigate } from 'react-router-dom'
 import {
   GuestOnly,
   RequireRole,
-  RoleHomeRedirect,
 } from '@/components/auth/require-auth'
 import { AdminLayout } from '@/components/layouts/admin-layout'
 
 // ── Finance pages ─────────────────────────────────────────────────────────────
+const Landing = lazy(() => import('@/app/landing/page'))
 const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Upload = lazy(() => import('@/app/upload/page'))
 const Documents = lazy(() => import('@/app/documents/page'))
@@ -60,10 +60,16 @@ function adminRoute(path: string, Page: React.ComponentType): RouteConfig {
 }
 
 export const routes: RouteConfig[] = [
-  // ── Root redirect ──────────────────────────────────────────────────────────
+  // ── Public landing route ──────────────────────────────────────────────────
   {
     path: "/",
-    element: <RoleHomeRedirect />,
+    element: <Landing />,
+  },
+
+  // ── Legacy landing path ───────────────────────────────────────────────────
+  {
+    path: "/landing",
+    element: <Navigate to="/" replace />,
   },
 
   // ── Finance workspace routes (BaseLayout) ──────────────────────────────────
