@@ -15,5 +15,13 @@
     "build": "pnpm -r --parallel run build",
     "sam:validate": "sam validate --lint --template infrastructure/template.yaml"
   },
-  "devDependencies": {}
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1079.0",
+    "@aws-sdk/client-s3": "^3.1079.0",
+    "@aws-sdk/client-secrets-manager": "^3.1079.0",
+    "@aws-sdk/client-sfn": "^3.1079.0",
+    "@aws-sdk/client-textract": "^3.1079.0",
+    "@aws-sdk/lib-dynamodb": "^3.1079.0",
+    "@aws-sdk/s3-request-presigner": "^3.1079.0"
+  }
 }
