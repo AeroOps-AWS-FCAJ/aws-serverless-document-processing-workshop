@@ -1,11 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const s3Client = new S3Client({});
+const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const s3Client = new S3Client({
+  requestChecksumCalculation: "WHEN_REQUIRED",
+});
 
 const RAW_BUCKET =
   process.env.RAW_BUCKET || process.env.DOCUFLOW_DEV_RAW_BUCKET;
+const TABLE_NAME = process.env.DOCUFLOW_DEV_TABLE_NAME;
 const EXPIRES_SECONDS = Number(
   process.env.PRESIGNED_EXPIRES_SECONDS || 300
 );
@@ -156,8 +162,9 @@ export const handler = async (event) => {
     }
 
     const documentId = `doc-${randomUUID()}`;
+    const now = new Date().toISOString();
     const rawS3Key =
-      `raw/${userId}/${documentId}/original.${mimeTypeConfig.fileExtension}`;
+      `raw/${userId}/${documentId}/${toRawObjectFileName(originalFileName)}`;
     const uploadMetadata = {
       "original-file-name": encodeURIComponent(originalFileName),
       "page-count": String(pageCount),
@@ -170,8 +177,35 @@ export const handler = async (event) => {
       ContentType: mimeType,
       Metadata: uploadMetadata,
     });
+    const signedUploadHeaders = {
+      "content-type": mimeType,
+      ...Object.fromEntries(
+        Object.entries(uploadMetadata).map(([key, value]) => [
+          `x-amz-meta-${key}`,
+          value,
+        ])
+      ),
+    };
     const uploadUrl = await getSignedUrl(s3Client, putCommand, {
       expiresIn: EXPIRES_SECONDS,
+      signableHeaders: new Set(Object.keys(signedUploadHeaders)),
+      unhoistableHeaders: new Set(
+        Object.keys(signedUploadHeaders).filter((key) =>
+          key.startsWith("x-amz-meta-")
+        )
+      ),
+    });
+
+    await createUploadMetadata({
+      documentId,
+      documentType,
+      fileSizeBytes,
+      mimeType,
+      now,
+      originalFileName,
+      pageCount,
+      rawS3Key,
+      userId,
     });
 
     log("INFO", {
@@ -191,16 +225,9 @@ export const handler = async (event) => {
       documentId,
       uploadUrl,
       rawS3Key,
+      originalFileName,
       expiresInSeconds: EXPIRES_SECONDS,
-      uploadHeaders: {
-        "Content-Type": mimeType,
-        ...Object.fromEntries(
-          Object.entries(uploadMetadata).map(([key, value]) => [
-            `x-amz-meta-${key}`,
-            value,
-          ])
-        ),
-      },
+      uploadHeaders: signedUploadHeaders,
     });
   } catch (error) {
     log("ERROR", {
@@ -295,6 +322,15 @@ function validateConfiguration() {
     );
   }
 
+  if (!TABLE_NAME) {
+    return errorResponse(
+      500,
+      "MISSING_ENVIRONMENT_VARIABLE",
+      "DOCUFLOW_DEV_TABLE_NAME environment variable is missing.",
+      "CONFIGURATION"
+    );
+  }
+
   if (
     !Number.isInteger(EXPIRES_SECONDS) ||
     EXPIRES_SECONDS < 1 ||
@@ -335,6 +371,57 @@ function isExtensionMatched(originalFileName, mimeTypeConfig) {
   return mimeTypeConfig.allowedOriginalExtensions.some((extension) =>
     lowerFileName.endsWith(extension)
   );
+}
+
+function toRawObjectFileName(originalFileName) {
+  return originalFileName
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, "_")
+    .replace(/[?#]/g, "_");
+}
+
+async function createUploadMetadata({
+  documentId,
+  documentType,
+  fileSizeBytes,
+  mimeType,
+  now,
+  originalFileName,
+  pageCount,
+  rawS3Key,
+  userId,
+}) {
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        PK: `USER#${userId}`,
+        SK: `DOC#${documentId}`,
+        GSI1PK: "STATUS#UPLOADED",
+        GSI1SK: now,
+        schemaVersion: "1.0.0",
+        documentId,
+        userId,
+        documentType,
+        status: "UPLOADED",
+        originalFileName,
+        fileExtension: getFileExtension(originalFileName),
+        pageCount,
+        mimeType,
+        contentType: mimeType,
+        fileSizeBytes,
+        rawS3Key,
+        createdAt: now,
+        updatedAt: now,
+      },
+      ConditionExpression: "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+    })
+  );
+}
+
+function getFileExtension(fileName) {
+  const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+  return match ? match[1] : "";
 }
 
 function log(level, data) {

@@ -99,7 +99,9 @@ export interface ReportsSummaryResponse {
 }
 
 type RawApiDocument = Partial<DocumentResult> & {
+  file?: unknown
   fileName?: unknown
+  storage?: unknown
   lineItems?: unknown
 }
 
@@ -194,10 +196,18 @@ function isNotFoundError(error: unknown) {
  * values). This single function is the only place we need to handle that.
  */
 function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
+  const file = isRecord(raw.file) ? raw.file : {}
+  const storage = isRecord(raw.storage) ? raw.storage : {}
+  const rawS3Key = pickString(raw.rawS3Key, storage.rawS3Key)
+
   return {
     documentId:       raw.documentId ?? "",
     userId:           raw.userId ?? "",
-    originalFileName: raw.originalFileName ?? (typeof raw.fileName === "string" ? raw.fileName : "unknown"),
+    originalFileName: pickDisplayFileName({
+      documentId: raw.documentId,
+      explicitFileName: pickString(raw.originalFileName, raw.fileName, file.originalFileName, file.fileName),
+      rawS3Key,
+    }),
     documentType:     raw.documentType ?? "INVOICE",
     status:           raw.status ?? "UPLOADED",
     invoiceNumber:    typeof raw.invoiceNumber === "string" ? raw.invoiceNumber : "",
@@ -215,8 +225,8 @@ function sanitizeApiDocument(raw: RawApiDocument): DocumentResult {
     reviewReasonCodes: Array.isArray(raw.reviewReasonCodes) ? raw.reviewReasonCodes : [],
     aiProvider:       raw.aiProvider ?? "not-called",
     normalizationMethod: raw.normalizationMethod ?? "TEXTRACT_ONLY",
-    rawS3Key:         raw.rawS3Key ?? "",
-    processedS3Key:   raw.processedS3Key ?? "",
+    rawS3Key,
+    processedS3Key:   pickString(raw.processedS3Key, storage.processedS3Key),
     sourceUrl:        typeof raw.sourceUrl === "string" ? raw.sourceUrl : null,
     createdAt:        raw.createdAt ?? new Date().toISOString(),
     updatedAt:        raw.updatedAt ?? new Date().toISOString(),
@@ -241,6 +251,55 @@ function normalizeConfidenceScore(value: unknown) {
   if (score <= 0) return 0
   if (score <= 1) return score
   return Math.min(score / 100, 1)
+}
+
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return ""
+}
+
+function pickDisplayFileName({
+  documentId,
+  explicitFileName,
+  rawS3Key,
+}: {
+  documentId?: string
+  explicitFileName: string
+  rawS3Key: string
+}) {
+  if (explicitFileName && !isGenericRawObjectName(explicitFileName)) {
+    return explicitFileName
+  }
+
+  const rawFileName = rawS3Key ? decodeS3KeySegment(rawS3Key.split("/").pop() ?? "") : ""
+  if (rawFileName && !isGenericRawObjectName(rawFileName)) {
+    return rawFileName
+  }
+
+  if (explicitFileName) {
+    return documentId ? `${documentId}${getFileExtension(explicitFileName)}` : explicitFileName
+  }
+
+  return documentId ? `${documentId}.pdf` : "unknown"
+}
+
+function decodeS3KeySegment(value: string) {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, "%20"))
+  } catch {
+    return value
+  }
+}
+
+function getFileExtension(fileName: string) {
+  const match = fileName.match(/(\.[A-Za-z0-9]+)$/)
+  return match ? match[1].toLowerCase() : ""
+}
+
+function isGenericRawObjectName(fileName: string) {
+  return /^original\.[A-Za-z0-9]+$/i.test(fileName.trim())
 }
 
 function sanitizeLineItem(raw: unknown): import("@docuflow/shared-types").LineItem {
@@ -336,8 +395,7 @@ export async function requestUploadUrl(
   const documentId = `doc-${Math.floor(100 + Math.random() * 900)}`
   const session = await getCurrentDocuFlowSession()
   const userId = session?.userId ?? "user-123"
-  const extension = request.originalFileName.split(".").pop() || "pdf"
-  const rawS3Key = `raw/${userId}/${documentId}/original.${extension}`
+  const rawS3Key = `raw/${userId}/${documentId}/${request.originalFileName}`
 
   return {
     documentId,
@@ -411,10 +469,10 @@ export async function uploadDocumentFile(
   await new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open("PUT", uploadUrl)
-    const headers = {
-      "Content-Type": options.contentType ?? file.type,
-      ...options.headers,
-    }
+    const headers = normalizeUploadHeaders(
+      options.headers,
+      options.contentType ?? file.type
+    )
     for (const [name, value] of Object.entries(headers)) {
       request.setRequestHeader(name, value)
     }
@@ -444,6 +502,23 @@ export async function uploadDocumentFile(
 
     request.send(file)
   })
+}
+
+function normalizeUploadHeaders(headers: Record<string, string> = {}, fallbackContentType: string) {
+  const normalized: Record<string, string> = {}
+  let hasContentType = false
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (!value) continue
+    if (name.toLowerCase() === "content-type") hasContentType = true
+    normalized[name] = value
+  }
+
+  if (!hasContentType && fallbackContentType) {
+    normalized["Content-Type"] = fallbackContentType
+  }
+
+  return normalized
 }
 
 export async function reviewDocument(

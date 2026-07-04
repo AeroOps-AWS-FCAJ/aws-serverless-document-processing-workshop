@@ -16,7 +16,9 @@ const TABLE_NAME = process.env.DOCUFLOW_DEV_TABLE_NAME;
 const RAW_BUCKET =
   process.env.DOCUFLOW_DEV_RAW_BUCKET ||
   process.env.DOCUFLOW_DEV_RAW_BUCKET_NAME;
-const STATE_MACHINE_ARN = process.env.DOCUFLOW_DEV_STATE_MACHINE_ARN;
+const STATE_MACHINE_ARN =
+  process.env.DOCUFLOW_DEV_STATE_MACHINE_ARN ||
+  process.env.STATE_MACHINE_ARN;
 
 const RETRYABLE_STATUSES = new Set(["FAILED", "REVIEW_REQUIRED"]);
 const ACTIVE_STATUSES = new Set(["QUEUED", "PROCESSING"]);
@@ -357,6 +359,8 @@ async function handleRequest(event) {
     );
     executionArn = result.executionArn;
   } catch (error) {
+    const failure = classifyWorkflowStartFailure(error);
+
     await markWorkflowStartFailed({
       documentId,
       error,
@@ -373,12 +377,12 @@ async function handleRequest(event) {
     });
 
     return formatResponse(
-      502,
+      failure.statusCode,
       false,
       null,
-      error?.message || "Could not start document workflow.",
-      "WORKFLOW",
-      "WORKFLOW_START_FAILED"
+      failure.message,
+      failure.errorStage,
+      failure.errorCode
     );
   }
 
@@ -704,7 +708,7 @@ function validateEnvironment() {
   const missing = [];
   if (!TABLE_NAME) missing.push("DOCUFLOW_DEV_TABLE_NAME");
   if (!RAW_BUCKET) missing.push("DOCUFLOW_DEV_RAW_BUCKET");
-  if (!STATE_MACHINE_ARN) missing.push("DOCUFLOW_DEV_STATE_MACHINE_ARN");
+  if (!STATE_MACHINE_ARN) missing.push("DOCUFLOW_DEV_STATE_MACHINE_ARN or STATE_MACHINE_ARN");
 
   if (!missing.length) return null;
 
@@ -716,6 +720,51 @@ function validateEnvironment() {
     "CONFIGURATION",
     "MISSING_ENVIRONMENT_VARIABLE"
   );
+}
+
+function classifyWorkflowStartFailure(error) {
+  const errorName = error?.name || "Unknown";
+  const errorMessage = error?.message || "Could not start document workflow.";
+
+  if (errorName === "AccessDeniedException") {
+    return {
+      statusCode: 403,
+      errorCode: "WORKFLOW_ACCESS_DENIED",
+      errorStage: "WORKFLOW",
+      message:
+        "Process-control Lambda is not allowed to start the Step Functions state machine.",
+    };
+  }
+
+  if (
+    errorName === "StateMachineDoesNotExist" ||
+    errorName === "ValidationException" ||
+    errorMessage.includes("State Machine Does Not Exist")
+  ) {
+    return {
+      statusCode: 500,
+      errorCode: "INVALID_STATE_MACHINE_ARN",
+      errorStage: "CONFIGURATION",
+      message:
+        "Configured Step Functions state machine ARN is invalid or does not exist.",
+    };
+  }
+
+  if (errorName === "ExecutionLimitExceeded") {
+    return {
+      statusCode: 429,
+      errorCode: "WORKFLOW_EXECUTION_LIMIT_EXCEEDED",
+      errorStage: "WORKFLOW",
+      message: "Step Functions execution limit exceeded. Try again later.",
+    };
+  }
+
+  return {
+    statusCode: 502,
+    errorCode: "WORKFLOW_START_FAILED",
+    errorStage: "WORKFLOW",
+    message: errorMessage,
+  };
 }
 
 function formatResponse(

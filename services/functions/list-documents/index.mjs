@@ -108,7 +108,7 @@ export const handler = async (event) => {
     };
 
     const result = await docClient.send(new QueryCommand(queryInput));
-    const items = (result.Items || []).map(removeDynamoDbKeys);
+    const items = (result.Items || []).map(normalizeDocumentItem);
 
     log("INFO", {
       message: "Documents listed successfully",
@@ -180,6 +180,84 @@ function decodeNextToken(token, userId) {
 function removeDynamoDbKeys(item = {}) {
   const { PK, SK, GSI1PK, GSI1SK, ...safeItem } = item;
   return safeItem;
+}
+
+function normalizeDocumentItem(item = {}) {
+  const safeItem = removeDynamoDbKeys(item);
+  const file = isRecord(safeItem.file) ? safeItem.file : {};
+  const storage = isRecord(safeItem.storage) ? safeItem.storage : {};
+  const rawS3Key = pickString(
+    safeItem.rawS3Key,
+    storage.rawS3Key,
+    safeItem.key
+  );
+  const processedS3Key = pickString(
+    safeItem.processedS3Key,
+    storage.processedS3Key
+  );
+  const originalFileName = pickDisplayFileName({
+    documentId: safeItem.documentId,
+    explicitFileName: pickString(
+      safeItem.originalFileName,
+      safeItem.fileName,
+      file.originalFileName,
+      file.fileName
+    ),
+    rawS3Key,
+  });
+
+  return {
+    ...safeItem,
+    originalFileName,
+    ...(rawS3Key ? { rawS3Key } : {}),
+    ...(processedS3Key ? { processedS3Key } : {}),
+  };
+}
+
+function pickDisplayFileName({ documentId, explicitFileName, rawS3Key }) {
+  if (explicitFileName && !isGenericRawObjectName(explicitFileName)) {
+    return explicitFileName;
+  }
+
+  const rawFileName = rawS3Key ? decodeS3KeySegment(rawS3Key.split("/").pop()) : "";
+  if (rawFileName && !isGenericRawObjectName(rawFileName)) {
+    return rawFileName;
+  }
+
+  if (explicitFileName) {
+    const extension = getFileExtension(explicitFileName || rawFileName);
+    return documentId ? `${documentId}${extension}` : explicitFileName;
+  }
+
+  return documentId ? `${documentId}.pdf` : "unknown";
+}
+
+function pickString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function decodeS3KeySegment(value = "") {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, "%20"));
+  } catch {
+    return value;
+  }
+}
+
+function getFileExtension(fileName = "") {
+  const match = String(fileName).match(/(\.[A-Za-z0-9]+)$/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function isGenericRawObjectName(fileName = "") {
+  return /^original\.[A-Za-z0-9]+$/i.test(String(fileName).trim());
+}
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function formatResponse(

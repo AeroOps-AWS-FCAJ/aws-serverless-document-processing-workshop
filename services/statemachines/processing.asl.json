@@ -35,6 +35,31 @@
           "Next": "BuildFailureResult"
         }
       ],
+      "Next": "NormalizeWorkflowInput"
+    },
+    "NormalizeWorkflowInput": {
+      "Type": "Pass",
+      "Parameters": {
+        "documentId.$": "$.validation.payload.documentId",
+        "userId.$": "$.validation.payload.userId",
+        "documentType.$": "$.validation.payload.documentType",
+        "bucket.$": "$.validation.payload.bucket",
+        "key.$": "$.validation.payload.key",
+        "rawS3Bucket.$": "$.validation.payload.rawS3Bucket",
+        "rawS3Key.$": "$.validation.payload.rawS3Key",
+        "s3RawPath.$": "$.validation.payload.s3RawPath",
+        "fileName.$": "$.validation.payload.originalFileName",
+        "originalFileName.$": "$.validation.payload.originalFileName",
+        "fileExtension.$": "$.validation.payload.fileExtension",
+        "contentType.$": "$.validation.payload.contentType",
+        "mimeType.$": "$.validation.payload.mimeType",
+        "pageCount.$": "$.validation.payload.pageCount",
+        "fileSizeBytes.$": "$.validation.payload.fileSizeBytes",
+        "validation": {
+          "payload.$": "$.validation.payload"
+        }
+      },
+      "ResultPath": "$",
       "Next": "UpdateStatusProcessing"
     },
     "UpdateStatusProcessing": {
