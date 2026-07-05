@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/chart"
 import { useAuth } from "@/contexts/auth-context"
 import {
-  convertToDemoVnd,
+  convertDemoCurrency,
   demoCurrencyRateDetail,
   formatDate,
   formatMoney,
@@ -63,6 +63,7 @@ import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { SpotlightCard } from "@/components/spotlight-card"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { useLanguage, type TranslationKey } from "@/lib/i18n"
+import { DEFAULT_REPORTING_CURRENCY, getUserDefaultCurrency } from "@/lib/user-preferences"
 
 type TrendWindow = "30d" | "90d" | "6m"
 
@@ -134,6 +135,12 @@ export default function DashboardPage() {
 
   const [trendWindow, setTrendWindow] = useState<TrendWindow>("6m")
   const [lastSync,    setLastSync]    = useState(() => new Date())
+  const [reportingCurrency, setReportingCurrency] = useState(DEFAULT_REPORTING_CURRENCY)
+
+  useEffect(() => {
+    setReportingCurrency(getUserDefaultCurrency(session?.userId))
+  }, [session?.userId])
+
   const trendConfig = {
     extracted: { label: t("header.extracted"), color: "#153f30" },
     review:    { label: t("header.reviewRequired"), color: "#d97706" },
@@ -193,10 +200,10 @@ export default function DashboardPage() {
   const confDocs        = documents.filter((d) => d.confidenceScore > 0)
   const avgConf         = confDocs.length
     ? Math.round((confDocs.reduce((s, d) => s + d.confidenceScore, 0) / confDocs.length) * 100) : 0
-  const totalVnd        = documents.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
-  const attentionVnd    = documents
+  const totalValue      = documents.reduce((s, d) => s + convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency), 0)
+  const attentionValue  = documents
     .filter((d) => ["REVIEW_REQUIRED","CORRECTED"].includes(d.status))
-    .reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
+    .reduce((s, d) => s + convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency), 0)
 
   const attentionQueue = [...documents]
     .filter((d) => ["REVIEW_REQUIRED","FAILED","CORRECTED"].includes(d.status))
@@ -222,11 +229,11 @@ export default function DashboardPage() {
     const m = new Map<string, number>()
     for (const d of documents) {
       if (!d.totalAmount || d.vendorName === "Pending extraction" || d.vendorName === "Unknown") continue
-      const amt = convertToDemoVnd(d.totalAmount, d.currency)
+      const amt = convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency)
       m.set(d.vendorName, (m.get(d.vendorName) ?? 0) + amt)
     }
     return [...m.entries()].map(([vendor, amount]) => ({ vendor, amount })).sort((a, b) => b.amount - a.amount).slice(0, 4)
-  }, [documents])
+  }, [documents, reportingCurrency])
   const maxVendor = vendorSpend[0]?.amount ?? 1
 
   const confDist = [
@@ -244,12 +251,12 @@ export default function DashboardPage() {
           status,
           label: t(`status.${status}` as TranslationKey),
           count: matching.length,
-          value: matching.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0),
+          value: matching.reduce((s, d) => s + convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency), 0),
           color: statusChartPalette[status],
         }
       })
       .filter((row) => row.count > 0)
-  }, [documents, t])
+  }, [documents, reportingCurrency, t])
   const statusTotal = documents.length
   const statusConicStyle = {
     background: statusRows.length
@@ -265,7 +272,7 @@ export default function DashboardPage() {
   const typeValueRows = useMemo(() => {
     const totals = new Map<DocumentRecord["documentType"], number>()
     for (const d of documents) {
-      totals.set(d.documentType, (totals.get(d.documentType) ?? 0) + convertToDemoVnd(d.totalAmount, d.currency))
+      totals.set(d.documentType, (totals.get(d.documentType) ?? 0) + convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency))
     }
     return [...totals.entries()]
       .map(([type, amount]) => ({
@@ -275,12 +282,12 @@ export default function DashboardPage() {
         color: type === "INVOICE" ? "#8b5cf6" : "#06b6d4",
       }))
       .sort((a, b) => b.amount - a.amount)
-  }, [documents, t])
+  }, [documents, reportingCurrency, t])
   const maxTypeValue = Math.max(1, ...typeValueRows.map((row) => row.amount))
   const approvedValue = documents
     .filter((d) => d.status === "APPROVED")
-    .reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
-  const approvedValuePercent = percentOf(approvedValue, totalVnd)
+    .reduce((s, d) => s + convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency), 0)
+  const approvedValuePercent = percentOf(approvedValue, totalValue)
 
   const qualityRadar = useMemo(() => {
     const amountCoverage = percentOf(documents.filter((d) => d.totalAmount > 0).length, documents.length)
@@ -312,11 +319,11 @@ export default function DashboardPage() {
     .map((d) => ({
       document: d.originalFileName,
       confidence: Math.round(d.confidenceScore * 100),
-      amount: Math.round((convertToDemoVnd(d.totalAmount, d.currency) / 1_000_000) * 10) / 10,
+      amount: convertDemoCurrency(d.totalAmount, d.currency, reportingCurrency),
       status: d.status,
       fill: statusChartPalette[d.status],
     }))
-    .slice(0, 18), [documents])
+    .slice(0, 18), [documents, reportingCurrency])
 
   const confidenceDots = useMemo(() => Array.from({ length: 72 }, (_, index) => {
     const d = documents.length ? documents[index % documents.length] : null
@@ -460,7 +467,7 @@ export default function DashboardPage() {
                 <div className="border-t border-white/10 pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0">
                   <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">{t("dashboard.valueToConfirm")}</div>
                   <div className="mt-1 truncate text-base font-semibold tracking-[-0.03em] text-white">
-                    {formatMoney(attentionVnd, "VND")}
+                    {formatMoney(attentionValue, reportingCurrency)}
                   </div>
                   <div className="mt-1 text-[11px] text-white/40">{t("dashboard.waitingDecision", { count: reviewCount + correctedCount })}</div>
                 </div>
@@ -557,7 +564,7 @@ export default function DashboardPage() {
           />
           <KpiTile
             label={t("dashboard.processedValue")}
-            value={formatMoney(totalVnd, "VND")}
+            value={formatMoney(totalValue, reportingCurrency)}
             detail={demoCurrencyRateDetail()}
             icon={Banknote}
           />
@@ -682,7 +689,7 @@ export default function DashboardPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.valueStack")}</div>
-                    <div className="mt-1 text-xl font-semibold tracking-[-0.04em]">{formatMoney(totalVnd, "VND")}</div>
+                    <div className="mt-1 text-xl font-semibold tracking-[-0.04em]">{formatMoney(totalValue, reportingCurrency)}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.approvedValue")}</div>
@@ -700,7 +707,7 @@ export default function DashboardPage() {
                           <span className="size-2 rounded-sm" style={{ backgroundColor: row.color }} />
                           <span className="text-muted-foreground">{row.label}</span>
                         </span>
-                        <span className="font-mono font-semibold tabular-nums">{formatMoney(row.amount, "VND")}</span>
+                        <span className="font-mono font-semibold tabular-nums">{formatMoney(row.amount, reportingCurrency)}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted">
                         <div className="h-full rounded-full" style={{ width: `${Math.max(8, (row.amount / maxTypeValue) * 100)}%`, backgroundColor: row.color }} />
@@ -716,7 +723,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="rounded-lg border bg-muted/20 p-3">
                       <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.reviewLoad")}</div>
-                      <div className="mt-1 text-lg font-semibold tracking-[-0.04em]">{formatMoney(attentionVnd, "VND")}</div>
+                      <div className="mt-1 text-lg font-semibold tracking-[-0.04em]">{formatMoney(attentionValue, reportingCurrency)}</div>
                     </div>
                   </div>
                 </div>
@@ -781,7 +788,14 @@ export default function DashboardPage() {
                 <ScatterChart margin={{ top: 10, right: 10, bottom: 8, left: -18 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="confidence" name={t("dashboard.confidence")} type="number" domain={[0, 100]} tickLine={false} axisLine={false} unit="%" />
-                  <YAxis dataKey="amount" name={t("dashboard.amount")} type="number" tickLine={false} axisLine={false} unit="m" />
+                  <YAxis
+                    dataKey="amount"
+                    name={t("dashboard.amount")}
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(value)}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Scatter data={riskScatter} dataKey="amount" name={t("dashboard.amount")} fill="var(--color-risk)">
                     {riskScatter.map((entry) => (
@@ -1094,7 +1108,7 @@ export default function DashboardPage() {
                       <span className="font-mono text-muted-foreground/40">0{i+1}</span>
                       <span className="truncate">{item.vendor}</span>
                     </span>
-                    <span className="shrink-0 font-mono font-semibold tabular-nums">{formatMoney(item.amount, "VND")}</span>
+                    <span className="shrink-0 font-mono font-semibold tabular-nums">{formatMoney(item.amount, reportingCurrency)}</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div

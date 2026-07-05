@@ -212,7 +212,7 @@ export function createQueuedDocument(
     vendorName: "Pending extraction",
     invoiceDate: now.slice(0, 10),
     dueDate: "",
-    currency: "VND",
+    currency: "XXX",
     subtotalAmount: undefined,
     discountAmount: undefined,
     shippingAmount: undefined,

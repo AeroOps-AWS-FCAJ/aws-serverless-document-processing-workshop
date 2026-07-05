@@ -53,7 +53,7 @@ import { TablePagination } from "@/components/table-pagination"
 import { TableSkeletonRows } from "@/components/table-skeleton-rows"
 import { useAuth } from "@/contexts/auth-context"
 import {
-  convertToDemoVnd,
+  convertDemoCurrency,
   demoCurrencyRateDetail,
   formatDate,
   formatMoney,
@@ -65,6 +65,7 @@ import { useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { getReportsSummary, type ReportsSummaryResponse } from "@/lib/docuflow-api"
 import { useLanguage, type TranslationKey } from "@/lib/i18n"
+import { DEFAULT_REPORTING_CURRENCY, getUserDefaultCurrency } from "@/lib/user-preferences"
 
 type DocumentTypeFilter = "ALL" | "INVOICE" | "RECEIPT" | "UNKNOWN"
 type StatusFilter = "ALL" | DocumentStatus
@@ -91,8 +92,8 @@ const reportColumnDefinitions: Array<Omit<BulkTableColumn, "label"> & { labelKey
   { key: "detail", labelKey: "reports.detail", locked: true },
 ]
 
-function toVnd(document: DocumentRecord) {
-  return convertToDemoVnd(document.totalAmount, document.currency)
+function toReportingCurrency(document: DocumentRecord, reportingCurrency: string) {
+  return convertDemoCurrency(document.totalAmount, document.currency, reportingCurrency)
 }
 
 function escapeCsv(value: string | number | null | undefined) {
@@ -124,7 +125,7 @@ function getSearchText(document: DocumentRecord) {
   ].join(" ").toLowerCase()
 }
 
-function exportCsv(documents: DocumentRecord[], suffix = "bao-cao") {
+function exportCsv(documents: DocumentRecord[], reportingCurrency: string, suffix = "bao-cao") {
   const header = [
     "documentId",
     "originalFileName",
@@ -140,7 +141,7 @@ function exportCsv(documents: DocumentRecord[], suffix = "bao-cao") {
     "discountAmount",
     "shippingAmount",
     "totalAmount",
-    "amountVnd",
+    `amount${reportingCurrency}`,
     "confidence",
     "reviewedAt",
     "reviewedBy",
@@ -163,7 +164,7 @@ function exportCsv(documents: DocumentRecord[], suffix = "bao-cao") {
     document.discountAmount ?? "",
     document.shippingAmount ?? "",
     document.totalAmount,
-    toVnd(document),
+    toReportingCurrency(document, reportingCurrency),
     Math.round(document.confidenceScore * 100),
     document.reviewedAt ?? "",
     document.reviewedBy ?? "",
@@ -223,6 +224,11 @@ export default function ReportsPage() {
   const [apiSummary, setApiSummary] = useState<ReportsSummaryResponse | null>(null)
   const [isLoadingSummary, setIsLoadingSummary] = useState(false)
   const [summaryWarning, setSummaryWarning] = useState<string | null>(null)
+  const [reportingCurrency, setReportingCurrency] = useState(DEFAULT_REPORTING_CURRENCY)
+
+  useEffect(() => {
+    setReportingCurrency(getUserDefaultCurrency(session?.userId))
+  }, [session?.userId])
 
   const visibleDocuments = useMemo(
     () => documents.filter((document) => apiMode || session?.role === "admin" || document.userId === session?.userId),
@@ -284,13 +290,13 @@ export default function ReportsPage() {
     [filteredDocuments, selectedIds]
   )
 
-  const totalVnd = reportableDocuments.reduce((sum, document) => sum + toVnd(document), 0)
-  const approvedVnd = filteredBeforeApproval
+  const totalValue = reportableDocuments.reduce((sum, document) => sum + toReportingCurrency(document, reportingCurrency), 0)
+  const approvedValue = filteredBeforeApproval
     .filter((document) => document.status === "APPROVED" && document.totalAmount > 0)
-    .reduce((sum, document) => sum + toVnd(document), 0)
-  const pendingVnd = filteredBeforeApproval
+    .reduce((sum, document) => sum + toReportingCurrency(document, reportingCurrency), 0)
+  const pendingValue = filteredBeforeApproval
     .filter((document) => document.status !== "APPROVED" && document.totalAmount > 0)
-    .reduce((sum, document) => sum + toVnd(document), 0)
+    .reduce((sum, document) => sum + toReportingCurrency(document, reportingCurrency), 0)
   const reviewExposure = filteredBeforeApproval.filter((document) =>
     ["REVIEW_REQUIRED", "FAILED", "CORRECTED"].includes(document.status)
   ).length
@@ -299,9 +305,15 @@ export default function ReportsPage() {
     ? Math.round((confidenceBase.reduce((sum, document) => sum + document.confidenceScore, 0) / confidenceBase.length) * 100)
     : 0
   const canUseApiSummary = Boolean(apiSummary && !hasReportFilters)
-  const summaryTotalVnd = canUseApiSummary && typeof apiSummary?.totalAmountVnd === "number" ? apiSummary.totalAmountVnd : totalVnd
-  const summaryApprovedVnd = canUseApiSummary && typeof apiSummary?.approvedAmountVnd === "number" ? apiSummary.approvedAmountVnd : approvedVnd
-  const summaryPendingVnd = canUseApiSummary && typeof apiSummary?.pendingAmountVnd === "number" ? apiSummary.pendingAmountVnd : pendingVnd
+  const summaryTotalValue = canUseApiSummary && typeof apiSummary?.totalAmountVnd === "number"
+    ? convertDemoCurrency(apiSummary.totalAmountVnd, "VND", reportingCurrency)
+    : totalValue
+  const summaryApprovedValue = canUseApiSummary && typeof apiSummary?.approvedAmountVnd === "number"
+    ? convertDemoCurrency(apiSummary.approvedAmountVnd, "VND", reportingCurrency)
+    : approvedValue
+  const summaryPendingValue = canUseApiSummary && typeof apiSummary?.pendingAmountVnd === "number"
+    ? convertDemoCurrency(apiSummary.pendingAmountVnd, "VND", reportingCurrency)
+    : pendingValue
   const summaryAverageConfidence = canUseApiSummary && typeof apiSummary?.averageConfidence === "number"
     ? Math.round(apiSummary.averageConfidence <= 1 ? apiSummary.averageConfidence * 100 : apiSummary.averageConfidence)
     : averageConfidence
@@ -315,7 +327,7 @@ export default function ReportsPage() {
         documents: 0,
         confidence: 0,
       }
-      current.amount += toVnd(document)
+      current.amount += toReportingCurrency(document, reportingCurrency)
       current.documents += 1
       current.confidence += document.confidenceScore
       grouped.set(document.vendorName, current)
@@ -324,7 +336,7 @@ export default function ReportsPage() {
       .map((row) => ({ ...row, confidence: Math.round((row.confidence / row.documents) * 100) }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 8)
-  }, [reportableDocuments])
+  }, [reportableDocuments, reportingCurrency])
 
   const monthlyRows = useMemo(() => {
     const grouped = new Map<string, { month: string; sortKey: string; amount: number; documents: number }>()
@@ -336,12 +348,12 @@ export default function ReportsPage() {
         : date.toLocaleDateString(locale, { month: "long", year: "numeric" })
       const sortKey = isInvalid ? "9999-99" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
       const current = grouped.get(month) ?? { month, sortKey, amount: 0, documents: 0 }
-      current.amount += toVnd(document)
+      current.amount += toReportingCurrency(document, reportingCurrency)
       current.documents += 1
       grouped.set(month, current)
     })
     return [...grouped.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey)).slice(-6)
-  }, [locale, reportableDocuments, t])
+  }, [locale, reportableDocuments, reportingCurrency, t])
 
   const statusRows = (Object.keys(statusMeta) as DocumentStatus[]).map((status) => ({
     status,
@@ -469,7 +481,7 @@ export default function ReportsPage() {
   }
 
   const handleExportCsv = (items: DocumentRecord[], suffix: string) => {
-    exportCsv(items, suffix)
+    exportCsv(items, reportingCurrency, suffix)
     toast.success(t("toast.exportedCsv"))
   }
 
@@ -535,9 +547,9 @@ export default function ReportsPage() {
 
             <div className="grid grid-cols-2 border-t border-white/12 lg:border-l lg:border-t-0">
               {[
-                { label: canUseApiSummary ? t("reports.apiSummaryTotal") : approvedOnly ? t("reports.approvedInFilter") : t("reports.totalInFilter"), value: formatMoney(summaryTotalVnd, "VND"), icon: BadgeDollarSign },
-                { label: t("reports.approved"), value: formatMoney(summaryApprovedVnd, "VND"), icon: CheckCircle2 },
-                { label: t("reports.pendingVerification"), value: formatMoney(summaryPendingVnd, "VND"), icon: FileWarning },
+                { label: canUseApiSummary ? t("reports.apiSummaryTotal") : approvedOnly ? t("reports.approvedInFilter") : t("reports.totalInFilter"), value: formatMoney(summaryTotalValue, reportingCurrency), icon: BadgeDollarSign },
+                { label: t("reports.approved"), value: formatMoney(summaryApprovedValue, reportingCurrency), icon: CheckCircle2 },
+                { label: t("reports.pendingVerification"), value: formatMoney(summaryPendingValue, reportingCurrency), icon: FileWarning },
                 { label: t("reports.avgConfidence"), value: `${summaryAverageConfidence}%`, icon: TrendingUp },
               ].map((item) => {
                 const Icon = item.icon
@@ -650,7 +662,7 @@ export default function ReportsPage() {
               <BarChart3 className="size-5" />
               {t("reports.vendorSpend")}
             </CardTitle>
-            <CardDescription>{t("reports.vendorSpendBody")}</CardDescription>
+            <CardDescription>{t("reports.vendorSpendBody", { currency: reportingCurrency })}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 pt-5">
             {vendorRows.length ? (
@@ -663,7 +675,7 @@ export default function ReportsPage() {
                         {t("reports.documentsCount", { count: row.documents })} · {t("reports.avgConfidenceInline", { percent: row.confidence })}
                       </div>
                     </div>
-                    <div className="font-mono text-sm font-semibold">{formatMoney(row.amount, "VND")}</div>
+                    <div className="font-mono text-sm font-semibold">{formatMoney(row.amount, reportingCurrency)}</div>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${Math.max(8, (row.amount / maxVendorAmount) * 100)}%` }} />
@@ -693,7 +705,7 @@ export default function ReportsPage() {
                   <div key={row.month} className="grid gap-2">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="font-medium capitalize">{row.month}</span>
-                      <span className="font-mono text-muted-foreground">{formatMoney(row.amount, "VND")}</span>
+                      <span className="font-mono text-muted-foreground">{formatMoney(row.amount, reportingCurrency)}</span>
                     </div>
                     <Progress value={(row.amount / maxMonthlyAmount) * 100} />
                   </div>
@@ -824,7 +836,11 @@ export default function ReportsPage() {
                           {isColumnVisible("amount") && (
                             <TableCell className="font-mono text-sm">
                               <div>{formatMoney(document.totalAmount, document.currency)}</div>
-                              {document.currency !== "VND" && <div className="mt-1 text-xs text-muted-foreground">{formatMoney(toVnd(document), "VND")}</div>}
+                              {document.currency !== reportingCurrency && (
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  {formatMoney(toReportingCurrency(document, reportingCurrency), reportingCurrency)}
+                                </div>
+                              )}
                             </TableCell>
                           )}
                           {isColumnVisible("status") && <TableCell><StatusBadge status={document.status} /></TableCell>}
