@@ -39,11 +39,16 @@ type SignupFormValues = {
   terms: boolean
 }
 
-const authCardClass = "border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]"
-const authInputClass = "!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
-const authLabelClass = "text-[#405047]"
-const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]"
-const authOutlineButtonClass = "w-full cursor-pointer border-[#40584b]/35 bg-transparent text-[#153f30] hover:bg-[#eef2e9] hover:text-[#10261d]"
+const authCardClass = "border-[#29483b] bg-[#10261d] text-white shadow-[0_24px_80px_rgba(16,38,29,.34)]"
+const authHeaderClass = "border-b border-white/10 bg-[#0d2119] text-left"
+const authTitleClass = "text-lg text-white"
+const authDescriptionClass = "text-white/65"
+const authInputClass = "!border-[#6f8a7b] !bg-[#071710] !text-white placeholder:!text-[#a5b4ab] focus-visible:!border-[#d8ff72] focus-visible:!ring-[#d8ff72]/25"
+const authLabelClass = "text-white/85"
+const authSecondaryTextClass = "text-white/65"
+const authLinkClass = "font-medium text-[#d8ff72] underline underline-offset-4 hover:text-[#f0ffb8]"
+const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] font-semibold !text-[#10261d] shadow-[0_10px_28px_rgba(216,255,114,.22)] hover:!bg-[#cfff4f]"
+const authOutlineButtonClass = "w-full cursor-pointer border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-[#d8ff72]"
 
 export function SignupForm1({
   className,
@@ -105,9 +110,17 @@ export function SignupForm1({
 
       if (nextStep.signUpStep === "CONFIRM_SIGN_UP") {
         setStep("confirmSignUp")
-        toast.success(t("auth.codeSent"))
+        toast.success(t("auth.codeSent"), {
+          id: "auth-code-sent",
+          description: data.email,
+          duration: 6500,
+        })
       } else {
-        toast.success(t("auth.registrationSuccess"))
+        toast.success(t("auth.registrationSuccess"), {
+          id: "auth-registration-success",
+          description: t("auth.registrationSuccessDescription"),
+          duration: 6500,
+        })
         navigate("/auth/sign-in")
       }
     } catch (error: unknown) {
@@ -136,7 +149,11 @@ export function SignupForm1({
       })
 
       if (isSignUpComplete) {
-        toast.success(t("auth.confirmed"))
+        toast.success(t("auth.confirmed"), {
+          id: "auth-confirmed",
+          description: t("auth.confirmedDescription"),
+          duration: 6500,
+        })
         navigate("/auth/sign-in")
       } else {
         toast.error(t("auth.confirmIncomplete"))
@@ -161,7 +178,11 @@ export function SignupForm1({
     setIsLoading(true)
     try {
       await resendSignUpCode({ username: registeredEmail })
-      toast.success(t("auth.codeResent"))
+      toast.success(t("auth.codeResent"), {
+        id: "auth-code-resent",
+        description: registeredEmail,
+        duration: 6500,
+      })
     } catch (error: unknown) {
       console.error("Resend error:", error)
       if (error instanceof Error) {
@@ -179,9 +200,9 @@ export function SignupForm1({
       <Card className={authCardClass}>
         {step === "signUp" ? (
           <>
-            <CardHeader className="border-b border-[#e2e3db] text-left">
-              <CardTitle className="text-lg text-[#11251d]">{t("auth.accountSetup")}</CardTitle>
-              <CardDescription className="text-[#647069]">
+            <CardHeader className={authHeaderClass}>
+              <CardTitle className={authTitleClass}>{t("auth.accountSetup")}</CardTitle>
+              <CardDescription className={authDescriptionClass}>
                 {t("auth.accountSetupDescription")}
               </CardDescription>
             </CardHeader>
@@ -272,11 +293,11 @@ export function SignupForm1({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                className="mt-0.5 border-[#40584b] data-[state=checked]:border-[#d8ff72] data-[state=checked]:bg-[#d8ff72] data-[state=checked]:text-[#10261d]"
+                                className="mt-0.5 border-white/40 data-[state=checked]:border-[#d8ff72] data-[state=checked]:bg-[#d8ff72] data-[state=checked]:text-[#10261d]"
                                 disabled={isLoading}
                               />
                             </FormControl>
-                            <FormLabel className="text-sm leading-5 text-[#647069]">
+                            <FormLabel className={`text-sm leading-5 ${authSecondaryTextClass}`}>
                               {t("auth.terms")}
                             </FormLabel>
                           </FormItem>
@@ -286,9 +307,9 @@ export function SignupForm1({
                         {isLoading ? <LoadingSpinner /> : t("auth.createAccount")}
                       </Button>
                     </div>
-                    <div className="text-center text-sm text-[#647069]">
+                    <div className={`text-center text-sm ${authSecondaryTextClass}`}>
                       {t("auth.hasAccount")}{" "}
-                      <Link to="/auth/sign-in" className="font-medium text-[#153f30] underline underline-offset-4">
+                      <Link to="/auth/sign-in" className={authLinkClass}>
                         {t("common.signIn")}
                       </Link>
                     </div>
@@ -299,9 +320,9 @@ export function SignupForm1({
           </>
         ) : (
           <>
-            <CardHeader className="border-b border-[#e2e3db] text-left">
-              <CardTitle className="text-lg text-[#11251d]">{t("auth.confirmAccount")}</CardTitle>
-              <CardDescription className="text-[#647069]">
+            <CardHeader className={authHeaderClass}>
+              <CardTitle className={authTitleClass}>{t("auth.confirmAccount")}</CardTitle>
+              <CardDescription className={authDescriptionClass}>
                 {t("auth.confirmAccountDescription", { email: registeredEmail })}
               </CardDescription>
             </CardHeader>
@@ -335,12 +356,12 @@ export function SignupForm1({
                       {t("auth.resend")}
                     </Button>
                   </div>
-                  <div className="text-center text-sm text-[#647069]">
+                  <div className={`text-center text-sm ${authSecondaryTextClass}`}>
                     {t("auth.changeEmail")}{" "}
                     <button
                       type="button"
                       onClick={() => setStep("signUp")}
-                      className="cursor-pointer border-0 bg-transparent p-0 font-medium text-[#153f30] underline underline-offset-4 hover:text-[#10261d]"
+                      className="cursor-pointer border-0 bg-transparent p-0 font-medium text-[#d8ff72] underline underline-offset-4 hover:text-[#f0ffb8]"
                     >
                       {t("auth.backToSignUp")}
                     </button>
@@ -351,7 +372,7 @@ export function SignupForm1({
           </>
         )}
       </Card>
-      <div className="text-center text-xs text-[#647069] text-balance *:[a]:underline *:[a]:underline-offset-4 *:[a]:hover:text-[#153f30]">
+      <div className="text-center text-xs text-[#4d5d55] text-balance *:[a]:underline *:[a]:underline-offset-4 *:[a]:hover:text-[#153f30]">
         {t("auth.financeDefault")}
       </div>
     </div>

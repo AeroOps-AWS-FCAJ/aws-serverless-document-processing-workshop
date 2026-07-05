@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { toast } from "sonner"
 import { getDocument, isApiConfigured, processDocument, requestUploadUrl, uploadDocumentFile } from "@/lib/docuflow-api"
 import { createQueuedDocument, nextUploadStatus, useDocuFlowDocuments } from "@/lib/docuflow-store"
 import { statusMeta, type DocumentStatus } from "@/lib/docuflow-data"
@@ -148,11 +149,49 @@ export default function UploadPage() {
     abortRef.current?.abort()
     abortRef.current = null
     setFile(f); setProgress(0); setPages(null); setCreatedDocId(null); setMessage("")
-    if (!f) { setState("IDLE"); return }
+    if (!f) {
+      toast.dismiss("upload-file-validation")
+      setPagesPending(false)
+      setState("IDLE")
+      return
+    }
+
+    const mimeType = getAcceptedMimeType(f)
+    const showValidationError = (validationMessage: string) => {
+      setPagesPending(false)
+      setState("ERROR")
+      setMessage(validationMessage)
+      toast.error(validationMessage, {
+        id: "upload-file-validation",
+        description: f.name,
+      })
+    }
+
+    if (!mimeType) {
+      showValidationError(t("upload.unsupportedFile"))
+      return
+    }
+    if (f.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      showValidationError(t("upload.fileTooLarge", { size: fmtSize(MAX_UPLOAD_FILE_SIZE_BYTES) }))
+      return
+    }
+
     setState("VALIDATING"); setPagesPending(true)
     const pc = await estimatePages(f)
-    setPages(pc); setPagesPending(false); setState("IDLE")
-  }, [])
+    setPages(pc)
+    if (mimeType === "application/pdf" && pc === null) {
+      showValidationError(t("upload.pdfUnreadable"))
+      return
+    }
+    if (pc && pc > MAX_UPLOAD_PAGE_COUNT) {
+      showValidationError(t("upload.pdfTooManyPages", { pages: pc, max: MAX_UPLOAD_PAGE_COUNT }))
+      return
+    }
+
+    toast.dismiss("upload-file-validation")
+    setPagesPending(false)
+    setState("IDLE")
+  }, [t])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void selectFile(e.target.files?.[0] ?? null); e.target.value = ""
@@ -184,9 +223,15 @@ export default function UploadPage() {
   // ── Upload ────────────────────────────────────────────────────────────────
   const handleUpload = async () => {
     if (!file || validErr || pagesPending) {
-      setState("ERROR"); setMessage(validErr ?? t("upload.waitValidation")); return
+      const validationMessage = validErr ?? t("upload.waitValidation")
+      setState("ERROR"); setMessage(validationMessage)
+      toast.error(validationMessage)
+      return
     }
     const ctrl = new AbortController(); abortRef.current = ctrl
+    const toastId = toast.loading(t("upload.preparing"), {
+      description: file.name,
+    })
     try {
       setState("REQUESTING_URL"); setProgress(15)
       setMessage(t("upload.preparing"))
@@ -204,6 +249,10 @@ export default function UploadPage() {
 
       setState("UPLOADING"); setProgress(30)
       setMessage(t("upload.uploading"))
+      toast.loading(t("upload.uploading"), {
+        id: toastId,
+        description: file.name,
+      })
       await uploadDocumentFile(res.uploadUrl, file, {
         contentType,
         headers: res.uploadHeaders,
@@ -218,6 +267,10 @@ export default function UploadPage() {
 
       setState("QUEUING"); setProgress(92)
       setMessage(apiMode ? t("upload.queuedAws") : t("upload.queuedDemo"))
+      toast.loading(apiMode ? t("upload.queuedAws") : t("upload.queuedDemo"), {
+        id: toastId,
+        description: file.name,
+      })
       const uid    = session?.userId ?? "user-123"
       const base   = createQueuedDocument(req, res, uid)
       const documentType = requestedDocumentType ?? base.documentType
@@ -252,15 +305,30 @@ export default function UploadPage() {
       }
 
       setProgress(100); setState("COMPLETE")
-      setMessage(
-        apiMode
+      const finalMessage = apiMode
           ? syncedStatus
             ? t("upload.backendUpdated", { status: t(`status.${syncedStatus}` as TranslationKey) ?? syncedStatus })
             : t("upload.backgroundProcessing")
           : t("upload.successProcessing")
-      )
+      setMessage(finalMessage)
+      toast.success(finalMessage, {
+        id: toastId,
+        description: file.name,
+      })
     } catch (err) {
-      setState("ERROR"); setMessage(err instanceof DOMException && err.name === "AbortError" ? t("upload.canceled") : err instanceof Error ? err.message : t("upload.startFailed"))
+      const errorMessage = err instanceof DOMException && err.name === "AbortError" ? t("upload.canceled") : err instanceof Error ? err.message : t("upload.startFailed")
+      setState("ERROR"); setMessage(errorMessage)
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.info(errorMessage, {
+          id: toastId,
+          description: file.name,
+        })
+      } else {
+        toast.error(errorMessage, {
+          id: toastId,
+          description: file.name,
+        })
+      }
     } finally {
       abortRef.current = null
     }
@@ -467,7 +535,7 @@ export default function UploadPage() {
                   <RefreshCw className="size-4" />{t("upload.chooseOther")}
                 </Button>
               )}
-              {createdDocId && (
+              {state === "COMPLETE" && createdDocId && (
                 <Button asChild variant="outline" size="lg" className="cursor-pointer">
                   <Link to={`/documents/${createdDocId}`}>
                     {t("upload.viewResult")} <ArrowRight className="size-4" />

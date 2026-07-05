@@ -92,7 +92,12 @@ function exportDocumentsCsv(items: DocumentRecord[], scope: string) {
 function DocumentPreviewModal({ document, showTechnical }: { document: DocumentRecord; showTechnical: boolean }) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
-  const handleCopy = async () => { await navigator.clipboard.writeText(document.documentId); setCopied(true); window.setTimeout(()=>setCopied(false),1400) }
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(document.documentId)
+    setCopied(true)
+    toast.success(t("toast.copied"))
+    window.setTimeout(()=>setCopied(false),1400)
+  }
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -372,7 +377,14 @@ export default function DocumentsPage() {
     setIsPageLoading(false)
   }
 
-  const clearFilters = () => { setQuery(""); setStatusFilter("ALL"); setTypeFilter("ALL"); setQuickFilter("ALL"); resetPage() }
+  const clearFilters = () => {
+    setQuery("")
+    setStatusFilter("ALL")
+    setTypeFilter("ALL")
+    setQuickFilter("ALL")
+    resetPage()
+    toast.success(t("toast.filtersReset"))
+  }
   const toggleSelected = (id: string, checked: boolean) => setSelectedIds((c) => checked ? Array.from(new Set([...c, id])) : c.filter((x) => x !== id))
   const toggleAllVisible = (checked: boolean) => setSelectedIds((c) => { const ids = filteredDocuments.map((d) => d.documentId); return checked ? Array.from(new Set([...c,...ids])) : c.filter((x) => !ids.includes(x)) })
   const setColumnVisible = (key: string, visible: boolean) => {
@@ -430,6 +442,24 @@ export default function DocumentsPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const handleResetDemoDocuments = () => {
+    resetDocuments()
+    toast.success(t("toast.demoReset"))
+  }
+
+  const handleExportDocuments = (items: DocumentRecord[], scope: string) => {
+    exportDocumentsCsv(items, scope)
+    toast.success(t("toast.exportedCsv"))
+  }
+
+  const handleRefreshDocuments = async (token?: string | null) => {
+    const toastId = toast.loading(t("toast.refreshStarted"))
+    const result = await refreshDocuments(token ?? undefined)
+    toast.success(result.count > 0 ? t("sync.success", { total: result.count }) : t("toast.refreshComplete"), {
+      id: toastId,
+    })
   }
 
   const quickFilters: Array<{key: QuickFilter; label: string; count: number}> = [
@@ -491,12 +521,12 @@ export default function DocumentsPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {role === "admin" && (
-                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={resetDocuments}>{t("documents.resetDemo")}</Button>
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={handleResetDemoDocuments}>{t("documents.resetDemo")}</Button>
                 )}
-                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => exportDocumentsCsv(filteredDocuments, "filtered")} disabled={!filteredDocuments.length}>
+                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => handleExportDocuments(filteredDocuments, "filtered")} disabled={!filteredDocuments.length}>
                   <Download className="size-3.5" />{t("common.exportCsv")}
                 </Button>
-                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => void handleRefreshDocuments()} disabled={isSyncing}>
                   <RefreshCw className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"} />{t("common.refresh")}
                 </Button>
                 <Button asChild size="sm" className="cursor-pointer">
@@ -559,9 +589,9 @@ export default function DocumentsPage() {
               onColumnVisibilityChange={setColumnVisible}
               onResetColumns={resetColumns}
             >
-              <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => exportDocumentsCsv(selectedDocuments, "selected")}>
-                <Download className="size-3.5" />{t("documents.exportSelected")}
-              </Button>
+                <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => handleExportDocuments(selectedDocuments, "selected")}>
+                  <Download className="size-3.5" />{t("documents.exportSelected")}
+                </Button>
               <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={handleMarkForReview}>
                 <FileWarning className="size-3.5" />{t("documents.markReview")}
               </Button>
@@ -710,7 +740,7 @@ export default function DocumentsPage() {
 
             {nextToken && (
               <div className="flex justify-center pt-1">
-                <Button variant="outline" size="sm" onClick={() => refreshDocuments(nextToken)} disabled={isSyncing}>{t("documents.loadMore")}</Button>
+                <Button variant="outline" size="sm" onClick={() => void handleRefreshDocuments(nextToken)} disabled={isSyncing}>{t("documents.loadMore")}</Button>
               </div>
             )}
           </CardContent>

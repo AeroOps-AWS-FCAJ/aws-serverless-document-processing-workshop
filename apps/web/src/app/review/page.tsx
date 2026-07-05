@@ -352,6 +352,19 @@ export default function ReviewPage() {
     }
   }
 
+  const handleExportReview = (items: DocumentRecord[]) => {
+    exportReviewCsv(items)
+    toast.success(t("toast.exportedCsv"))
+  }
+
+  const handleRefreshReview = async () => {
+    const toastId = toast.loading(t("toast.refreshStarted"))
+    const result = await refreshDocuments()
+    toast.success(result.count > 0 ? t("sync.success", { total: result.count }) : t("toast.refreshComplete"), {
+      id: toastId,
+    })
+  }
+
   const quickFilters: Array<{key: QueueFilter; label: string; count: number}> = [
     { key:"ALL", label:t("review.all"), count:alertItems.length },
     { key:"REVIEW_REQUIRED", label:t("review.needsReview"), count:metrics.reviewRequired },
@@ -409,10 +422,10 @@ export default function ReviewPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => void handleRefreshReview()} disabled={isSyncing}>
                     <Clock3 className={isSyncing ? "size-3.5 animate-spin" : "size-3.5"} />{t("common.refresh")}
                   </Button>
-                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => exportReviewCsv(filteredItems)} disabled={!filteredItems.length}>
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => handleExportReview(filteredItems)} disabled={!filteredItems.length}>
                     <Download className="size-3.5" />{t("review.exportExceptions")}
                   </Button>
                 </div>
@@ -454,7 +467,7 @@ export default function ReviewPage() {
                 onResetColumns={resetColumns}
                 className="mb-3"
               >
-                <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => exportReviewCsv(selectedItems)}>
+                <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={() => handleExportReview(selectedItems)}>
                   <Download className="size-3.5" />{t("review.exportSelected")}
                 </Button>
                 <ConfirmDeleteDialog
