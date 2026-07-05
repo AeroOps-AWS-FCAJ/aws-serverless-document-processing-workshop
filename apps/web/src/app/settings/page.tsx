@@ -722,7 +722,7 @@ export default function SettingsPage() {
           unread: notification.requiresAction && !acknowledgedNotificationSet.has(notification.id),
         }))
         .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
-    [acknowledgedNotificationSet, visibleDocuments]
+    [acknowledgedNotificationSet, t, visibleDocuments]
   )
 
   const notifications = useMemo(
@@ -885,7 +885,7 @@ export default function SettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [apiMode])
+  }, [apiMode, t])
 
   const setAcknowledgedNotifications = (ids: string[]) => {
     const uniqueIds = Array.from(new Set(ids))
@@ -1186,7 +1186,7 @@ export default function SettingsPage() {
                       </div>
                       <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="email">{t("auth.email")} Cognito</Label>
-                        <Input id="email" type="email" value={profileForm.email} onChange={(event) => updateProfileField("email", event.target.value)} placeholder="finance@docuflow.ai" />
+                        <Input id="email" type="email" value={profileForm.email} onChange={(event) => updateProfileField("email", event.target.value)} placeholder="youremail@example.com" />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="company">{t("settings.company")}</Label>

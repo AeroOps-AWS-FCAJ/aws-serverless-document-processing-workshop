@@ -227,7 +227,7 @@ export function SignupForm1({
                             <FormControl>
                               <Input
                                 type="email"
-                                placeholder="finance@docuflow.ai"
+                                placeholder="youremail@example.com"
                                 className={authInputClass}
                                 {...field}
                                 disabled={isLoading}

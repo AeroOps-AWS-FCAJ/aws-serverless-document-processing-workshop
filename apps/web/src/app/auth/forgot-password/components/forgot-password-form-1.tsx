@@ -113,7 +113,7 @@ export function ForgotPasswordForm1({
                   <Input
                     id="email"
                     type="email"
-                    placeholder="finance@docuflow.ai"
+                    placeholder="youremail@example.com"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className={authInputClass}

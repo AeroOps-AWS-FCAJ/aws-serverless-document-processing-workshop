@@ -410,6 +410,7 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:Query
+                - dynamodb:Scan
               Resource:
                 - !GetAtt DocumentsTable.Arn
                 - !Sub ${DocumentsTable.Arn}/index/*
@@ -434,6 +435,7 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
+                - dynamodb:Scan
               Resource: !GetAtt DocumentsTable.Arn
             - Effect: Allow
               Action:

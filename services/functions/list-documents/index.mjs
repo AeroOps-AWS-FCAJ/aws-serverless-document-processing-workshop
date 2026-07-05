@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -49,6 +49,7 @@ export const handler = async (event) => {
     }
 
     const userId = getUserId(event);
+    const admin = isAdmin(event);
     if (!userId) {
       return formatResponse(
         401,
@@ -75,7 +76,7 @@ export const handler = async (event) => {
 
     let exclusiveStartKey;
     try {
-      exclusiveStartKey = decodeNextToken(query.nextToken, userId);
+      exclusiveStartKey = decodeNextToken(query.nextToken, userId, admin);
     } catch {
       return formatResponse(
         400,
@@ -88,31 +89,15 @@ export const handler = async (event) => {
     }
 
     const pageSize = normalizePageSize(query.limit);
-    const expressionAttributeNames = statusFilter
-      ? { "#status": "status" }
-      : undefined;
-    const expressionAttributeValues = {
-      ":pk": `USER#${userId}`,
-      ":documentPrefix": "DOC#",
-      ...(statusFilter ? { ":status": statusFilter } : {}),
-    };
-    const queryInput = {
-      TableName: TABLE_NAME,
-      KeyConditionExpression:
-        "PK = :pk AND begins_with(SK, :documentPrefix)",
-      ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues,
-      FilterExpression: statusFilter ? "#status = :status" : undefined,
-      ExclusiveStartKey: exclusiveStartKey,
-      Limit: pageSize,
-    };
-
-    const result = await docClient.send(new QueryCommand(queryInput));
+    const result = admin
+      ? await scanAdminDocuments({ statusFilter, exclusiveStartKey, pageSize })
+      : await queryUserDocuments({ userId, statusFilter, exclusiveStartKey, pageSize });
     const items = (result.Items || []).map(normalizeDocumentItem);
 
     log("INFO", {
       message: "Documents listed successfully",
       userId,
+      admin,
       statusFilter: statusFilter || null,
       itemCount: items.length,
     });
@@ -148,6 +133,63 @@ function getUserId(event) {
   return claims.sub || null;
 }
 
+function getGroups(event) {
+  const claims =
+    event?.requestContext?.authorizer?.jwt?.claims ||
+    event?.requestContext?.authorizer?.claims ||
+    {};
+  const groups = claims["cognito:groups"] || [];
+  return Array.isArray(groups) ? groups : String(groups).split(",");
+}
+
+function isAdmin(event) {
+  return getGroups(event).some((group) => group.trim().toLowerCase() === "admin");
+}
+
+function queryUserDocuments({ userId, statusFilter, exclusiveStartKey, pageSize }) {
+  const expressionAttributeNames = statusFilter
+    ? { "#status": "status" }
+    : undefined;
+  const expressionAttributeValues = {
+    ":pk": `USER#${userId}`,
+    ":documentPrefix": "DOC#",
+    ...(statusFilter ? { ":status": statusFilter } : {}),
+  };
+
+  return docClient.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    KeyConditionExpression:
+      "PK = :pk AND begins_with(SK, :documentPrefix)",
+    ExpressionAttributeNames: expressionAttributeNames,
+    ExpressionAttributeValues: expressionAttributeValues,
+    FilterExpression: statusFilter ? "#status = :status" : undefined,
+    ExclusiveStartKey: exclusiveStartKey,
+    Limit: pageSize,
+  }));
+}
+
+function scanAdminDocuments({ statusFilter, exclusiveStartKey, pageSize }) {
+  const expressionAttributeNames = {
+    "#sk": "SK",
+    ...(statusFilter ? { "#status": "status" } : {}),
+  };
+  const expressionAttributeValues = {
+    ":documentPrefix": "DOC#",
+    ...(statusFilter ? { ":status": statusFilter } : {}),
+  };
+
+  return docClient.send(new ScanCommand({
+    TableName: TABLE_NAME,
+    ExpressionAttributeNames: expressionAttributeNames,
+    ExpressionAttributeValues: expressionAttributeValues,
+    FilterExpression: statusFilter
+      ? "begins_with(#sk, :documentPrefix) AND #status = :status"
+      : "begins_with(#sk, :documentPrefix)",
+    ExclusiveStartKey: exclusiveStartKey,
+    Limit: pageSize,
+  }));
+}
+
 function normalizePageSize(value) {
   const numeric = Number(value);
   if (!Number.isInteger(numeric) || numeric <= 0) return DEFAULT_PAGE_SIZE;
@@ -161,20 +203,20 @@ function encodeNextToken(lastEvaluatedKey) {
   );
 }
 
-function decodeNextToken(token, userId) {
+function decodeNextToken(token, userId, admin = false) {
   if (!token) return undefined;
   const decoded = JSON.parse(
     Buffer.from(String(token), "base64url").toString("utf8")
   );
-  if (
-    !decoded ||
-    decoded.PK !== `USER#${userId}` ||
-    typeof decoded.SK !== "string" ||
-    !decoded.SK.startsWith("DOC#")
-  ) {
+  const expectedPk = admin ? /^USER#/ : new RegExp(`^USER#${escapeRegExp(userId)}$`);
+  if (!decoded || !expectedPk.test(String(decoded.PK || "")) || typeof decoded.SK !== "string" || !decoded.SK.startsWith("DOC#")) {
     throw new Error("Invalid nextToken scope.");
   }
   return decoded;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function removeDynamoDbKeys(item = {}) {
