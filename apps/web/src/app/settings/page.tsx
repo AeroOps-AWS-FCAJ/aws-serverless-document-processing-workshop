@@ -77,6 +77,7 @@ import {
   type ApiNotificationItem,
 } from "@/lib/docuflow-api"
 import { useLanguage, type AppLanguage, type TranslationKey } from "@/lib/i18n"
+import { userProfilePreferencesStorageKey } from "@/lib/user-preferences"
 
 type SettingsTab = "profile" | "notifications" | "activity"
 type NotificationKind = "ACTION" | "FAILED" | "COMPLETE" | "PROCESSING"
@@ -481,10 +482,6 @@ function SettingSearch({
   )
 }
 
-function profileStorageKey(userId?: string) {
-  return `docuflow:user-profile-preferences:${userId || "anonymous"}`
-}
-
 function notificationReadStorageKey(userId?: string) {
   return `docuflow:notification-acknowledged:${userId || "anonymous"}`
 }
@@ -499,7 +496,7 @@ function getInitials(name?: string, email?: string) {
 function readStoredProfile(userId?: string): Partial<ProfileFormState> {
   if (typeof window === "undefined") return {}
   try {
-    return JSON.parse(window.localStorage.getItem(profileStorageKey(userId)) || "{}") as Partial<ProfileFormState>
+    return JSON.parse(window.localStorage.getItem(userProfilePreferencesStorageKey(userId)) || "{}") as Partial<ProfileFormState>
   } catch {
     return {}
   }
@@ -509,7 +506,7 @@ function writeStoredProfile(userId: string | undefined, values: ProfileFormState
   if (typeof window === "undefined") return
   const { company, department, phone, timezone, language, defaultCurrency, compactTables, notes } = values
   window.localStorage.setItem(
-    profileStorageKey(userId),
+    userProfilePreferencesStorageKey(userId),
     JSON.stringify({ company, department, phone, timezone, language, defaultCurrency, compactTables, notes })
   )
 }
@@ -566,7 +563,7 @@ function documentFromApiItem(
     vendorName: raw.vendorName ?? "Unknown",
     invoiceDate: raw.invoiceDate ?? "",
     dueDate: raw.dueDate ?? "",
-    currency: raw.currency ?? "VND",
+    currency: raw.currency ?? "XXX",
     subtotalAmount: raw.subtotalAmount,
     discountAmount: raw.discountAmount,
     shippingAmount: raw.shippingAmount,

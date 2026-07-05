@@ -574,7 +574,7 @@ export const demoVndExchangeRates: Record<string, number> = {
   TWD: 780,
 }
 
-export function normalizeCurrencyCode(value: unknown, fallback = "VND") {
+export function normalizeCurrencyCode(value: unknown, fallback = "XXX") {
   const code = String(value || "")
     .trim()
     .toUpperCase()
@@ -583,9 +583,23 @@ export function normalizeCurrencyCode(value: unknown, fallback = "VND") {
 }
 
 export function convertToDemoVnd(value: number | null | undefined, currency?: string | null) {
+  return convertDemoCurrency(value, currency, "VND")
+}
+
+export function convertDemoCurrency(
+  value: number | null | undefined,
+  sourceCurrency?: string | null,
+  targetCurrency?: string | null,
+) {
   if (value == null || Number.isNaN(value)) return 0
-  const code = normalizeCurrencyCode(currency)
-  return value * (demoVndExchangeRates[code] ?? 1)
+
+  const sourceCode = normalizeCurrencyCode(sourceCurrency)
+  const targetCode = normalizeCurrencyCode(targetCurrency, "VND")
+  const sourceRate = demoVndExchangeRates[sourceCode]
+  const targetRate = demoVndExchangeRates[targetCode]
+
+  if (!sourceRate || !targetRate) return 0
+  return (value * sourceRate) / targetRate
 }
 
 export function demoCurrencyRateDetail() {
@@ -605,6 +619,10 @@ export function formatMoney(value: number | null | undefined, currency?: string 
   if (value == null || Number.isNaN(value)) return "—"
   const finalCurrency = normalizeCurrencyCode(currency)
   const hasDecimals = !Number.isInteger(value)
+
+  if (finalCurrency === "XXX") {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  }
 
   try {
     return new Intl.NumberFormat("en-US", {
