@@ -57,7 +57,7 @@ Run the frontend locally:
 
     pnpm --filter docuflow-ai-web dev
 
-## Frontend-only CI/CD
+## Frontend CI and Amplify deployment
 
 The GitHub Actions workflow in `.github/workflows/ci.yml` is intentionally
 frontend-only. It does not run `sam deploy`, `sam sync`, or CloudFormation
@@ -65,28 +65,24 @@ deployment, because the workshop backend Lambda, Step Functions, API Gateway,
 and observability resources may be managed manually in AWS Console.
 
 On pull requests and pushes to `main`, the workflow runs lint, typecheck, tests,
-and a Vite production build. On pushes to `main`, it can deploy only
-`apps/web/dist` to an existing AWS Amplify Hosting app branch.
+and a Vite production build. It does not assume an AWS role or deploy artifacts.
 
-Configure these GitHub repository or environment variables before enabling the
-deploy job:
+The Amplify Hosting app is connected directly to this GitHub repository. Amplify
+automatically builds and deploys the `main` branch after a push, using the root
+`amplify.yml` build specification. Configure these variables in **Amplify Hosting
+> App settings > Environment variables**:
 
 | Variable | Purpose |
 |---|---|
-| `AWS_REGION` | Region for the existing Amplify app. |
-| `AWS_ROLE_TO_ASSUME` | IAM role ARN trusted by GitHub OIDC for frontend deploy. |
-| `AMPLIFY_APP_ID` | Existing Amplify app ID. |
-| `AMPLIFY_BRANCH_NAME` | Existing Amplify branch name, for example `main`. |
 | `VITE_API_BASE_URL` | Existing API Gateway base URL. |
 | `VITE_COGNITO_REGION` | Region of the existing Cognito user pool. |
 | `VITE_COGNITO_USER_POOL_ID` | Existing Cognito user pool ID. |
 | `VITE_COGNITO_CLIENT_ID` | Existing Cognito app client ID. |
 | `VITE_BASENAME` | Optional route basename if the SPA is hosted under a subpath. |
 
-The deploy role needs only Amplify Hosting deployment permissions, for example
-`amplify:CreateDeployment`, `amplify:StartDeployment`, and read access to the
-target Amplify app and branch. It does not need Lambda, Step Functions,
-CloudFormation, DynamoDB, S3 data bucket, or IAM mutation permissions.
+GitHub repository variables, AWS access keys, and a GitHub OIDC deploy role are
+not required for this deployment model. Verify each release in the Amplify
+deployment history and confirm that its commit matches the latest `main` commit.
 
 The local web demo starts at `/auth/sign-in`. Protected application routes such as
 `/dashboard`, `/upload`, `/documents`, `/review`, `/operations`, `/evidence`, and
