@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const ddbClient = new DynamoDBClient({});
@@ -37,6 +37,7 @@ export const handler = async (event) => {
 
     const documentId = getDocumentId(event);
     const userId = getUserId(event);
+    const admin = isAdmin(event);
 
     if (!documentId) {
       return formatResponse(400, false, null, "Missing documentId.", "VALIDATION", "INVALID_INPUT");
@@ -46,15 +47,26 @@ export const handler = async (event) => {
       return formatResponse(401, false, null, "Missing authenticated Cognito user.", "AUTH", "UNAUTHORIZED");
     }
 
-    logInfo("Get document request received", { documentId, userId });
+    logInfo("Get document request received", { documentId, userId, admin });
 
-    const dbRes = await docClient.send(new GetCommand({
+    let dbRes = await docClient.send(new GetCommand({
       TableName: TABLE_NAME,
       Key: {
         PK: `USER#${userId}`,
         SK: `DOC#${documentId}`,
       },
     }));
+
+    if (!dbRes.Item && admin) {
+      const adminResult = await docClient.send(new ScanCommand({
+        TableName: TABLE_NAME,
+        ExpressionAttributeNames: { "#sk": "SK" },
+        ExpressionAttributeValues: { ":sk": `DOC#${documentId}` },
+        FilterExpression: "#sk = :sk",
+        Limit: 1,
+      }));
+      dbRes = { Item: adminResult.Items?.[0] };
+    }
 
     if (!dbRes.Item) {
       return formatResponse(404, false, null, "Document not found.", "DYNAMODB", "NOT_FOUND");
@@ -201,6 +213,19 @@ function getUserId(event) {
     {};
 
   return claims.sub || null;
+}
+
+function getGroups(event) {
+  const claims =
+    event?.requestContext?.authorizer?.jwt?.claims ||
+    event?.requestContext?.authorizer?.claims ||
+    {};
+  const groups = claims["cognito:groups"] || [];
+  return Array.isArray(groups) ? groups : String(groups).split(",");
+}
+
+function isAdmin(event) {
+  return getGroups(event).some((group) => group.trim().toLowerCase() === "admin");
 }
 
 function removeDynamoDbKeys(item = {}) {

@@ -722,7 +722,7 @@ export default function SettingsPage() {
           unread: notification.requiresAction && !acknowledgedNotificationSet.has(notification.id),
         }))
         .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)),
-    [acknowledgedNotificationSet, visibleDocuments]
+    [acknowledgedNotificationSet, t, visibleDocuments]
   )
 
   const notifications = useMemo(
@@ -789,8 +789,17 @@ export default function SettingsPage() {
   }
 
   const handleLogout = async () => {
+    toast.info(t("toast.signedOut"))
     await clearDocuFlowSession()
     navigate("/auth/sign-in", { replace: true })
+  }
+
+  const handleSettingsRefresh = async () => {
+    const toastId = toast.loading(t("toast.refreshStarted"))
+    const result = await refreshDocuments()
+    toast.success(result.count > 0 ? t("sync.success", { total: result.count }) : t("toast.refreshComplete"), {
+      id: toastId,
+    })
   }
 
   useEffect(() => {
@@ -885,7 +894,7 @@ export default function SettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [apiMode])
+  }, [apiMode, t])
 
   const setAcknowledgedNotifications = (ids: string[]) => {
     const uniqueIds = Array.from(new Set(ids))
@@ -940,6 +949,12 @@ export default function SettingsPage() {
     setActivitySeverityFilter("ALL")
     setActivityStatusFilter("ALL")
     setActivityPage(1)
+    toast.success(t("toast.filtersReset"))
+  }
+
+  const handleExportActivityCsv = () => {
+    exportActivityCsv(filteredEvents)
+    toast.success(t("toast.exportedCsv"))
   }
 
   const updateProfileField = <K extends keyof ProfileFormState>(field: K, value: ProfileFormState[K]) => {
@@ -1042,7 +1057,7 @@ export default function SettingsPage() {
                 {syncMessage && <span className="ml-2 text-[#d8ff72]">{syncMessage}</span>}
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => refreshDocuments()} disabled={isSyncing}>
+                <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => void handleSettingsRefresh()} disabled={isSyncing}>
                   <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
                   {t("common.refresh")}
                 </Button>
@@ -1186,7 +1201,7 @@ export default function SettingsPage() {
                       </div>
                       <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="email">{t("auth.email")} Cognito</Label>
-                        <Input id="email" type="email" value={profileForm.email} onChange={(event) => updateProfileField("email", event.target.value)} placeholder="finance@docuflow.ai" />
+                        <Input id="email" type="email" value={profileForm.email} onChange={(event) => updateProfileField("email", event.target.value)} placeholder="youremail@example.com" />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="company">{t("settings.company")}</Label>
@@ -1575,7 +1590,7 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={resetActivityFilters}>
                       <RotateCcw className="size-3.5" />{t("settings.reset")}</Button>
-                    <Button type="button" size="sm" onClick={() => exportActivityCsv(filteredEvents)} disabled={!filteredEvents.length}>
+                    <Button type="button" size="sm" onClick={handleExportActivityCsv} disabled={!filteredEvents.length}>
                       <Download className="size-3.5" />
                       CSV
                     </Button>

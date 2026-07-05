@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate, workflowSteps, type DocumentRecord } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { useAdminText } from "@/lib/admin-i18n"
 
 type ExecutionState = "Succeeded" | "Running" | "Failed" | "NeedsReview"
@@ -137,7 +138,8 @@ function confidenceBreakdown(document?: DocumentRecord) {
 
 export default function AdminWorkflowPage() {
   const a = useAdminText()
-  const { documents } = useDocuFlowDocuments()
+  const { documents, mergeDocuments } = useDocuFlowDocuments()
+  const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
   const [selectedId, setSelectedId] = useState("")
   const activeId = selectedId || documents[0]?.documentId || ""
   const selected = documents.find((document) => document.documentId === activeId) ?? documents[0]
@@ -167,13 +169,36 @@ export default function AdminWorkflowPage() {
       <div className="grid gap-5 px-4 py-6 lg:px-6">
         <section>
           <div className="relative overflow-hidden rounded-2xl border bg-[#10261d] text-white shadow-lg p-8">
-            <h2 className="font-display text-2xl font-semibold leading-tight">{a("No workflow executions yet")}</h2>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
+                {apiMode ? a("Live API sync") : a("Local demo")}
+              </Badge>
+              {isSyncing && (
+                <Badge variant="outline" className="border-white/15 bg-white/8 text-white/70">
+                  <RefreshCw className="size-3 animate-spin" />
+                  {a("Refreshing")}
+                </Badge>
+              )}
+            </div>
+            <h2 className="font-display text-2xl font-semibold leading-tight">
+              {isSyncing ? a("Loading workflow executions") : a("No workflow executions yet")}
+            </h2>
             <p className="mt-2 text-sm text-white/70">
-              {a("Upload a document from the document workspace to start an AWS Step Functions execution.")}
+              {syncError || syncMessage || a("Upload a document from the document workspace to start an AWS Step Functions execution.")}
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Button asChild className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f] font-semibold">
                 <Link to="/upload">{a("Upload document")}</Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10"
+                onClick={() => void refreshDocuments()}
+                disabled={isSyncing}
+              >
+                <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
+                {a("Refresh data")}
               </Button>
             </div>
           </div>
@@ -200,6 +225,9 @@ export default function AdminWorkflowPage() {
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
                   AWS Step Functions
                 </Badge>
+                <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
+                  {apiMode ? a("Live API sync") : a("Local demo")}
+                </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
                 {a("Execution history with AI and persistence diagnostics.")}
@@ -219,6 +247,16 @@ export default function AdminWorkflowPage() {
                     {a("Open logs and traces")}
                     <Route className="size-4" />
                   </Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10"
+                  onClick={() => void refreshDocuments()}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
+                  {a("Refresh data")}
                 </Button>
               </div>
             </div>
@@ -255,6 +293,8 @@ export default function AdminWorkflowPage() {
             </CardTitle>
             <CardDescription>
               {a("Select an execution to inspect state progress and data artifacts.")}
+              {syncMessage && <span className="ml-2 text-primary">{syncMessage}</span>}
+              {syncError && <span className="ml-2 text-destructive">{syncError}</span>}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { BellRing, Check, CircleDollarSign, Mail, ShieldAlert, Siren, Workflow } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type AlertKey = "workflowFailed" | "reviewRequired" | "dlqMessage" | "budgetThreshold"
+type AlertFrequency = "instant" | "hourly" | "daily"
+
+const ALERT_PREFERENCES_KEY = "docuflow.alert-preferences"
+const defaultAlerts: Record<AlertKey, boolean> = {
+  workflowFailed: true,
+  reviewRequired: true,
+  dlqMessage: true,
+  budgetThreshold: true,
+}
 
 const alertDefinitions: Array<{
   key: AlertKey
@@ -29,15 +38,32 @@ const alertDefinitions: Array<{
 
 export default function NotificationSettings() {
   const { t } = useLanguage()
-  const [alerts, setAlerts] = useState<Record<AlertKey, boolean>>({
-    workflowFailed: true,
-    reviewRequired: true,
-    dlqMessage: true,
-    budgetThreshold: true,
-  })
-  const [frequency, setFrequency] = useState("instant")
+  const [alerts, setAlerts] = useState<Record<AlertKey, boolean>>(defaultAlerts)
+  const [frequency, setFrequency] = useState<AlertFrequency>("instant")
   const [email, setEmail] = useState("docuflow-alerts@example.com")
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(ALERT_PREFERENCES_KEY)
+      if (!stored) return
+
+      const parsed = JSON.parse(stored) as Partial<{
+        alerts: Partial<Record<AlertKey, boolean>>
+        frequency: string
+        email: string
+      }>
+      setAlerts({ ...defaultAlerts, ...parsed.alerts })
+      if (parsed.frequency === "instant" || parsed.frequency === "hourly" || parsed.frequency === "daily") {
+        setFrequency(parsed.frequency)
+      }
+      if (typeof parsed.email === "string" && parsed.email.trim()) {
+        setEmail(parsed.email)
+      }
+    } catch {
+      window.localStorage.removeItem(ALERT_PREFERENCES_KEY)
+    }
+  }, [])
 
   const toggleAlert = (key: AlertKey, checked: boolean) => {
     setAlerts((current) => ({ ...current, [key]: checked }))
@@ -45,7 +71,7 @@ export default function NotificationSettings() {
   }
 
   const savePreferences = () => {
-    window.localStorage.setItem("docuflow.alert-preferences", JSON.stringify({ alerts, frequency, email }))
+    window.localStorage.setItem(ALERT_PREFERENCES_KEY, JSON.stringify({ alerts, frequency, email }))
     setSaved(true)
   }
 
@@ -98,7 +124,7 @@ export default function NotificationSettings() {
               </CardHeader>
               <CardContent className="grid gap-5 pt-5">
                 <div className="grid gap-2"><Label htmlFor="alert-email">{t("alertSettings.recipient")}</Label><Input id="alert-email" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setSaved(false) }} /></div>
-                <div className="grid gap-2"><Label htmlFor="alert-frequency">{t("alertSettings.cadence")}</Label><Select value={frequency} onValueChange={(value) => { setFrequency(value); setSaved(false) }}><SelectTrigger id="alert-frequency" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="instant">{t("alertSettings.instant")}</SelectItem><SelectItem value="hourly">{t("alertSettings.hourly")}</SelectItem><SelectItem value="daily">{t("alertSettings.daily")}</SelectItem></SelectContent></Select></div>
+                <div className="grid gap-2"><Label htmlFor="alert-frequency">{t("alertSettings.cadence")}</Label><Select value={frequency} onValueChange={(value) => { setFrequency(value as AlertFrequency); setSaved(false) }}><SelectTrigger id="alert-frequency" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="instant">{t("alertSettings.instant")}</SelectItem><SelectItem value="hourly">{t("alertSettings.hourly")}</SelectItem><SelectItem value="daily">{t("alertSettings.daily")}</SelectItem></SelectContent></Select></div>
                 <div className="border bg-muted/25 p-3 text-xs leading-5 text-muted-foreground"><span className="font-semibold text-foreground">{t("alertSettings.securityBoundary")}</span> {t("alertSettings.securityBoundaryBody")}</div>
               </CardContent>
             </Card>

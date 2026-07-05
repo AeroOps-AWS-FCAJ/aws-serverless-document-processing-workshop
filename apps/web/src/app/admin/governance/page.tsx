@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AlertTriangle,
@@ -147,12 +148,16 @@ function stateClass(state: ControlState) {
 
 export default function AdminGovernancePage() {
   const a = useAdminText()
+  const [cleanupChecks, setCleanupChecks] = useState(() => cleanupSteps.map((step) => step.checked))
   const ready = controls.filter((control) => control.state === "Ready").length
   const watch = controls.filter((control) => control.state === "Watch").length
   const missing = controls.filter((control) => control.state === "Missing").length
   const readiness = Math.round((ready / controls.length) * 100)
-  const cleanupDone = cleanupSteps.filter((step) => step.checked).length
+  const cleanupDone = cleanupChecks.filter(Boolean).length
   const cleanupReadiness = Math.round((cleanupDone / cleanupSteps.length) * 100)
+  const setCleanupChecked = (index: number, checked: boolean) => {
+    setCleanupChecks((current) => current.map((value, itemIndex) => itemIndex === index ? checked : value))
+  }
 
   return (
     <>
@@ -338,7 +343,11 @@ export default function AdminGovernancePage() {
             <div className="grid gap-3">
               {cleanupSteps.map((step, index) => (
                 <div key={step.label} className="grid gap-3 border p-4 sm:grid-cols-[32px_minmax(0,1fr)]">
-                  <Checkbox checked={step.checked} aria-label={a(step.label)} />
+                  <Checkbox
+                    checked={cleanupChecks[index]}
+                    onCheckedChange={(value) => setCleanupChecked(index, value === true)}
+                    aria-label={a(step.label)}
+                  />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">0{index + 1}</Badge>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
+import { toast } from "sonner"
 import {
   AlertTriangle,
   ArrowRight,
@@ -436,22 +437,40 @@ export default function ReportsPage() {
     setDateFrom("")
     setDateTo("")
     setApprovedOnly(true)
+    toast.success(t("toast.filtersReset"))
   }
 
   const refreshReportData = async () => {
+    const toastId = toast.loading(t("toast.refreshStarted"))
     await refreshDocuments()
-    if (!apiMode) return
+    if (!apiMode) {
+      toast.success(t("toast.refreshComplete"), {
+        id: toastId,
+      })
+      return
+    }
 
     setIsLoadingSummary(true)
     setSummaryWarning(null)
     try {
       setApiSummary(await getReportsSummary())
+      toast.success(t("toast.refreshComplete"), {
+        id: toastId,
+      })
     } catch {
       setApiSummary(null)
       setSummaryWarning(t("reports.apiSummaryWarning"))
+      toast.warning(t("reports.apiSummaryWarning"), {
+        id: toastId,
+      })
     } finally {
       setIsLoadingSummary(false)
     }
+  }
+
+  const handleExportCsv = (items: DocumentRecord[], suffix: string) => {
+    exportCsv(items, suffix)
+    toast.success(t("toast.exportedCsv"))
   }
 
   const toggleSelected = (documentId: string, checked: boolean) => {
@@ -498,7 +517,7 @@ export default function ReportsPage() {
                   <RefreshCw className={isSyncing || isLoadingSummary ? "size-4 animate-spin" : "size-4"} />
                   {t("reports.refresh")}
                 </Button>
-                <Button className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]" onClick={() => exportCsv(selectedDocuments.length ? selectedDocuments : filteredDocuments, selectedDocuments.length ? "da-chon" : "da-loc")}>
+                <Button className="bg-[#d8ff72] text-[#10261d] hover:bg-[#c7ee5f]" onClick={() => handleExportCsv(selectedDocuments.length ? selectedDocuments : filteredDocuments, selectedDocuments.length ? "da-chon" : "da-loc")}>
                   <Download className="size-4" />
                   {selectedDocuments.length ? t("reports.exportSelectedCount", { count: selectedDocuments.length }) : t("reports.exportCsv")}
                 </Button>
@@ -753,7 +772,7 @@ export default function ReportsPage() {
               onColumnVisibilityChange={(key, visible) => setColumnVisibility((current) => ({ ...current, [key]: visible }))}
               onResetColumns={() => setColumnVisibility(defaultColumnVisibility)}
             >
-              <Button size="sm" className="h-8 cursor-pointer" onClick={() => exportCsv(selectedDocuments, "da-chon")}>
+              <Button size="sm" className="h-8 cursor-pointer" onClick={() => handleExportCsv(selectedDocuments, "da-chon")}>
                 <Download className="size-3.5" />
                 {t("reports.exportSelected")}
               </Button>

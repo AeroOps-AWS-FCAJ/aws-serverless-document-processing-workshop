@@ -43,6 +43,17 @@ function resolveChallengeKind(step?: string): ChallengeKind {
   return "UNSUPPORTED"
 }
 
+const authCardClass = "border-[#29483b] bg-[#10261d] text-white shadow-[0_24px_80px_rgba(16,38,29,.34)]"
+const authHeaderClass = "border-b border-white/10 bg-[#0d2119] text-left"
+const authTitleClass = "text-lg text-white"
+const authDescriptionClass = "text-white/65"
+const authInputClass = "!border-[#6f8a7b] !bg-[#071710] !text-white placeholder:!text-[#a5b4ab] focus-visible:!border-[#d8ff72] focus-visible:!ring-[#d8ff72]/25"
+const authLabelClass = "text-white/85"
+const authSecondaryTextClass = "text-white/65"
+const authLinkClass = "font-medium text-[#d8ff72] underline underline-offset-4 hover:text-[#f0ffb8]"
+const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] font-semibold !text-[#10261d] shadow-[0_10px_28px_rgba(216,255,114,.22)] hover:!bg-[#cfff4f]"
+const authOutlineButtonClass = "w-full cursor-pointer border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-[#d8ff72]"
+
 export function LoginForm1({
   className,
   ...props
@@ -72,7 +83,11 @@ export function LoginForm1({
   })
 
   async function finishSignedIn() {
-    toast.success(t("auth.signedIn"));
+    toast.success(t("auth.signedIn"), {
+      id: "auth-sign-in-success",
+      description: t("auth.signedInRedirect"),
+      duration: 6000,
+    });
     await refreshSession();
     const { getCurrentDocuFlowSession } = await import("@/lib/auth");
     const session = await getCurrentDocuFlowSession();
@@ -91,6 +106,45 @@ export function LoginForm1({
     toast.info(kind === "NEW_PASSWORD" ? t("auth.newPasswordPrompt") : t("auth.confirmCodePrompt"))
   }
 
+  function getSignInErrorMessage(error: unknown) {
+    const name = error instanceof Error ? error.name : ""
+    const message = error instanceof Error ? error.message.toLowerCase() : ""
+
+    if (
+      name === "NotAuthorizedException" ||
+      name === "UserNotFoundException" ||
+      message.includes("incorrect username") ||
+      message.includes("incorrect password") ||
+      message.includes("user does not exist") ||
+      message.includes("not authorized")
+    ) {
+      return t("auth.signInInvalidCredentials")
+    }
+
+    if (name === "UserNotConfirmedException" || message.includes("not confirmed")) {
+      return t("auth.signInUserNotConfirmed")
+    }
+
+    if (name === "PasswordResetRequiredException" || message.includes("password reset")) {
+      return t("auth.signInPasswordResetRequired")
+    }
+
+    if (
+      name === "TooManyRequestsException" ||
+      name === "LimitExceededException" ||
+      message.includes("attempt") ||
+      message.includes("rate")
+    ) {
+      return t("auth.signInRateLimited")
+    }
+
+    if (message.includes("network") || message.includes("fetch")) {
+      return t("auth.signInNetworkError")
+    }
+
+    return error instanceof Error ? error.message || t("auth.signInFailed") : t("auth.signInFailed")
+  }
+
   async function completeSignIn(values: LoginFormValues) {
     setIsLoading(true)
     try {
@@ -106,11 +160,12 @@ export function LoginForm1({
       }
     } catch (error: unknown) {
       console.error("Error signing in", error);
-      if (error instanceof Error) {
-        toast.error(error.message || t("auth.signInFailed"));
-      } else {
-        toast.error(t("auth.signInFailed"));
-      }
+      const message = getSignInErrorMessage(error)
+      toast.error(message, {
+        id: "auth-sign-in-error",
+        description: t("auth.signInErrorHint"),
+        duration: 7000,
+      })
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +175,8 @@ export function LoginForm1({
     event.preventDefault()
     if (!challenge || challenge.kind === "UNSUPPORTED") return
     if (!challengeResponse.trim()) {
-      toast.error(challenge.kind === "NEW_PASSWORD" ? t("auth.newPasswordRequired") : t("auth.confirmCodeRequired"))
+      const message = challenge.kind === "NEW_PASSWORD" ? t("auth.newPasswordRequired") : t("auth.confirmCodeRequired")
+      toast.error(message)
       return
     }
 
@@ -138,7 +194,8 @@ export function LoginForm1({
       }
     } catch (error: unknown) {
       console.error("Error completing sign-in challenge", error);
-      toast.error(error instanceof Error ? error.message : t("auth.challengeFailed"))
+      const message = error instanceof Error ? error.message : t("auth.challengeFailed")
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -146,10 +203,10 @@ export function LoginForm1({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]">
-        <CardHeader className="border-b border-[#e2e3db] text-left">
-          <CardTitle className="text-lg text-[#11251d]">{t("auth.accountDetails")}</CardTitle>
-          <CardDescription className="text-[#647069]">
+      <Card className={authCardClass}>
+        <CardHeader className={authHeaderClass}>
+          <CardTitle className={authTitleClass}>{t("auth.accountDetails")}</CardTitle>
+          <CardDescription className={authDescriptionClass}>
             {t("auth.accountDetailsDescription")}
           </CardDescription>
         </CardHeader>
@@ -158,7 +215,7 @@ export function LoginForm1({
             <form onSubmit={completeChallenge}>
               <div className="grid gap-5 mt-4">
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium text-[#405047]" htmlFor="challengeResponse">
+                  <label className={`text-sm font-medium ${authLabelClass}`} htmlFor="challengeResponse">
                     {challenge.kind === "NEW_PASSWORD" ? t("auth.newPassword") : t("auth.confirmCode")}
                   </label>
                   <Input
@@ -166,16 +223,16 @@ export function LoginForm1({
                     type={challenge.kind === "NEW_PASSWORD" ? "password" : "text"}
                     value={challengeResponse}
                     onChange={(event) => setChallengeResponse(event.target.value)}
-                    className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+                    className={authInputClass}
                     disabled={isLoading}
                     autoFocus
                   />
-                  <p className="text-xs text-[#647069]">{challenge.step}</p>
+                  <p className={`text-xs ${authSecondaryTextClass}`}>{challenge.step}</p>
                 </div>
-                <Button disabled={isLoading} type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
+                <Button disabled={isLoading} type="submit" className={authPrimaryButtonClass}>
                   {isLoading ? <LoadingSpinner /> : t("auth.continue")}
                 </Button>
-                <Button type="button" variant="outline" className="w-full cursor-pointer" onClick={() => setChallenge(null)} disabled={isLoading}>
+                <Button type="button" variant="outline" className={authOutlineButtonClass} onClick={() => setChallenge(null)} disabled={isLoading}>
                   {t("auth.backToLogin")}
                 </Button>
               </div>
@@ -190,12 +247,12 @@ export function LoginForm1({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[#405047]">{t("auth.email")}</FormLabel>
+                        <FormLabel className={authLabelClass}>{t("auth.email")}</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
-                            placeholder="finance@docuflow.ai"
-                            className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+                            placeholder="youremail@example.com"
+                            className={authInputClass}
                             {...field}
                           />
                         </FormControl>
@@ -209,10 +266,10 @@ export function LoginForm1({
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center">
-                          <FormLabel className="text-[#405047]">{t("auth.password")}</FormLabel>
+                          <FormLabel className={authLabelClass}>{t("auth.password")}</FormLabel>
                           <a
                             href="/auth/forgot-password"
-                            className="ml-auto text-sm text-[#647069] underline-offset-4 hover:text-[#153f30] hover:underline"
+                            className="ml-auto text-sm text-white/65 underline-offset-4 hover:text-[#d8ff72] hover:underline"
                           >
                             {t("auth.forgotPassword")}
                           </a>
@@ -220,7 +277,7 @@ export function LoginForm1({
                         <FormControl>
                           <Input
                             type="password"
-                            className="!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
+                            className={authInputClass}
                             {...field}
                           />
                         </FormControl>
@@ -228,14 +285,14 @@ export function LoginForm1({
                       </FormItem>
                     )}
                   />
-                  <Button disabled={isLoading} type="submit" className="w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]">
+                  <Button disabled={isLoading} type="submit" className={authPrimaryButtonClass}>
                     {isLoading ? <LoadingSpinner /> : t("common.signIn")}
                   </Button>
                 </div>
                 
-                <div className="text-center text-sm text-[#647069]">
+                <div className={`text-center text-sm ${authSecondaryTextClass}`}>
                   {t("auth.noAccount")}{" "}
-                  <a href="/auth/sign-up" className="font-medium text-[#153f30] underline underline-offset-4">
+                  <a href="/auth/sign-up" className={authLinkClass}>
                     {t("common.signUp")}
                   </a>
                 </div>

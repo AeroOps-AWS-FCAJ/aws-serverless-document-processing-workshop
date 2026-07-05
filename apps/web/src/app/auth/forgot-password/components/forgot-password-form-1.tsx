@@ -20,11 +20,16 @@ import { useLanguage } from "@/lib/i18n"
 
 type ResetStep = "request" | "confirm" | "complete"
 
-const authCardClass = "border-[#d4d7cd] bg-[#fffef9] text-[#11251d] shadow-[0_18px_60px_rgba(17,37,29,.08)]"
-const authInputClass = "!border-[#40584b] !bg-[#eef2e9] !text-[#11251d] placeholder:!text-[#6b756f] focus-visible:!border-[#153f30] focus-visible:!ring-[#153f30]/25"
-const authLabelClass = "text-[#405047]"
-const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] !text-[#10261d] hover:!bg-[#cfff4f]"
-const authOutlineButtonClass = "w-full cursor-pointer border-[#40584b]/35 bg-transparent text-[#153f30] hover:bg-[#eef2e9] hover:text-[#10261d]"
+const authCardClass = "border-[#29483b] bg-[#10261d] text-white shadow-[0_24px_80px_rgba(16,38,29,.34)]"
+const authHeaderClass = "border-b border-white/10 bg-[#0d2119] text-left"
+const authTitleClass = "text-lg text-white"
+const authDescriptionClass = "text-white/65"
+const authInputClass = "!border-[#6f8a7b] !bg-[#071710] !text-white placeholder:!text-[#a5b4ab] focus-visible:!border-[#d8ff72] focus-visible:!ring-[#d8ff72]/25"
+const authLabelClass = "text-white/85"
+const authSecondaryTextClass = "text-white/65"
+const authLinkClass = "font-medium text-[#d8ff72] underline underline-offset-4 hover:text-[#f0ffb8]"
+const authPrimaryButtonClass = "w-full cursor-pointer !bg-[#d8ff72] font-semibold !text-[#10261d] shadow-[0_10px_28px_rgba(216,255,114,.22)] hover:!bg-[#cfff4f]"
+const authOutlineButtonClass = "w-full cursor-pointer border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-[#d8ff72]"
 
 export function ForgotPasswordForm1({
   className,
@@ -91,11 +96,11 @@ export function ForgotPasswordForm1({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className={authCardClass}>
-        <CardHeader className="border-b border-[#e2e3db] text-left">
-          <CardTitle className="text-lg text-[#11251d]">
+        <CardHeader className={authHeaderClass}>
+          <CardTitle className={authTitleClass}>
             {step === "complete" ? t("auth.resetCompleteTitle") : t("auth.resetTitle")}
           </CardTitle>
-          <CardDescription className="text-[#647069]">
+          <CardDescription className={authDescriptionClass}>
             {step === "request"
               ? t("auth.resetRequestDescription")
               : step === "confirm"
@@ -113,7 +118,7 @@ export function ForgotPasswordForm1({
                   <Input
                     id="email"
                     type="email"
-                    placeholder="finance@docuflow.ai"
+                    placeholder="youremail@example.com"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className={authInputClass}
@@ -125,9 +130,9 @@ export function ForgotPasswordForm1({
                   {isLoading ? <LoadingSpinner /> : t("auth.sendCode")}
                 </Button>
               </div>
-              <div className="text-center text-sm text-[#647069]">
+              <div className={`text-center text-sm ${authSecondaryTextClass}`}>
                 {t("auth.rememberedPassword")}{" "}
-                <Link to="/auth/sign-in" className="font-medium text-[#153f30] underline underline-offset-4">
+                <Link to="/auth/sign-in" className={authLinkClass}>
                   {t("auth.backToLogin")}
                 </Link>
               </div>

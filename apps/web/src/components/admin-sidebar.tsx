@@ -57,7 +57,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       {/* ── Navigation items ────────────────────────────────────────────── */}
       <SidebarContent className="px-2 py-2">
         {navGroups.map((group) => (
-          <NavMain key={group.label} label={group.label || ""} labelKey={group.labelKey} items={group.items} />
+          <NavMain key={group.labelKey} label={group.label || ""} labelKey={group.labelKey} items={group.items} />
         ))}
       </SidebarContent>
 

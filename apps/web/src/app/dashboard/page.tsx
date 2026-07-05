@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import {
   Activity,
   AlertTriangle,
@@ -21,7 +21,23 @@ import {
   Zap,
 } from "lucide-react"
 import { Link } from "react-router-dom"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { toast } from "sonner"
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  Scatter,
+  ScatterChart,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,6 +65,19 @@ import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { useLanguage, type TranslationKey } from "@/lib/i18n"
 
 type TrendWindow = "30d" | "90d" | "6m"
+
+const statusChartPalette: Record<DocumentRecord["status"], string> = {
+  UPLOADED: "#94a3b8",
+  QUEUED: "#06b6d4",
+  PROCESSING: "#2f80ed",
+  EXTRACTED: "#12b981",
+  REVIEW_REQUIRED: "#f59e0b",
+  FAILED: "#ef4444",
+  CORRECTED: "#8b5cf6",
+  APPROVED: "#153f30",
+}
+
+const percentOf = (value: number, total: number) => total ? Math.round((value / total) * 100) : 0
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
@@ -110,6 +139,16 @@ export default function DashboardPage() {
     review:    { label: t("header.reviewRequired"), color: "#d97706" },
     failed:    { label: t("header.syncFailed"), color: "#dc2626" },
   } satisfies ChartConfig
+  const premiumChartConfig = {
+    extracted: { label: t("header.extracted"), color: "#153f30" },
+    review:    { label: t("header.reviewRequired"), color: "#8b5cf6" },
+    failed:    { label: t("header.syncFailed"), color: "#111827" },
+    queued:    { label: t("common.processing"), color: "#06b6d4" },
+    ready:     { label: t("common.ready"), color: "#baff17" },
+    created:   { label: t("dashboard.document"), color: "#8b5cf6" },
+    confidence:{ label: t("dashboard.confidence"), color: "#8b5cf6" },
+    risk:      { label: t("dashboard.riskMap"), color: "#0ea5e9" },
+  } satisfies ChartConfig
   const pipeline = [
     { label: t("workflow.upload"), detail: "S3 Raw", icon: UploadCloud },
     { label: t("workflow.extract"), detail: "Textract", icon: ScanText },
@@ -135,8 +174,12 @@ export default function DashboardPage() {
     if (syncMessage && !syncError) setLastSync(new Date())
   }, [syncError, syncMessage])
 
-  const handleRefresh = () => {
-    void refreshDocuments()
+  const handleRefresh = async () => {
+    const toastId = toast.loading(t("toast.refreshStarted"))
+    const result = await refreshDocuments()
+    toast.success(result.count > 0 ? t("sync.success", { total: result.count }) : t("toast.refreshComplete"), {
+      id: toastId,
+    })
   }
 
   // ── Derived numbers ───────────────────────────────────────────────────────
@@ -192,6 +235,107 @@ export default function DashboardPage() {
     { band: t("dashboard.lowConfidence"),        range: "< 80%",     count: documents.filter((d) => d.confidenceScore > 0 && d.confidenceScore < 0.8).length },
   ]
 
+  const statusRows = useMemo(() => {
+    const order: DocumentRecord["status"][] = ["APPROVED","EXTRACTED","CORRECTED","REVIEW_REQUIRED","PROCESSING","QUEUED","UPLOADED","FAILED"]
+    return order
+      .map((status) => {
+        const matching = documents.filter((d) => d.status === status)
+        return {
+          status,
+          label: t(`status.${status}` as TranslationKey),
+          count: matching.length,
+          value: matching.reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0),
+          color: statusChartPalette[status],
+        }
+      })
+      .filter((row) => row.count > 0)
+  }, [documents, t])
+  const statusTotal = documents.length
+  const statusConicStyle = {
+    background: statusRows.length
+      ? `conic-gradient(${statusRows.reduce<{ start: number; parts: string[] }>((acc, row) => {
+          const size = (row.count / Math.max(1, statusTotal)) * 100
+          acc.parts.push(`${row.color} ${acc.start}% ${acc.start + size}%`)
+          acc.start += size
+          return acc
+        }, { start: 0, parts: [] }).parts.join(", ")})`
+      : "conic-gradient(#e5e7eb 0 100%)",
+  } satisfies CSSProperties
+
+  const typeValueRows = useMemo(() => {
+    const totals = new Map<DocumentRecord["documentType"], number>()
+    for (const d of documents) {
+      totals.set(d.documentType, (totals.get(d.documentType) ?? 0) + convertToDemoVnd(d.totalAmount, d.currency))
+    }
+    return [...totals.entries()]
+      .map(([type, amount]) => ({
+        type,
+        label: type === "INVOICE" ? t("detail.invoice") : t("detail.receipt"),
+        amount,
+        color: type === "INVOICE" ? "#8b5cf6" : "#06b6d4",
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [documents, t])
+  const maxTypeValue = Math.max(1, ...typeValueRows.map((row) => row.amount))
+  const approvedValue = documents
+    .filter((d) => d.status === "APPROVED")
+    .reduce((s, d) => s + convertToDemoVnd(d.totalAmount, d.currency), 0)
+  const approvedValuePercent = percentOf(approvedValue, totalVnd)
+
+  const qualityRadar = useMemo(() => {
+    const amountCoverage = percentOf(documents.filter((d) => d.totalAmount > 0).length, documents.length)
+    const noFailureRate = percentOf(documents.length - failedCount, documents.length)
+    const reviewClearRate = percentOf(documents.length - attentionCount, documents.length)
+    return [
+      { metric: language === "vi" ? "Tin cậy" : "Confidence", score: avgConf },
+      { metric: language === "vi" ? "Sẵn sàng" : "Readiness", score: completionRate },
+      { metric: language === "vi" ? "Ít lỗi" : "Low failure", score: noFailureRate },
+      { metric: language === "vi" ? "Có số tiền" : "Value coverage", score: amountCoverage },
+      { metric: language === "vi" ? "Sạch hàng đợi" : "Queue clear", score: reviewClearRate },
+    ]
+  }, [attentionCount, avgConf, completionRate, documents, failedCount, language])
+
+  const weeklyActivity = useMemo(() => {
+    const labels = language === "vi" ? ["T2","T3","T4","T5","T6","T7","CN"] : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    const rows = labels.map((day) => ({ day, created: 0, ready: 0, review: 0 }))
+    for (const d of documents) {
+      const dayIndex = (new Date(d.updatedAt).getDay() + 6) % 7
+      rows[dayIndex].created += 1
+      if (["EXTRACTED","APPROVED"].includes(d.status)) rows[dayIndex].ready += 1
+      if (["REVIEW_REQUIRED","CORRECTED","FAILED"].includes(d.status)) rows[dayIndex].review += 1
+    }
+    return rows
+  }, [documents, language])
+
+  const riskScatter = useMemo(() => documents
+    .filter((d) => d.confidenceScore > 0)
+    .map((d) => ({
+      document: d.originalFileName,
+      confidence: Math.round(d.confidenceScore * 100),
+      amount: Math.round((convertToDemoVnd(d.totalAmount, d.currency) / 1_000_000) * 10) / 10,
+      status: d.status,
+      fill: statusChartPalette[d.status],
+    }))
+    .slice(0, 18), [documents])
+
+  const confidenceDots = useMemo(() => Array.from({ length: 72 }, (_, index) => {
+    const d = documents.length ? documents[index % documents.length] : null
+    const active = index < documents.length * 8
+    return {
+      id: `${d?.documentId ?? "empty"}-${index}`,
+      color: d ? statusChartPalette[d.status] : "#e5e7eb",
+      opacity: d && active ? Math.max(0.28, d.confidenceScore || 0.22) : 0.12,
+      scale: d && d.confidenceScore >= 0.9 ? 1.18 : 1,
+    }
+  }), [documents])
+
+  const trendAreaData = visibleTrend.map((item, index) => ({
+    ...item,
+    total: item.extracted + item.review + item.failed,
+    ready: item.extracted,
+    confidence: Math.min(98, Math.max(62, avgConf ? avgConf + index - visibleTrend.length + 1 : 72 + index * 3)),
+  }))
+
   const primaryAction = role === "admin"
     ? { label: t("dashboard.systemOperations"),   url: "/operations", icon: Activity }
     : attentionQueue.length
@@ -222,6 +366,7 @@ export default function DashboardPage() {
     const url  = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}))
     const a    = document.createElement("a"); a.href=url; a.download=`docuflow-dashboard-${new Date().toISOString().slice(0,10)}.csv`; a.click()
     URL.revokeObjectURL(url)
+    toast.success(t("toast.exportedCsv"))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -430,6 +575,223 @@ export default function DashboardPage() {
             icon={Gauge}
             alert={avgConf > 0 && avgConf < 80}
           />
+        </section>
+
+        <section aria-label={t("dashboard.insightBoard")} className="grid gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                {t("dashboard.insightBoard")}
+              </div>
+              <h3 className="text-lg font-semibold tracking-[-0.03em]">{t("dashboard.analyticsBoard")}</h3>
+            </div>
+            <p className="max-w-xl text-xs leading-5 text-muted-foreground">{t("dashboard.insightBoardBody")}</p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_.82fr_1.15fr]">
+            <article className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="border-b bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.processingFootprint")}</div>
+                    <div className="mt-1 text-2xl font-semibold tracking-[-0.05em]">{documents.length}</div>
+                  </div>
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                    {completionRate}% {t("dashboard.readyLabel").toLowerCase()}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid gap-4 p-4 lg:grid-cols-[168px_1fr]">
+                <div className="flex items-center justify-center">
+                  <div className="relative size-36 rounded-full p-3" style={statusConicStyle}>
+                    <div className="flex size-full flex-col items-center justify-center rounded-full border bg-card text-center shadow-inner">
+                      <span className="font-display text-4xl font-bold tracking-[-0.07em]">{completionRate}</span>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{t("dashboard.cleared")}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold">{t("dashboard.statusMix")}</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.liveDocuments")}</span>
+                  </div>
+                  <div className="grid gap-2">
+                    {statusRows.length ? statusRows.slice(0, 5).map((row) => (
+                      <div key={row.status} className="grid gap-1">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="size-2 rounded-sm" style={{ backgroundColor: row.color }} />
+                            <span className="truncate text-muted-foreground">{row.label}</span>
+                          </span>
+                          <span className="font-mono font-semibold">{row.count}</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(6, percentOf(row.count, statusTotal))}%`, backgroundColor: row.color }} />
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="py-6 text-center text-xs text-muted-foreground">{t("common.empty")}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <div className="grid gap-4">
+              <article className="min-w-0 overflow-hidden rounded-xl border bg-card p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.activityPulse")}</div>
+                    <div className="mt-1 text-sm font-semibold">{t("dashboard.weeklyFlow")}</div>
+                  </div>
+                  <Activity className="size-4 text-primary" />
+                </div>
+                <ChartContainer config={premiumChartConfig} className="h-[118px] w-full aspect-auto">
+                  <BarChart data={weeklyActivity} margin={{ top: 8, right: 0, left: -28, bottom: 0 }}>
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="created" fill="var(--color-created)" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="ready" fill="var(--color-ready)" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="review" fill="var(--color-review)" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              </article>
+
+              <article className="min-w-0 overflow-hidden rounded-xl border bg-card p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.dataQuality")}</div>
+                    <div className="mt-1 text-sm font-semibold">{t("dashboard.qualityRadar")}</div>
+                  </div>
+                  <Gauge className="size-4 text-primary" />
+                </div>
+                <ChartContainer config={premiumChartConfig} className="h-[154px] w-full aspect-auto">
+                  <RadarChart data={qualityRadar} margin={{ top: 4, right: 18, bottom: 4, left: 18 }}>
+                    <PolarGrid gridType="polygon" />
+                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10 }} />
+                    <Radar dataKey="score" stroke="var(--color-confidence)" fill="var(--color-confidence)" fillOpacity={0.22} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                  </RadarChart>
+                </ChartContainer>
+              </article>
+            </div>
+
+            <article className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="border-b bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.valueStack")}</div>
+                    <div className="mt-1 text-xl font-semibold tracking-[-0.04em]">{formatMoney(totalVnd, "VND")}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.approvedValue")}</div>
+                    <div className="text-sm font-semibold">{approvedValuePercent}%</div>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("dashboard.valueStackBody")}</p>
+              </div>
+              <div className="grid gap-4 p-4 sm:grid-cols-[1fr_150px]">
+                <div className="grid gap-3">
+                  {typeValueRows.length ? typeValueRows.map((row) => (
+                    <div key={row.type} className="grid gap-1.5">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="flex items-center gap-2">
+                          <span className="size-2 rounded-sm" style={{ backgroundColor: row.color }} />
+                          <span className="text-muted-foreground">{row.label}</span>
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums">{formatMoney(row.amount, "VND")}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(8, (row.amount / maxTypeValue) * 100)}%`, backgroundColor: row.color }} />
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="py-6 text-center text-xs text-muted-foreground">{t("common.empty")}</div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.attention")}</div>
+                      <div className="mt-1 text-lg font-semibold tracking-[-0.04em]">{attentionCount}</div>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{t("dashboard.reviewLoad")}</div>
+                      <div className="mt-1 text-lg font-semibold tracking-[-0.04em]">{formatMoney(attentionVnd, "VND")}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-12 gap-1 self-center rounded-xl border bg-muted/20 p-3">
+                  {confidenceDots.map((dot) => (
+                    <span
+                      key={dot.id}
+                      className="aspect-square rounded-full transition-transform duration-300"
+                      style={{ backgroundColor: dot.color, opacity: dot.opacity, transform: `scale(${dot.scale})` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]">
+            <article className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="border-b bg-muted/20 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.trendComposite")}</div>
+                    <div className="mt-1 text-base font-semibold tracking-[-0.02em]">{t("dashboard.volume")}</div>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.trendCompositeBody")}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-3 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-[#153f30]" />{t("dashboard.readyLine")}</span>
+                    <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-[#8b5cf6]" />{t("dashboard.reviewLine")}</span>
+                    <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-[#111827]" />{t("dashboard.failedLine")}</span>
+                  </div>
+                </div>
+              </div>
+              <ChartContainer config={premiumChartConfig} className="h-[260px] w-full aspect-auto p-4">
+                <AreaChart data={trendAreaData} margin={{ top: 10, right: 12, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="dashboardReadyFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-extracted)" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="var(--color-extracted)" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="dashboardReviewFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-review)" stopOpacity={0.22} />
+                      <stop offset="95%" stopColor="var(--color-review)" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={10} />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area type="monotone" dataKey="ready" stroke="var(--color-extracted)" fill="url(#dashboardReadyFill)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="review" stroke="var(--color-review)" fill="url(#dashboardReviewFill)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="failed" stroke="var(--color-failed)" fill="transparent" strokeWidth={2} />
+                </AreaChart>
+              </ChartContainer>
+            </article>
+
+            <article className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="border-b bg-muted/20 p-4">
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{t("dashboard.riskMap")}</div>
+                <div className="mt-1 text-base font-semibold tracking-[-0.02em]">{t("dashboard.confidenceMap")}</div>
+              </div>
+              <ChartContainer config={premiumChartConfig} className="h-[260px] w-full aspect-auto p-4">
+                <ScatterChart margin={{ top: 10, right: 10, bottom: 8, left: -18 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="confidence" name={t("dashboard.confidence")} type="number" domain={[0, 100]} tickLine={false} axisLine={false} unit="%" />
+                  <YAxis dataKey="amount" name={t("dashboard.amount")} type="number" tickLine={false} axisLine={false} unit="m" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Scatter data={riskScatter} dataKey="amount" name={t("dashboard.amount")} fill="var(--color-risk)">
+                    {riskScatter.map((entry) => (
+                      <Cell key={entry.document} fill={entry.fill} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ChartContainer>
+            </article>
+          </div>
         </section>
 
         <section aria-label={t("dashboard.todayWork")} className="grid gap-4 lg:grid-cols-[1.15fr_.9fr_.95fr]">

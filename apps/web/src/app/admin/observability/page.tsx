@@ -9,6 +9,7 @@ import {
   Gauge,
   MailWarning,
   RadioTower,
+  RefreshCw,
   Route,
   Search,
   ServerCog,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate } from "@/lib/docuflow-data"
 import { useDocuFlowDocuments } from "@/lib/docuflow-store"
+import { useDocumentsSync } from "@/hooks/use-documents-sync"
 import { useAdminText } from "@/lib/admin-i18n"
 
 type AlarmState = "OK" | "ALARM" | "INSUFFICIENT_DATA"
@@ -144,7 +146,8 @@ function signalClass(tone: string) {
 
 export default function AdminObservabilityPage() {
   const a = useAdminText()
-  const { documents } = useDocuFlowDocuments()
+  const { documents, mergeDocuments } = useDocuFlowDocuments()
+  const { apiMode, isSyncing, refreshDocuments, syncError, syncMessage } = useDocumentsSync(mergeDocuments, { loadAllPages: true })
   const alarmCount = alarms.filter((alarm) => alarm.state === "ALARM").length
   const okCount = alarms.filter((alarm) => alarm.state === "OK").length
   const failedDocuments = documents.filter((document) => document.status === "FAILED").length
@@ -169,6 +172,9 @@ export default function AdminObservabilityPage() {
                 <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
                   {a("Alert evidence")}
                 </Badge>
+                <Badge variant="outline" className="border-white/15 bg-white/8 font-mono text-[9px] uppercase tracking-[0.18em] text-white/50">
+                  {apiMode ? a("Live API sync") : a("Local demo")}
+                </Badge>
               </div>
               <h2 className="mt-5 max-w-3xl font-display text-3xl font-semibold leading-tight text-white md:text-5xl">
                 {a("Logs, traces, alarms, and delivery status in one admin view.")}
@@ -188,6 +194,16 @@ export default function AdminObservabilityPage() {
                     {a("Evidence packet")}
                     <Route className="size-4" />
                   </Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/15 bg-white/5 text-white transition-colors duration-200 hover:bg-white/10"
+                  onClick={() => void refreshDocuments()}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw className={isSyncing ? "size-4 animate-spin" : "size-4"} />
+                  {a("Refresh data")}
                 </Button>
               </div>
             </div>
@@ -244,6 +260,8 @@ export default function AdminObservabilityPage() {
             </CardTitle>
             <CardDescription>
               {a("Alarm definitions mapped to reviewer evidence and first response action.")}
+              {syncMessage && <span className="ml-2 text-primary">{syncMessage}</span>}
+              {syncError && <span className="ml-2 text-destructive">{syncError}</span>}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">

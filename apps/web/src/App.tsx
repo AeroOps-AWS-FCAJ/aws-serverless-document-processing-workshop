@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { initGTM } from '@/utils/analytics'
 import { AuthProvider } from '@/contexts/auth-context'
 import { LanguageProvider } from '@/lib/i18n'
+import { Toaster } from '@/components/ui/sonner'
 
 // Get basename from environment (for deployment) or use empty string for development
 const basename = import.meta.env.VITE_BASENAME || ''
@@ -20,6 +21,7 @@ function App() {
     <div className="font-sans antialiased" style={{ fontFamily: 'var(--font-body)' }}>
       <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
         <LanguageProvider>
+          <Toaster />
           <AuthProvider>
             <SidebarConfigProvider>
               <Router basename={basename}>
